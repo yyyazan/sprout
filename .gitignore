@@ -34,6 +34,7 @@ env/
 .ipynb_checkpoints/
 
 notebooks/portfolio.ipynb
+notebooks/.
 
 # ── IDE / OS junk ─────────────────────────────────────────────────────────
 .idea/
