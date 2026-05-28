@@ -1,4 +1,4 @@
-Date,Type,Description,Amount (USD)
-15/01/2024,Deposit,Adding funds via bank transfer,500.0
-03/02/2024,Deposit,Adding funds via bank transfer,300.0
-10/04/2024,Withdrawal,Withdraw to bank account,-150.0
+Date,Amount (USD)
+2024-01-15,500.0
+2024-02-03,300.0
+2024-04-10,-150.0

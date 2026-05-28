@@ -3,6 +3,8 @@
 # Schema is documented via data/*.example.csv (which IS committed).
 data/*.csv
 !data/*.example.csv
+# Backups/exports of real data (e.g. pre-migration .bak snapshots)
+data/*.bak
 
 # Local DuckDB cache (regenerable from yfinance)
 data/*.duckdb

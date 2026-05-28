@@ -14,6 +14,7 @@ dependencies = [
     "plotly>=5.20",
     "dash>=2.17",
     "dash-mantine-components>=0.14",
+    "dash-iconify>=0.1.2",
     "dash-auth>=2.3",
     "gunicorn>=22.0",
     "bcrypt>=4.1",

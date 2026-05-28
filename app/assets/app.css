@@ -1,0 +1,221 @@
+/* Beta 0.001 — minimal monarch-ish light layout. No theming, just structure. */
+
+:root {
+  --bg: #f7f6f5;
+  --surface: #ffffff;
+  --border: #ececea;
+  --text: #1c1c1e;
+  --muted: #6b6b6f;
+  --accent: #e37961;
+  --gain: #2f9e7d;
+  --loss: #c94f4f;
+}
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+}
+
+a { color: inherit; text-decoration: none; }
+
+.app-root {
+  display: grid;
+  /* minmax(0, 1fr): a bare 1fr track won't shrink below its content's
+     min-width, so a wide table would stretch the whole page. The 0 minimum
+     lets the content column shrink and scroll its tables internally. */
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  padding: 16px 8px;
+}
+
+.brand { padding: 6px 12px 20px; }
+.brand-title { font-size: 18px; font-weight: 600; }
+
+.nav { display: flex; flex-direction: column; gap: 4px; }
+
+.nav-link {
+  display: block;
+  border-radius: 8px;
+  color: var(--text);
+  transition: background 120ms;
+}
+.nav-link:hover { background: rgba(0, 0, 0, 0.04); }
+.nav-link.active { background: var(--border); }
+.nav-link.active .nav-label { font-weight: 600; }
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.nav-icon { color: var(--text); flex-shrink: 0; }
+
+.sidebar-footer { display: none; }
+
+.content {
+  padding: 22px 28px;
+  box-sizing: border-box;
+  /* width:100% (not max-content) so the column fills — but never exceeds — its
+     grid track; margin-inline:auto then only centers on screens wider than the
+     1400px cap. Without the explicit width, margin:auto sizes .content to its
+     content and a wide table overflows the page. */
+  width: 100%;
+  min-width: 0;
+  max-width: 1400px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Wide tables must scroll inside their own card rather than stretching the
+   page. Flex/grid children default to min-width:auto (won't shrink below
+   content), so without this a wide DataTable pushes .content past the
+   viewport and clips the last column. */
+.table-card { min-width: 0; }
+.table-card .dash-spreadsheet-container { overflow-x: auto; }
+/* Dash hard-codes min-width:100% / auto on these inner wrappers, which forces
+   the card to the table's full width so the scroll container never clamps.
+   Zeroing them lets the card shrink and the table scroll horizontally. */
+.table-card .dash-spreadsheet-inner,
+.table-card .dt-table-container__row { min-width: 0; }
+
+.page-title { font-size: 22px; font-weight: 600; }
+.page-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.page-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.kpi-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.kpi-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.kpi-value { font-size: 28px; font-weight: 600; line-height: 1.1; }
+.kpi-value-up { color: var(--gain); }
+.kpi-value-down { color: var(--loss); }
+.kpi-subtitle { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+.progress-card { display: flex; flex-direction: column; justify-content: center; }
+.progress-value { font-size: 18px; font-weight: 600; margin: 6px 0; }
+.progress-bar { background: var(--border); border-radius: 4px; height: 8px; overflow: hidden; margin-top: 4px; }
+.progress-fill { background: var(--gain); height: 100%; transition: width .3s ease; }
+.progress-pct { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+.chart-card { display: flex; flex-direction: column; padding: 16px 20px; }
+.chart-card > :last-child { flex: 1; min-height: 0; }
+
+.alloc-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px 14px;
+  gap: 10px;
+  overflow: hidden;
+}
+.alloc-panel-title { font-size: 16px; font-weight: 600; }
+.alloc-donut { flex: 0 0 auto; min-height: 0; }
+.alloc-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;   /* distribute rows so the last hits the bottom */
+  flex: 1;
+  min-height: 0;
+  gap: 6px;
+}
+.alloc-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.alloc-dot { width: 10px; height: 10px; border-radius: 50%; }
+.alloc-ticker { color: var(--text); font-weight: 500; }
+.alloc-amount { color: var(--text); font-variant-numeric: tabular-nums; font-size: 12px; }
+.alloc-pct { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 44px; text-align: right; }
+
+.chart-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.chart-title { font-size: 16px; font-weight: 600; }
+.chart-subtitle { font-size: 12px; color: var(--muted); }
+
+.two-col { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; }
+.stacked { display: flex; flex-direction: column; gap: 16px; }
+
+.placeholder { text-align: center; padding: 32px; }
+.placeholder-title { margin-bottom: 8px; }
+.placeholder-body { color: var(--muted); }
+
+/* ── Widget grid (Apple-widget sizing — fixed unit, 4-col base) ──────────
+   Sizing mirrors Apple's home-screen widgets:
+     small  = 1×1 square      (--unit × --unit)
+     medium = 2×1 horizontal  (~2:1)
+     large  = 2×2 big square  (~1:1)
+     xl     = 4×2 banner      (~2:1)
+   Both columns and rows are sized in fixed --unit increments so the grid
+   keeps its proportions regardless of viewport width — excess page space
+   stays empty around the grid (left-aligned). */
+
+.widget-grid {
+  /* 6-col grid with a fixed --unit (size of one small square). All widgets
+     are multiples of --unit on both axes so Apple aspect ratios are preserved.
+     --unit scales gently with viewport but caps so KPIs never feel oversized. */
+  --unit: clamp(140px, 13vw, 200px);
+  --gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(6, var(--unit));
+  grid-auto-rows: var(--unit);
+  gap: var(--gap);
+  width: max-content;        /* don't stretch to fill .page-content */
+}
+
+.widget-small  { grid-column: span 1; }
+.widget-medium { grid-column: span 2; }
+.widget-large  { grid-column: span 2; grid-row: span 2; }
+.widget-xl     { grid-column: span 4; grid-row: span 2; }
+.widget-tall   { grid-column: span 2; grid-row: span 3; }
+
+/* Phone — collapse to 2 cols, keep proportions */
+@media (max-width: 700px) {
+  .app-root { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+  .nav { flex-direction: row; overflow-x: auto; }
+  .nav-label { display: none; }
+  .two-col { grid-template-columns: 1fr; }
+  .content { padding: 16px; }
+
+  .widget-grid {
+    --unit: clamp(130px, 42vw, 170px);
+    --gap: 12px;
+    grid-template-columns: repeat(2, var(--unit));
+  }
+  .widget-medium { grid-column: span 2; }
+  .widget-large  { grid-column: span 2; grid-row: span 2; }
+  .widget-xl     { grid-column: span 2; grid-row: span 2; }
+  .widget-tall   { grid-column: span 2; grid-row: span 3; }
+}
