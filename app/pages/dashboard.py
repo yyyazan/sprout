@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import dash
 import pandas as pd
+from dash import Input, Output, clientside_callback
 
 from app.components.cards.allocation_panel import allocation_panel
+from app.components.cards.card_hand import card_hand
 from app.components.cards.chart_card import chart_card
 from app.components.cards.kpi_card import kpi_card
 from app.components.cards.progress_card import progress_card
@@ -19,6 +21,14 @@ from app.state import get_snapshot
 from portfolio.viz import figures
 
 dash.register_page(__name__, path="/", name="Dashboard", order=0)
+
+# Fire the card-hand JS layout/bind once the page renders (and on navigation).
+# All interaction lives in assets/cards.js — this only kicks off init().
+clientside_callback(
+    "function(_) { if (window.initCardHand) { window.initCardHand(); } return ''; }",
+    Output("card-hand-init", "data"),
+    Input("url", "pathname"),
+)
 
 
 def _last(series: pd.Series, default=None):
@@ -51,4 +61,8 @@ def layout():
         # Rows 3-4: Portfolio Value chart spans the full bottom (xl = 4×2).
         chart_card("Portfolio Value", figures.equity_curve(s.portfolio_value_ts), size="xl"),
     )
-    return page_shell(title="Dashboard", subtitle=f"last updated {last_txn}", content=tiles)
+    return page_shell(
+        title="Dashboard",
+        subtitle=f"last updated {last_txn}",
+        content=[card_hand(s.cards), tiles],
+    )

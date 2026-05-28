@@ -13,6 +13,7 @@ from pathlib import Path
 import pandas as pd
 
 from portfolio.analytics import (
+    cards as cards_mod,
     cash as cash_mod,
     cost_basis as cb_mod,
     positions as pos_mod,
@@ -63,6 +64,9 @@ class PortfolioSnapshot:
     # Savings / activity
     monthly_deposits: float
     last_txn_date: pd.Timestamp | None
+
+    # Card hand (positions-as-playing-cards + Joker for cash)
+    cards: list[dict]
 
     # Convenience
     last_updated: pd.Timestamp
@@ -155,6 +159,19 @@ def run(data_dir: str | Path = "data", benchmarks: tuple[str, ...] = ("SPY", "QQ
         else pd.Series(dtype=float)
     )
 
+    # ── 15. Card hand (rank vs SPY, suit by sector, Joker = free cash) ──────
+    voo_hist = all_history.get("VOO")
+    if voo_hist is None or voo_hist.empty:
+        voo_hist = prices_mod.history("VOO")
+    cards = cards_mod.compute_card_data(
+        pnl=pnl,
+        trades_adj=trades_adj,
+        histories=all_history,
+        spy_hist=bench_history[benchmarks[0]],
+        voo_hist=voo_hist,
+        free_cash=fc,
+    )
+
     return PortfolioSnapshot(
         open_positions=open_pos,
         pnl=pnl,
@@ -180,5 +197,6 @@ def run(data_dir: str | Path = "data", benchmarks: tuple[str, ...] = ("SPY", "QQ
         sharpe_qqq=risk_mod.sharpe(twr_qqq) if len(twr_qqq) else 0.0,
         monthly_deposits=_current_month_deposits(txn),
         last_txn_date=_last_txn_date(txn),
+        cards=cards,
         last_updated=pd.Timestamp.now(),
     )

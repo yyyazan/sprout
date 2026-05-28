@@ -1,0 +1,178 @@
+/* ── Card hand ───────────────────────────────────────────────────────────
+   Light-faced playing cards on a desaturated-green felt band. The band is a
+   short, square-cornered strip; the cards are anchored near its bottom and
+   overhang its top edge, so a bit more than half of each card rises above the
+   green. Left offsets + ALL interaction live in assets/cards.js.
+
+   Each card is a stable, never-transformed `.portfolio-card` hit-wrapper. The
+   pop/tilt/scale transform lives on the inner `.card-inner` only, so the
+   wrapper's hit area never moves and the hover can't jitter. */
+
+.card-hand-band {
+  position: relative;
+  background: #6f7a63;            /* desaturated green felt */
+  border: none;
+  border-radius: 0;
+  height: 150px;
+  margin-top: 132px;              /* room for the cards to overhang upward */
+  overflow: visible;
+  /* A darker felt belt peeking ~6px below the top one (hard offset shadow),
+     plus a soft cast shadow under it — reads as a stacked 3D ledge. */
+  box-shadow: 0 6px 0 0 #525c47, 0 13px 16px rgba(0, 0, 0, 0.22);
+}
+
+.card-hand {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 48px;                   /* card bottom sits 48px above the felt's bottom */
+  height: 212px;
+  overflow: visible;
+}
+
+/* Hit-wrapper — never transforms; just positions the card and owns z-index. */
+.portfolio-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 148px;
+  height: 212px;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  overflow: visible;
+}
+
+/* Visual face — carries the transform (pop/tilt/scale) and all styling.
+   pointer-events:none so the stable wrapper box is the ONLY hit target; the
+   tilting/popped face can never become the hit-tested element → no jitter. */
+.card-inner {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 10px;
+  box-sizing: border-box;
+  padding: 10px;
+  overflow: hidden;
+  transform: none;
+  transform-origin: center bottom;
+  will-change: transform;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18), 0 10px 22px rgba(0, 0, 0, 0.22);
+  background: var(--face-bg, #fbfaf7);
+  border: 1px solid var(--face-border, #e3ded3);
+  color: #1c1c1e;
+}
+
+/* ── Suit themes — light faces, accents avoid good/bad colour loading ──── */
+.suit-sp { --accent: #5b62c4; --face-bg: #f8f8fd; --face-border: #e2e2ee; } /* indigo */
+.suit-ht { --accent: #cf5b92; --face-bg: #fdf6fa; --face-border: #efdce7; } /* pink   */
+.suit-dm { --accent: #2f93b3; --face-bg: #f4fafc; --face-border: #d9e9ee; } /* cyan   */
+.suit-cl { --accent: #b3863c; --face-bg: #fbf8f1; --face-border: #ece3cf; } /* amber  */
+.suit-jk { --accent: #8e5bc9; --face-bg: #f9f5fc; --face-border: #e6dcef; } /* violet */
+
+/* ── Corners ─────────────────────────────────────────────────────────── */
+.corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--accent);
+}
+.corner-tl { top: 8px; left: 9px; }
+.corner-br { bottom: 8px; right: 9px; transform: rotate(180deg); }
+.corner-rank { font-size: 15px; font-weight: 700; }
+.corner-suit { font-size: 15px; margin-top: 2px; }
+
+/* ── Centre face ─────────────────────────────────────────────────────── */
+.card-center {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  text-align: center;
+}
+
+.card-logo-wrap {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 4px;
+}
+.card-logo,
+.card-logo-fallback {
+  position: absolute;
+  inset: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+}
+.card-logo {
+  z-index: 1;
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid #eee9df;
+}
+.card-logo-fallback {
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.card-ticker { font-family: Georgia, serif; font-size: 18px; font-weight: 700; color: #1c1c1e; }
+.card-name {
+  font-family: "Courier New", monospace;
+  font-size: 8px;
+  color: #8a8a8f;
+  max-width: 124px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-pct { font-family: "Courier New", monospace; font-size: 19px; font-weight: 700; color: #2a2a2e; margin-top: 6px; }
+.card-pct-label { font-family: "Courier New", monospace; font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; color: #a3a3a8; }
+
+/* ── Joker ───────────────────────────────────────────────────────────── */
+.joker-center { gap: 4px; }
+.joker-star { font-size: 30px; color: var(--accent); line-height: 1; }
+.joker-word {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: Georgia, serif;
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.04;
+  letter-spacing: 1px;
+  color: var(--accent);
+  margin: 2px 0;
+}
+
+/* ── Holographic foil — a WebGL canvas running the Balatro holo shader.
+   cards.js injects this canvas into the hovered card's `.card-inner` and
+   animates it; it transforms (pop/tilt) with the card because it's a child.
+   `screen` blend lays the shader's bright iridescence over the light face. */
+.holo-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+.holo-canvas.is-on { opacity: 1; }
+
+@media (max-width: 720px) {
+  .card-hand-band { margin-top: 120px; }
+}

@@ -14,6 +14,7 @@ import yfinance as yf
 
 _HISTORY_CACHE: dict[str, pd.Series] = {}
 _SPLITS_CACHE: dict[str, pd.Series] = {}
+_PROFILE_CACHE: dict[str, dict] = {}
 
 
 def _strip_tz(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
@@ -92,3 +93,24 @@ def price_on_date(ticker: str, date: pd.Timestamp) -> float | None:
         return None
     valid = series[series.index <= date]
     return float(valid.iloc[-1]) if not valid.empty else None
+
+
+def profile(ticker: str) -> dict:
+    """Sector + company name from yfinance `.info`. Cached per process.
+
+    `.info` is a heavy network call, so this is warmed once at boot inside the
+    snapshot. Returns {} for delisted/unknown tickers (yfinance can raise on
+    its internal cache) — callers fall back to neutral suit/name defaults.
+    """
+    if ticker in _PROFILE_CACHE:
+        return _PROFILE_CACHE[ticker]
+    try:
+        info = yf.Ticker(ticker).info or {}
+        prof = {
+            "sector": info.get("sector", "") or "",
+            "name": info.get("longName") or info.get("shortName") or "",
+        }
+    except Exception:
+        prof = {}
+    _PROFILE_CACHE[ticker] = prof
+    return prof
