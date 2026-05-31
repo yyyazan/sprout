@@ -8,11 +8,14 @@ directly.
 from __future__ import annotations
 
 import math
+import time
 
 import numpy as np
 import pandas as pd
 
 from portfolio.pipeline import PortfolioSnapshot
+from portfolio.data import prices as prices_mod
+from portfolio.analytics.cards import _spot_move
 
 from api.config import MONTHLY_SAVINGS_TARGET
 from api.greeting import greeting_for
@@ -73,6 +76,50 @@ def dashboard_payload(s: PortfolioSnapshot, period: str) -> dict:
         "equity_curve": _xy(s.portfolio_value_ts, 2),
         "cards": [{k: _py(v) for k, v in c.items()} for c in s.cards],
     }
+
+
+# Live momentum is intentionally OUTSIDE the compute-once snapshot cache so a
+# mid-day check reflects right-now spot prices. A short TTL bounds how often we
+# hit yfinance regardless of reloads/polling.
+_MOM_TTL_SECONDS = 45.0
+_mom_cache: dict = {"ts": 0.0, "key": None, "data": None}
+
+
+def momentum_payload(s: PortfolioSnapshot) -> dict:
+    """Fresh per-holding intraday momentum (spot vs prior-session close).
+
+    Bypasses both freezes: clears the per-process spot LRU and recomputes from
+    live spots, cached only for `_MOM_TTL_SECONDS`. Reference closes come from
+    the (cheap, cached) daily-close history; only spot is forced fresh.
+    """
+    tickers = [str(t) for t in s.pnl.index]
+    key = tuple(tickers)
+    now = time.time()
+    if _mom_cache["data"] is not None and _mom_cache["key"] == key and (now - _mom_cache["ts"] < _MOM_TTL_SECONDS):
+        return _mom_cache["data"]
+
+    prices_mod.spot.cache_clear()  # force fresh quotes this cycle
+    # TODO(perf): batch the quotes — replace the per-ticker spot() loop with a single
+    # yf.Tickers("AAPL MSFT …") / yf.download(period="1d") call so a refresh is 1 request
+    # instead of N. Fine for a few users at a 45s TTL now; do this before scaling / faster polling.
+    moves: dict = {}
+    for t in tickers:
+        hist = prices_mod.history(t)
+        try:
+            spot = prices_mod.spot(t)
+        except Exception:
+            spot = None
+        day = _spot_move(hist, spot, 1)
+        week = _spot_move(hist, spot, 5)
+        moves[t] = {
+            "day_pct": round(day * 100, 2) if day is not None else None,
+            "week_pct": round(week * 100, 2) if week is not None else None,
+            "spot": round(float(spot), 2) if spot is not None else None,
+        }
+
+    data = {"as_of": now, "ttl": _MOM_TTL_SECONDS, "moves": moves}
+    _mom_cache.update(ts=now, key=key, data=data)
+    return data
 
 
 def investments_payload(s: PortfolioSnapshot) -> dict:

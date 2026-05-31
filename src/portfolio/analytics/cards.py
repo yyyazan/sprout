@@ -80,6 +80,33 @@ def _trailing_vol(series: pd.Series, window: int = _WINDOW) -> float | None:
     return vol if vol and vol > 0 else None
 
 
+def _spot_move(series: pd.Series, spot_price: float | None, sessions: int) -> float | None:
+    """Intraday % move (decimal): live spot vs the close `sessions` *completed*
+    trading days ago. sessions=1 → today so far, sessions=5 → this week so far.
+
+    Today's own (possibly intraday) history row is dropped so we never compare
+    spot against itself. Returns None if spot or history is missing.
+    """
+    if spot_price is None or series is None:
+        return None
+    s = series.dropna()
+    if s.empty:
+        return None
+    try:
+        today = pd.Timestamp.today().normalize()
+        completed = s[s.index.normalize() < today]
+    except Exception:
+        completed = s
+    if completed.empty:
+        completed = s
+    if len(completed) < sessions:
+        return None
+    ref = float(completed.iloc[-sessions])
+    if ref == 0:
+        return None
+    return spot_price / ref - 1.0
+
+
 def compute_ranks(
     tickers: list[str],
     histories: dict[str, pd.Series],
@@ -170,6 +197,19 @@ def compute_positions(
             voo_delta_pp = 0.0
 
         mv = float(row["market_value"])
+
+        # Momentum: INTRADAY % move = live spot price vs the close N completed
+        # trading days ago (1 = today so far, 5 = this week). Uses prices.spot()
+        # so a mid-session check reflects right-now, not last night's close.
+        # Non-deterministic + one live call per holding; None if spot/history missing.
+        hist = histories.get(t)
+        try:
+            spot_price = prices_mod.spot(t)
+        except Exception:
+            spot_price = None
+        day_ret = _spot_move(hist, spot_price, 1)
+        week_ret = _spot_move(hist, spot_price, 5)
+
         cards.append({
             "ticker": t,
             "company_name": name,
@@ -178,6 +218,8 @@ def compute_positions(
             "suit_symbol": SUIT_SYMBOL.get(suit, "♦"),
             "rank": ranks.get(t, "2"),
             "position_pct": round(mv / total_mv * 100, 1) if total_mv else 0.0,
+            "day_pct": round(day_ret * 100, 2) if day_ret is not None else None,
+            "week_pct": round(week_ret * 100, 2) if week_ret is not None else None,
             "current_price": round(float(row["current_price"]), 2),
             "shares": round(float(row["shares"]), 2),
             "market_value": round(mv, 2),
@@ -197,6 +239,8 @@ def compute_positions(
         "suit_symbol": "",
         "rank": "★",
         "position_pct": 0.0,
+        "day_pct": None,
+        "week_pct": None,
         "current_price": 0.0,
         "shares": 0.0,
         "market_value": 0.0,

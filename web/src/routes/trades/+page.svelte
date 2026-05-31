@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
   import { fmt } from '$lib/format.js';
+  import FeedbackButton from '$lib/components/FeedbackButton.svelte';
 
   const TICKER_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
   const today = () => new Date().toISOString().slice(0, 10);
@@ -17,14 +18,12 @@
   let tShares = $state('');
   let tDate = $state(today());
   let tErrors = $state({});
-  let tFeedback = $state(null);
 
   // Txn form
   let xType = $state('Deposit');
   let xAmount = $state('');
   let xDate = $state(today());
   let xError = $state(null);
-  let xFeedback = $state(null);
 
   let tickerLive = $derived(
     tTicker && !TICKER_RE.test(tTicker.toUpperCase()) ? 'Invalid format.' : null
@@ -42,8 +41,8 @@
   }
   onMount(loadAll);
 
+  // Return the API result so FeedbackButton can drive its working→success/error signal.
   async function submitTrade() {
-    tFeedback = null;
     const res = await api.addTrade({
       ticker: tTicker,
       action: tAction,
@@ -52,16 +51,15 @@
     });
     if (res.ok) {
       tErrors = {};
-      tFeedback = { ok: true, msg: `Saved ${tAction} ${tTicker.toUpperCase()}` };
       tTicker = ''; tShares = '';
       await loadAll();
     } else {
       tErrors = res.errors || {};
     }
+    return res;
   }
 
   async function submitTxn() {
-    xFeedback = null;
     const res = await api.addTransaction({
       txn_date: xDate,
       txn_type: xType,
@@ -69,12 +67,12 @@
     });
     if (res.ok) {
       xError = null;
-      xFeedback = { ok: true, msg: `Saved ${xType.toLowerCase()}` };
       xAmount = '';
       await loadAll();
     } else {
       xError = res.error;
     }
+    return res;
   }
 </script>
 
@@ -105,9 +103,8 @@
           <input type="date" bind:value={tDate} max={today()} />
           {#if tErrors.date}<span class="field-err">{tErrors.date}</span>{/if}
         </label>
-        <button class="submit" onclick={submitTrade}>Save trade</button>
+        <FeedbackButton label="Save trade" action={submitTrade} />
       </div>
-      {#if tFeedback}<div class="feedback ok">✓ {tFeedback.msg}</div>{/if}
     {:else}
       <div class="form-grid">
         <label>Type
@@ -119,10 +116,9 @@
         <label>Date
           <input type="date" bind:value={xDate} max={today()} />
         </label>
-        <button class="submit" onclick={submitTxn}>Save transaction</button>
+        <FeedbackButton label="Save transaction" action={submitTxn} />
       </div>
-      {#if xError}<div class="feedback err">{xError}</div>{/if}
-      {#if xFeedback}<div class="feedback ok">✓ {xFeedback.msg}</div>{/if}
+      {#if xError}<div class="field-err" style="margin-top:10px">{xError}</div>{/if}
     {/if}
   </div>
 
@@ -148,7 +144,7 @@
         <tbody>
           {#each transactions as x}
             <tr><td>{x.date}</td><td>{x.direction}</td>
-              <td class={x.amount >= 0 ? 'cell-gain' : 'cell-loss'}>{fmt.signedMoney2(x.amount)}</td></tr>
+              <td><span class={x.amount >= 0 ? 'cell-gain' : 'cell-loss'}>{fmt.signedMoney2(x.amount)}</span></td></tr>
           {/each}
         </tbody>
       </table>
@@ -166,7 +162,7 @@
               <td>{r.ticker}</td><td>{fmt.shares(r.shares)}</td>
               <td>{r.buy_date}</td><td>{r.sell_date}</td>
               <td>{fmt.money2(r.buy_price)}</td><td>{fmt.money2(r.sell_price)}</td>
-              <td class={r.realized_pnl >= 0 ? 'cell-gain' : 'cell-loss'}>{fmt.signedMoney2(r.realized_pnl)}</td>
+              <td><span class={r.realized_pnl >= 0 ? 'cell-gain' : 'cell-loss'}>{fmt.signedMoney2(r.realized_pnl)}</span></td>
             </tr>
           {/each}
         </tbody>
@@ -176,14 +172,12 @@
 </div>
 
 <style>
-  .seg { padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
-  .seg.active { background: var(--border); font-weight: 600; }
-  .form-grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
-  .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
-  .form-grid input, .form-grid select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; color: var(--text); background: var(--surface); }
-  .field-err { color: var(--loss); font-size: 11px; }
-  .submit { padding: 9px 16px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
-  .feedback { margin-top: 12px; padding: 8px 12px; border-radius: 8px; font-size: 13px; }
-  .feedback.ok { background: rgba(47,158,125,.12); color: var(--gain); }
-  .feedback.err { background: rgba(201,79,79,.12); color: var(--loss); }
+  .seg { padding: 9px 16px; border: var(--bw) solid var(--ink); border-radius: var(--r); background: var(--surface); font-family: var(--mono); font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--sh); transition: transform .1s ease, box-shadow .1s ease; }
+  .seg:hover:not(.active) { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--ink); }
+  .seg.active { background: var(--ink); color: var(--surface); }
+  .form-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .form-grid label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .form-grid input, .form-grid select { padding: 10px 12px; border: var(--bw) solid var(--ink); border-radius: var(--r); font-family: var(--sans); font-size: 14px; color: var(--text); background: var(--surface); box-shadow: var(--sh); }
+  .form-grid input:focus, .form-grid select:focus { outline: none; background: #fffdf5; }
+  .field-err { color: var(--loss); font-size: 11px; font-weight: 700; }
 </style>
