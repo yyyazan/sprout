@@ -50,8 +50,14 @@
         {#each rows as row}
           <tr>
             {#each COLUMNS as col}
-              <td class={col.color ? (row[col.id] >= 0 ? 'cell-gain' : 'cell-loss') : ''}>
-                {col.f(row[col.id])}
+              <td>
+                {#if col.id === 'ticker'}
+                  <span class="ticker-chip">{col.f(row[col.id])}</span>
+                {:else if col.color}
+                  <span class={row[col.id] >= 0 ? 'cell-gain' : 'cell-loss'}>{col.f(row[col.id])}</span>
+                {:else}
+                  {col.f(row[col.id])}
+                {/if}
               </td>
             {/each}
           </tr>
