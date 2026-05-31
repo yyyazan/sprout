@@ -1,9 +1,20 @@
-"""yfinance wrappers with in-memory caching for the process lifetime.
+"""yfinance wrappers backed by a durable DuckDB/Parquet cache.
 
-DuckDB-backed disk cache lands in M2.5 — for now, every fresh boot pays the
-yfinance cold-call cost once. The store-portfolio pattern in app/main.py
-absorbs this at startup so user-facing callbacks stay fast.
+Public signatures are unchanged from the old in-memory version — analytics
+import these by name (e.g. ``cash.py``), so behaviour is drop-in. What changed
+is the cache layer: history/splits/profile now persist to a shared Parquet
+store (:mod:`portfolio.data.store`) with per-kind TTL freshness, instead of
+process-lifetime dicts. This survives restarts, is shared across users/workers,
+and makes the benchmark series deterministic (the old uncached ``history_from``
+jittered with the live close).
+
+Two cache tiers: an in-process memo (L1, fast within a run) over the Parquet
+store (L2, durable). On a yfinance failure a stale L2 entry is preferred over
+an empty result; only genuine "no data anywhere" yields an empty series, and
+empty results are never written to Parquet (so delisted tickers can't poison
+the cache).
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -12,6 +23,9 @@ from functools import lru_cache
 import pandas as pd
 import yfinance as yf
 
+from portfolio.data import store
+
+# L1 in-process memo (cleared on process restart).
 _HISTORY_CACHE: dict[str, pd.Series] = {}
 _SPLITS_CACHE: dict[str, pd.Series] = {}
 _PROFILE_CACHE: dict[str, dict] = {}
@@ -29,16 +43,25 @@ def history(ticker: str) -> pd.Series:
     """
     if ticker in _HISTORY_CACHE:
         return _HISTORY_CACHE[ticker]
+
+    cached = store.read_history(ticker)
+    if cached is not None and not cached.empty and store.is_fresh(ticker, "history"):
+        _HISTORY_CACHE[ticker] = cached
+        return cached
+
     try:
         hist = yf.Ticker(ticker).history(period="max")
     except Exception:
-        _HISTORY_CACHE[ticker] = pd.Series(dtype=float)
-        return _HISTORY_CACHE[ticker]
-    if hist.empty:
-        _HISTORY_CACHE[ticker] = pd.Series(dtype=float)
-        return _HISTORY_CACHE[ticker]
+        hist = None
+    if hist is None or hist.empty:
+        # Fall back to a stale cache before giving up.
+        result = cached if (cached is not None and not cached.empty) else pd.Series(dtype=float)
+        _HISTORY_CACHE[ticker] = result
+        return result
+
     hist.index = _strip_tz(hist.index)
     series = hist["Close"]
+    store.write_history(ticker, series)
     _HISTORY_CACHE[ticker] = series
     return series
 
@@ -49,37 +72,48 @@ def histories(tickers: list[str]) -> dict[str, pd.Series]:
 
 
 def history_from(ticker: str, start: datetime | pd.Timestamp) -> pd.Series:
-    """Close-price history starting at `start`. Used for benchmarks (SPY/QQQ)."""
-    try:
-        hist = yf.Ticker(ticker).history(start=start)
-    except Exception:
-        return pd.Series(dtype=float)
-    if hist.empty:
-        return pd.Series(dtype=float)
-    hist.index = _strip_tz(hist.index)
-    return hist["Close"]
+    """Close-price history starting at `start`. Used for benchmarks (SPY/QQQ).
+
+    Derived from the cached full ``history`` (sliced to ``>= start``) so it is
+    durable and deterministic rather than a fresh, jittering yfinance call.
+    """
+    series = history(ticker)
+    if series.empty:
+        return series
+    return series[series.index >= pd.Timestamp(start)]
 
 
 def splits(ticker: str) -> pd.Series:
     if ticker in _SPLITS_CACHE:
         return _SPLITS_CACHE[ticker]
+
+    cached = store.read_splits(ticker)
+    if cached is not None and store.is_fresh(ticker, "splits"):
+        _SPLITS_CACHE[ticker] = cached
+        return cached
+
     try:
         s = yf.Ticker(ticker).splits
     except Exception:
-        _SPLITS_CACHE[ticker] = pd.Series(dtype=float)
-        return _SPLITS_CACHE[ticker]
-    if s.empty:
-        _SPLITS_CACHE[ticker] = pd.Series(dtype=float)
-        return _SPLITS_CACHE[ticker]
+        s = None
+    if s is None or s.empty:
+        result = cached if cached is not None else pd.Series(dtype=float)
+        _SPLITS_CACHE[ticker] = result
+        return result
+
     s = s.copy()
     s.index = _strip_tz(s.index)
+    store.write_splits(ticker, s)
     _SPLITS_CACHE[ticker] = s
     return s
 
 
 @lru_cache(maxsize=128)
 def spot(ticker: str) -> float | None:
-    """Latest live price (fast_info.last_price). LRU-cached per process."""
+    """Latest live price (fast_info.last_price). LRU-cached per process.
+
+    Spot is inherently live, so it stays an in-process cache only (not persisted).
+    """
     try:
         return float(yf.Ticker(ticker).fast_info.last_price)
     except Exception:
@@ -96,7 +130,7 @@ def price_on_date(ticker: str, date: pd.Timestamp) -> float | None:
 
 
 def profile(ticker: str) -> dict:
-    """Sector + company name from yfinance `.info`. Cached per process.
+    """Sector + company name from yfinance `.info`. Durably cached.
 
     `.info` is a heavy network call, so this is warmed once at boot inside the
     snapshot. Returns {} for delisted/unknown tickers (yfinance can raise on
@@ -104,6 +138,12 @@ def profile(ticker: str) -> dict:
     """
     if ticker in _PROFILE_CACHE:
         return _PROFILE_CACHE[ticker]
+
+    cached = store.read_profile(ticker)
+    if cached is not None and store.is_fresh(ticker, "profile"):
+        _PROFILE_CACHE[ticker] = cached
+        return cached
+
     try:
         info = yf.Ticker(ticker).info or {}
         prof = {
@@ -111,6 +151,12 @@ def profile(ticker: str) -> dict:
             "name": info.get("longName") or info.get("shortName") or "",
         }
     except Exception:
-        prof = {}
+        prof = None
+    if prof is None:
+        result = cached if cached is not None else {}
+        _PROFILE_CACHE[ticker] = result
+        return result
+
+    store.write_profile(ticker, prof)
     _PROFILE_CACHE[ticker] = prof
     return prof

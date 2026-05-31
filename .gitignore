@@ -1,10 +1,13 @@
 # ── Sensitive data ────────────────────────────────────────────────────────
 # Real trades and transactions never get committed.
-# Schema is documented via data/*.example.csv (which IS committed).
+# Schema is documented via *.example.csv (which IS committed).
 data/*.csv
 !data/*.example.csv
+csv_data_archive/*.csv
+!csv_data_archive/*.example.csv
 # Backups/exports of real data (e.g. pre-migration .bak snapshots)
 data/*.bak
+csv_data_archive/*.bak
 
 # Local DuckDB cache (regenerable from yfinance)
 data/*.duckdb
@@ -46,3 +49,7 @@ notebooks/.
 .DS_Store
 Thumbs.db
 CLAUDE.md
+var/
+web/node_modules/
+web/.svelte-kit/
+web/build/

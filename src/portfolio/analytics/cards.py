@@ -121,7 +121,7 @@ def _suit_for(ticker: str) -> str:
     return SUIT_OF_SECTOR.get(sector, "dm")
 
 
-def compute_card_data(
+def compute_positions(
     pnl: pd.DataFrame,
     trades_adj: pd.DataFrame,
     histories: dict[str, pd.Series],
@@ -129,7 +129,11 @@ def compute_card_data(
     voo_hist: pd.Series,
     free_cash: float,
 ) -> list[dict]:
-    """Build the ordered list of card dicts (positions first, Joker last)."""
+    """Build the ordered list of position dicts (positions first, Joker last).
+
+    Neutral position data shared by both the card hand and the garden view;
+    ``rank`` and ``suit`` are position attributes, not card concepts.
+    """
     tickers = list(pnl.index)
     total_mv = float(pnl["market_value"].sum()) or 0.0
     ranks = compute_ranks(tickers, histories, spy_hist)

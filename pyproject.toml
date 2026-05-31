@@ -5,22 +5,20 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "portfolio"
 version = "0.1.0"
-description = "Personal portfolio tracker + analytics (Dash app)"
+description = "Personal portfolio tracker + analytics (SvelteKit + FastAPI)"
 requires-python = ">=3.11"
 dependencies = [
     "yfinance>=0.2.40",
     "pandas>=2.2",
     "numpy>=1.26",
     "plotly>=5.20",
-    "dash>=2.17",
-    "dash-mantine-components>=0.14",
-    "dash-iconify>=0.1.2",
-    "dash-auth>=2.3",
-    "gunicorn>=22.0",
     "bcrypt>=4.1",
     "duckdb>=1.0",
     "statsmodels>=0.14",
     "scipy>=1.13",
+    "pyarrow>=24.0.0",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
 ]
 
 [project.optional-dependencies]

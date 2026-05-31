@@ -5,7 +5,8 @@ append so a manual `tail` shows the newest row last.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+import sqlite3
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -60,3 +61,58 @@ def append_transaction(
     out = out.sort_values("Date", kind="stable").reset_index(drop=True)
     out["Date"] = out["Date"].dt.strftime("%Y-%m-%d")
     out.to_csv(path, index=False)
+
+
+# ── SQLite-backed writers (system of record) ────────────────────────────────
+# Plain INSERTs — no read-modify-rewrite. SQLite is the writer.
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def insert_trade_db(
+    user_id: int,
+    conn: sqlite3.Connection,
+    *,
+    ticker: str,
+    action: str,
+    shares: float,
+    trade_date: date,
+) -> int:
+    cur = conn.execute(
+        "INSERT INTO trades (user_id, ticker, action, shares, trade_date, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (
+            user_id,
+            ticker.upper(),
+            str(action).lower(),
+            float(shares),
+            pd.Timestamp(trade_date).strftime("%Y-%m-%d"),
+            _now(),
+        ),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+def insert_transaction_db(
+    user_id: int,
+    conn: sqlite3.Connection,
+    *,
+    txn_date: date,
+    amount: float,
+) -> int:
+    """Insert one cash flow. `amount` is signed: + deposit, - withdrawal."""
+    cur = conn.execute(
+        "INSERT INTO transactions (user_id, txn_date, amount_usd, created_at) "
+        "VALUES (?, ?, ?, ?)",
+        (
+            user_id,
+            pd.Timestamp(txn_date).strftime("%Y-%m-%d"),
+            float(amount),
+            _now(),
+        ),
+    )
+    conn.commit()
+    return int(cur.lastrowid)

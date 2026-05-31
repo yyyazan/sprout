@@ -22,7 +22,7 @@ from portfolio.analytics import (
     risk as risk_mod,
     timeseries as ts_mod,
 )
-from portfolio.data import loader, prices as prices_mod
+from portfolio.data import db as db_mod, loader, prices as prices_mod
 
 
 @dataclass(frozen=True)
@@ -83,12 +83,29 @@ def _last_txn_date(txn: pd.DataFrame) -> pd.Timestamp | None:
     return txn["Date"].max() if len(txn) else None
 
 
-def run(data_dir: str | Path = "data", benchmarks: tuple[str, ...] = ("SPY", "QQQ")) -> PortfolioSnapshot:
-    data_dir = Path(data_dir)
+def run(
+    user_id: int = db_mod.DEFAULT_USER_ID,
+    *,
+    conn=None,
+    data_dir: str | Path = "data",
+    benchmarks: tuple[str, ...] = ("SPY", "QQQ"),
+) -> PortfolioSnapshot:
+    """Run the full analytics pipeline and return a typed snapshot.
 
-    # ── 1. Load CSVs ────────────────────────────────────────────────────────
-    trades_raw = loader.load_trades(data_dir / "trades.csv")
-    txn = loader.load_transactions(data_dir / "transactions.csv")
+    When `conn` (a SQLite connection) is given, trades/transactions and the cash
+    reconciliation offset are read from the database for `user_id`. Otherwise the
+    legacy CSV path under `data_dir` is used (kept for the A/B parity gate).
+    """
+    # ── 1. Load source data (SQLite if a connection is given, else CSV) ─────
+    if conn is not None:
+        trades_raw = loader.load_trades_db(user_id, conn)
+        txn = loader.load_transactions_db(user_id, conn)
+        recon_offset = db_mod.reconciliation_offset(conn, user_id)
+    else:
+        data_dir = Path(data_dir)
+        trades_raw = loader.load_trades(data_dir / "trades.csv")
+        txn = loader.load_transactions(data_dir / "transactions.csv")
+        recon_offset = cash_mod.CASH_RECONCILIATION_OFFSET
 
     # ── 2. Splits + adj_shares ──────────────────────────────────────────────
     tickers = trades_raw["ticker"].unique().tolist()
@@ -115,7 +132,7 @@ def run(data_dir: str | Path = "data", benchmarks: tuple[str, ...] = ("SPY", "QQ
     realized_summary = real_mod.realized_summary(realized)
 
     # ── 8. Free cash ────────────────────────────────────────────────────────
-    fc = cash_mod.free_cash(trades_adj, txn)
+    fc = cash_mod.free_cash(trades_adj, txn, recon_offset)
 
     # ── 9. Calendars + benchmark price series ──────────────────────────────
     bench_history = {b: prices_mod.history_from(b, trades_raw["date"].min()) for b in benchmarks}
@@ -125,7 +142,7 @@ def run(data_dir: str | Path = "data", benchmarks: tuple[str, ...] = ("SPY", "QQ
 
     # ── 10. Portfolio equity, cash, total value series ─────────────────────
     equity_ts = ts_mod.portfolio_equity(trades_adj, all_history, daily, trading_days)
-    cash_ts = cash_mod.cash_timeseries(trades_adj, txn, daily).reindex(trading_days, method="ffill").fillna(0.0)
+    cash_ts = cash_mod.cash_timeseries(trades_adj, txn, daily, recon_offset).reindex(trading_days, method="ffill").fillna(0.0)
     total_value_ts = equity_ts + cash_ts
 
     # ── 11. Parallel benchmark portfolios ──────────────────────────────────
@@ -163,7 +180,7 @@ def run(data_dir: str | Path = "data", benchmarks: tuple[str, ...] = ("SPY", "QQ
     voo_hist = all_history.get("VOO")
     if voo_hist is None or voo_hist.empty:
         voo_hist = prices_mod.history("VOO")
-    cards = cards_mod.compute_card_data(
+    cards = cards_mod.compute_positions(
         pnl=pnl,
         trades_adj=trades_adj,
         histories=all_history,

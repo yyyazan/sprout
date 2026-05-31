@@ -35,17 +35,28 @@ def _trade_cash_impact(trades_adj: pd.DataFrame) -> float:
     return total
 
 
-def free_cash(trades_adj: pd.DataFrame, txn: pd.DataFrame) -> float:
-    """Scalar free cash, reconciled to the broker via CASH_RECONCILIATION_OFFSET."""
+def free_cash(
+    trades_adj: pd.DataFrame,
+    txn: pd.DataFrame,
+    reconciliation_offset: float = CASH_RECONCILIATION_OFFSET,
+) -> float:
+    """Scalar free cash, reconciled to the broker via `reconciliation_offset`.
+
+    The offset is now per-user data (table `cash_reconciliation`); the module
+    constant remains the default so behaviour is unchanged when no row exists.
+    """
     bank_net = float(txn["Amount (USD)"].sum())
     trade_cash = _trade_cash_impact(trades_adj)
-    return bank_net + trade_cash + CASH_RECONCILIATION_OFFSET
+    return bank_net + trade_cash + reconciliation_offset
 
 
 def cash_timeseries(
-    trades_adj: pd.DataFrame, txn: pd.DataFrame, calendar: pd.DatetimeIndex
+    trades_adj: pd.DataFrame,
+    txn: pd.DataFrame,
+    calendar: pd.DatetimeIndex,
+    reconciliation_offset: float = CASH_RECONCILIATION_OFFSET,
 ) -> pd.Series:
-    """Daily cash balance over `calendar`, reconciled via CASH_RECONCILIATION_OFFSET."""
+    """Daily cash balance over `calendar`, reconciled via `reconciliation_offset`."""
     trade_cash_daily = pd.Series(0.0, index=calendar)
     for _, r in trades_adj.iterrows():
         price = prices_mod.price_on_date(r["ticker"], r["date"])
@@ -56,4 +67,4 @@ def cash_timeseries(
 
     txn_daily = txn.groupby("Date")["Amount (USD)"].sum().reindex(calendar, fill_value=0.0)
     # Level shift after the cumulative sum — applied once, not distributed across rows.
-    return (txn_daily + trade_cash_daily).cumsum() + CASH_RECONCILIATION_OFFSET
+    return (txn_daily + trade_cash_daily).cumsum() + reconciliation_offset
