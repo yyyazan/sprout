@@ -76,7 +76,30 @@ a { color: inherit; text-decoration: none; }
 .chart-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
 .chart-title { font-size: 16px; font-weight: 600; }
 .chart-subtitle { font-size: 12px; color: var(--muted); }
-.plot-host { width: 100%; height: 100%; min-height: 220px; }
+/* Lightweight Charts host + crosshair tooltip */
+.ts-chart { position: relative; width: 100%; height: 100%; min-height: 220px; }
+.ts-tooltip { position: absolute; z-index: 3; pointer-events: none; min-width: 120px; padding: 8px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 4px 14px rgba(0,0,0,.08); font-size: 12px; opacity: 0; transition: opacity .12s ease; }
+.ts-tooltip.visible { opacity: 1; }
+.ts-tip-date { color: var(--muted); font-size: 11px; margin-bottom: 5px; }
+.ts-tip-row { display: flex; align-items: center; gap: 7px; line-height: 1.5; }
+.ts-tip-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.ts-tip-name { color: var(--text); }
+.ts-tip-val { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* SVG donut */
+.donut { display: block; height: 100%; width: auto; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto; }
+.donut circle { transition: stroke-dashoffset .4s ease, stroke-dasharray .4s ease; }
+
+/* Diverging P&L bars (HTML) */
+.pnl-bars { display: flex; flex-direction: column; justify-content: center; gap: 8px; height: 100%; min-height: 220px; }
+.pnl-row { display: grid; grid-template-columns: 52px 1fr; align-items: center; gap: 10px; }
+.pnl-ticker { font-size: 12px; font-weight: 600; color: var(--text); text-align: right; }
+.pnl-track { position: relative; height: 18px; }
+.pnl-zero { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--border); }
+.pnl-bar { position: absolute; top: 3px; bottom: 3px; border-radius: 3px; min-width: 2px; }
+.pnl-val { position: absolute; top: 50%; transform: translateY(-50%); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pnl-val.inside { transform: translate(-100%, -50%); }        /* gain: right edge at bar tip */
+.pnl-val.inside.left { transform: translate(100%, -50%); }    /* loss: left edge at bar tip */
 
 .alloc-panel { display: flex; flex-direction: column; padding: 18px 20px 14px; gap: 10px; overflow: hidden; }
 .alloc-panel-title { font-size: 16px; font-weight: 600; }

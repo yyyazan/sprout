@@ -1,14 +1,13 @@
 <script>
-  import Chart from './Chart.svelte';
-  import { allocationDonut, PALETTE } from '$lib/plotly.js';
+  import DonutChart from './DonutChart.svelte';
+  import { PALETTE } from '$lib/charts.js';
   let { alloc, size = 'tall' } = $props();
   let total = $derived(alloc.values.reduce((a, b) => a + b, 0));
-  let figure = $derived(allocationDonut(alloc));
 </script>
 
 <div class="glass-card alloc-panel widget-{size}">
   <div class="alloc-panel-title">Allocation</div>
-  <div class="alloc-donut" style="height:190px"><Chart {figure} /></div>
+  <div class="alloc-donut" style="height:190px"><DonutChart labels={alloc.labels} values={alloc.values} /></div>
   <div class="alloc-list">
     {#each alloc.labels as label, i}
       <div class="alloc-row">

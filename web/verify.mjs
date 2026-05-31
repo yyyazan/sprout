@@ -1,5 +1,7 @@
 import { chromium } from 'playwright';
 
+const BASE = process.env.BASE_URL || 'http://localhost:5173';
+
 const ROUTES = [
   ['/', 'dashboard'],
   ['/investments', 'investments'],
@@ -22,14 +24,15 @@ page.on('requestfailed', (r) => {
 
 for (const [path, name] of ROUTES) {
   errors.length = 0;
-  await page.goto('http://localhost:5173' + path, { waitUntil: 'load', timeout: 30000 });
-  await page.waitForTimeout(5000); // let THREE garden + Plotly paint
+  await page.goto(BASE + path, { waitUntil: 'load', timeout: 30000 });
+  await page.waitForTimeout(5000); // let THREE garden + charts paint
   await page.screenshot({ path: `/tmp/shot-${name}.png`, fullPage: true });
   // quick DOM probes
   const probe = await page.evaluate(() => ({
     canvas: !!document.querySelector('#garden-root canvas'),
     cards: document.querySelectorAll('.portfolio-card').length,
-    plots: document.querySelectorAll('.js-plotly-plot').length,
+    tsCharts: document.querySelectorAll('.ts-chart').length,
+    svgCharts: document.querySelectorAll('.donut, .pnl-bars').length,
     rows: document.querySelectorAll('table.data-table tbody tr').length,
     kpis: document.querySelectorAll('.kpi-card').length
   }));

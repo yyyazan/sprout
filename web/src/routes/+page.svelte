@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
-  import { equityCurve } from '$lib/plotly.js';
+  import { equity } from '$lib/charts.js';
   import KpiCard from '$lib/components/KpiCard.svelte';
   import ProgressCard from '$lib/components/ProgressCard.svelte';
   import ChartCard from '$lib/components/ChartCard.svelte';
@@ -42,7 +42,7 @@
       <AllocationPanel alloc={d.allocation} size="tall" />
       <ProgressCard label="goal" current={d.goal.current} target={d.goal.target} size="medium" />
       <KpiCard label="Total P&L" value={d.kpis.total_pnl} kind="money_compact" size="medium" subtitle="unrealized + realized" />
-      <ChartCard title="Portfolio Value" figure={equityCurve(d.equity_curve)} size="xl" />
+      <ChartCard title="Portfolio Value" chart={equity(d.equity_curve)} size="xl" />
     </div>
   </div>
 {:else}

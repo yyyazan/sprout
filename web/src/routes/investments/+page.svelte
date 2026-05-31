@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
-  import { twrVsBench, drawdownArea, pnlBars, allocationDonut } from '$lib/plotly.js';
+  import { twr, drawdown, pnl, donut } from '$lib/charts.js';
   import KpiCard from '$lib/components/KpiCard.svelte';
   import ChartCard from '$lib/components/ChartCard.svelte';
   import PositionsTable from '$lib/components/PositionsTable.svelte';
@@ -30,10 +30,10 @@
       <KpiCard label="SPY TWR" value={d.kpis.spy_twr} kind="percent" size="small" />
       <KpiCard label="SPY DD" value={d.kpis.spy_dd} kind="percent" size="small" />
       <KpiCard label="SPY Sharpe" value={d.kpis.spy_sharpe} kind="ratio" size="small" />
-      <ChartCard title="Time-Weighted Return" subtitle="Strips out cash-flow timing — pure holding performance" figure={twrVsBench(d.charts.twr)} size="large" />
-      <ChartCard title="Drawdown" figure={drawdownArea(d.charts.drawdown)} size="large" />
-      <ChartCard title="Unrealized P&L by Ticker" figure={pnlBars(d.charts.pnl_bars)} size="large" />
-      <ChartCard title="Allocation" figure={allocationDonut(d.charts.allocation)} size="large" />
+      <ChartCard title="Time-Weighted Return" subtitle="Strips out cash-flow timing — pure holding performance" chart={twr(d.charts.twr)} size="large" />
+      <ChartCard title="Drawdown" chart={drawdown(d.charts.drawdown)} size="large" />
+      <ChartCard title="Unrealized P&L by Ticker" chart={pnl(d.charts.pnl_bars)} size="large" />
+      <ChartCard title="Allocation" chart={donut(d.charts.allocation)} size="large" />
     </div>
     <PositionsTable positions={d.positions} />
   </div>
