@@ -9,13 +9,19 @@ One worker only (the per-user snapshot cache in api.state is in-process).
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from api import state
 from api.config import CORS_ORIGINS
 from api.routers import dashboard, entries
+
+# Static SvelteKit bundle (adapter-static). Served by this same process so the
+# whole app is one deploy; missing in dev when the frontend runs on Vite :5173.
+BUILD_DIR = (Path(__file__).resolve().parent.parent / "web" / "build")
 
 
 @asynccontextmanager
@@ -45,3 +51,23 @@ app.include_router(entries.router)
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
+
+# Frontend: serve real files from build/, fall back to index.html for client
+# routes (e.g. /investments/AAPL). Registered last so /api and /healthz win.
+if BUILD_DIR.is_dir():
+
+    @app.get("/{path:path}")
+    def spa(path: str):
+        candidate = (BUILD_DIR / path).resolve()
+        if path and candidate.is_relative_to(BUILD_DIR) and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(BUILD_DIR / "index.html")
+else:
+
+    @app.get("/")
+    def no_build():
+        raise HTTPException(
+            503,
+            "Frontend not built. Run `npm run build` in web/, or use Vite dev on :5173.",
+        )

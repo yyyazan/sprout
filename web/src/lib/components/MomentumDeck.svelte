@@ -6,7 +6,9 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
 
-  let { cards = [] } = $props();
+  // `chart` is an optional snippet rendered in the empty cols 4–6 of the deck row
+  // (the space the 1×2 peek freed) — the dashboard passes the portfolio chart there.
+  let { cards = [], chart } = $props();
 
   let moveWin = $state('day');   // 'day' | 'wk'
   let selected = $state(null);   // ticker; null = biggest mover
@@ -152,6 +154,10 @@
       </a>
     </aside>
   {/if}
+
+  {#if chart}
+    <div class="deck-chart">{@render chart()}</div>
+  {/if}
 </div>
 
 <!-- allocation ribbon: the finder. width = weight, floored at ticker width. -->
@@ -187,7 +193,7 @@
   .suit-jk { --suit: #6f7a63; }
 
   /* padding-top matches the peek's inset so the cards' top lines up with the peek's top */
-  .felt { --deck: #6f7a63; grid-column: 1 / 3; position: relative; z-index: 1; border-radius: var(--r); padding: 16px 22px 0; }
+  .felt { --deck: #6f7a63; grid-column: 1 / 3; grid-row: 2; position: relative; z-index: 1; border-radius: var(--r); padding: 16px 22px 0; }
   .felt::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 56px;
     background: var(--deck); border: var(--bw) solid var(--ink); border-radius: var(--r);
     box-shadow: 0 4px 0 0 var(--ink); z-index: 0; }
@@ -222,7 +228,10 @@
 
   /* ── peek (1×2 inspector — investor-first: leads with your return) ── */
   /* z-index above the felt's stacking layer → a lifted card can never cover it */
-  .peek { grid-column: 3 / 4; min-height: clamp(300px, 26vw, 352px); position: relative; z-index: 2; }
+  .peek { grid-column: 3 / 4; grid-row: 2; min-height: clamp(300px, 26vw, 352px); position: relative; z-index: 2; }
+
+  /* portfolio chart — fills the cols the 1×2 peek freed, same row & height as the peek */
+  .deck-chart { grid-column: 4 / 7; grid-row: 2; min-height: clamp(300px, 26vw, 352px); }
   /* the whole card is the link to full analysis — a corner arrow is the only cue,
      no bulky button. hover gives the standard brutalist lift. */
   .peek-card { height: 100%; padding: 16px; display: flex; flex-direction: column; color: inherit; text-decoration: none;
@@ -266,7 +275,8 @@
 
   @media (max-width: 1100px) {
     .deck-peek { grid-template-columns: 1fr; }
-    .deck-head, .felt, .peek { grid-column: 1; }
+    .deck-head, .felt, .peek, .deck-chart { grid-column: 1; grid-row: auto; }
     .peek { min-height: 0; }
+    .deck-chart { min-height: 320px; }
   }
 </style>

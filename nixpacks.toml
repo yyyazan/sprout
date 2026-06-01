@@ -1,0 +1,22 @@
+# Railway build recipe (Nixpacks).
+#
+# This repo has TWO build steps that Railway's language auto-detection can't
+# infer on its own, so we spell them out:
+#   1. Python  — install FastAPI/uvicorn + the `portfolio` package (pyproject.toml)
+#   2. Node    — build the SvelteKit frontend into web/build/, which FastAPI serves
+#
+# Result: one process (uvicorn) serving the static UI + the /api JSON endpoints.
+
+[phases.setup]
+nixPkgs = ["python313", "nodejs_22"]
+
+[phases.install]
+cmds = [
+  "python -m venv .venv",
+  ".venv/bin/pip install --upgrade pip",
+  ".venv/bin/pip install .",   # deps + the `portfolio` package, both from pyproject.toml
+  "npm --prefix web ci",       # frontend deps (uses web/package-lock.json)
+]
+
+[phases.build]
+cmds = ["npm --prefix web run build"]   # emits web/build/ (adapter-static)

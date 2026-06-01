@@ -74,6 +74,17 @@ def dashboard_payload(s: PortfolioSnapshot, period: str) -> dict:
         "goal": {"current": _py(s.monthly_deposits), "target": MONTHLY_SAVINGS_TARGET},
         "allocation": _allocation(s.pnl["market_value"], max(float(s.free_cash), 0.0)),
         "equity_curve": _xy(s.portfolio_value_ts, 2),
+        # Parallel SPY portfolio ($): the same cash flows invested in SPY instead.
+        # This is the HONEST dollar benchmark — the gap vs equity_curve is real
+        # out/under-performance, not deposits (a TWR-rebased line would be ~99%
+        # deposits and misleading). Used for the chart's Value-mode SPY overlay.
+        "spy_curve": _xy(s.spy_ts, 2),
+        # Time-weighted return (decimals, e.g. 0.184 = +18.4%) — apples-to-apples
+        # % comparison for the chart's Return mode. Same daily index, aligned by date.
+        "twr": {
+            "portfolio": _xy(s.twr_portfolio, 5),
+            "spy": _xy(s.twr_spy, 5),
+        },
         "cards": [{k: _py(v) for k, v in c.items()} for c in s.cards],
     }
 

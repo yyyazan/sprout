@@ -5,6 +5,7 @@
   import SparkValueCard from '$lib/components/SparkValueCard.svelte';
   import ProgressCard from '$lib/components/ProgressCard.svelte';
   import MomentumDeck from '$lib/components/MomentumDeck.svelte';
+  import PortfolioChart from '$lib/components/PortfolioChart.svelte';
   import GardenView from '$lib/components/GardenView.svelte';
 
   let d = $state(null);
@@ -40,10 +41,13 @@
       <ProgressCard label="goal" current={d.goal.current} target={d.goal.target} size="strip" />
     </div>
 
-    <MomentumDeck cards={d.cards} />
-
-    <!-- under-deck: TBD — next build step -->
+    <MomentumDeck cards={d.cards}>
+      {#snippet chart()}
+        <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} />
+      {/snippet}
+    </MomentumDeck>
   </div>
 {:else}
   <div class="content"><p style="color:var(--muted)">Loading…</p></div>
 {/if}
+im/r
