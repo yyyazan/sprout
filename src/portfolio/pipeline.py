@@ -60,6 +60,7 @@ class PortfolioSnapshot:
     sharpe_portfolio: float
     sharpe_spy: float
     sharpe_qqq: float
+    # hi
 
     # Savings / activity
     monthly_deposits: float
