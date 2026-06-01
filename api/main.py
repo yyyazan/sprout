@@ -8,6 +8,8 @@ One worker only (the per-user snapshot cache in api.state is in-process).
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,7 +17,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from api import state
+from api import backup, state
 from api.config import CORS_ORIGINS
 from api.routers import dashboard, entries
 
@@ -31,7 +33,18 @@ async def lifespan(app: FastAPI):
         state.get_snapshot()
     except Exception:
         pass  # boot even if data is missing; first request will retry
+
+    # Daily off-site backup to R2 — only if the R2_* env vars are configured.
+    backup_task = None
+    if backup.is_configured():
+        backup_task = asyncio.create_task(backup.run_backup_loop())
+    else:
+        logging.getLogger("sprout.backup").info("R2 not configured; backups disabled")
+
     yield
+
+    if backup_task:
+        backup_task.cancel()
 
 
 app = FastAPI(title="Sprout API", lifespan=lifespan)
