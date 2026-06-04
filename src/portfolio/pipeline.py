@@ -16,6 +16,7 @@ from portfolio.analytics import (
     cards as cards_mod,
     cash as cash_mod,
     cost_basis as cb_mod,
+    dividends as div_mod,
     positions as pos_mod,
     realized as real_mod,
     returns as ret_mod,
@@ -68,6 +69,9 @@ class PortfolioSnapshot:
 
     # Card hand (positions-as-playing-cards + Joker for cash)
     cards: list[dict]
+
+    # Monthly dividend income (per-holding items + totals) for the Dividend Wraith
+    dividends: dict
 
     # Convenience
     last_updated: pd.Timestamp
@@ -190,6 +194,9 @@ def run(
         free_cash=fc,
     )
 
+    # ── 16. Monthly dividends (forward rate, else trailing-12-month) ────────
+    dividends = div_mod.monthly_dividends(pnl, cards)
+
     return PortfolioSnapshot(
         open_positions=open_pos,
         pnl=pnl,
@@ -216,5 +223,6 @@ def run(
         monthly_deposits=_current_month_deposits(txn),
         last_txn_date=_last_txn_date(txn),
         cards=cards,
+        dividends=dividends,
         last_updated=pd.Timestamp.now(),
     )

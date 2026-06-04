@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS cash_reconciliation (
 -- Shared market-data cache freshness (the Parquet files hold the data itself).
 CREATE TABLE IF NOT EXISTS price_cache_meta (
     ticker       TEXT NOT NULL,
-    kind         TEXT NOT NULL CHECK (kind IN ('history', 'splits', 'profile', 'spot')),
+    kind         TEXT NOT NULL CHECK (kind IN ('history', 'splits', 'profile', 'spot', 'dividends')),
     last_fetched TEXT NOT NULL,
     rows         INTEGER,
     PRIMARY KEY (ticker, kind)
@@ -96,8 +96,38 @@ def connect(db_path: str | Path | None = None) -> sqlite3.Connection:
     return conn
 
 
+def _migrate_price_cache_meta(conn: sqlite3.Connection) -> None:
+    """Widen the price_cache_meta `kind` CHECK as new cache kinds are added.
+
+    CREATE TABLE IF NOT EXISTS can't alter an existing CHECK, so rebuild the table
+    when its stored definition predates a kind. Cache-freshness metadata only
+    (the Parquet files hold the data), so the rebuild just copies the rows.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='price_cache_meta'"
+    ).fetchone()
+    if row is None or "'dividends'" in (row["sql"] or ""):
+        return
+    conn.executescript(
+        """
+        ALTER TABLE price_cache_meta RENAME TO _pcm_old;
+        CREATE TABLE price_cache_meta (
+            ticker       TEXT NOT NULL,
+            kind         TEXT NOT NULL CHECK (kind IN ('history', 'splits', 'profile', 'spot', 'dividends')),
+            last_fetched TEXT NOT NULL,
+            rows         INTEGER,
+            PRIMARY KEY (ticker, kind)
+        );
+        INSERT INTO price_cache_meta (ticker, kind, last_fetched, rows)
+            SELECT ticker, kind, last_fetched, rows FROM _pcm_old;
+        DROP TABLE _pcm_old;
+        """
+    )
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
+    _migrate_price_cache_meta(conn)
     conn.commit()
 
 

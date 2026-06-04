@@ -29,10 +29,12 @@ PARQUET_DIR = Path(os.environ.get("PORTFOLIO_PRICES", _REPO_ROOT / "data" / "pri
 _HISTORY_DIR = PARQUET_DIR / "history"
 _SPLITS_DIR = PARQUET_DIR / "splits"
 _PROFILE_DIR = PARQUET_DIR / "profile"
+_DIVIDENDS_DIR = PARQUET_DIR / "dividends"
 
 # Time-to-live per cache kind, in seconds.
 TTL = {
     "history": 24 * 3600,      # daily closes — refresh once a day
+    "dividends": 24 * 3600,   # dividend payments — refresh once a day
     "splits": 7 * 24 * 3600,   # corporate actions rarely change
     "profile": 30 * 24 * 3600, # sector/name almost never change
 }
@@ -49,7 +51,7 @@ def _conn():
 
 
 def _ensure_dirs() -> None:
-    for d in (_HISTORY_DIR, _SPLITS_DIR, _PROFILE_DIR):
+    for d in (_HISTORY_DIR, _SPLITS_DIR, _PROFILE_DIR, _DIVIDENDS_DIR):
         d.mkdir(parents=True, exist_ok=True)
 
 
@@ -121,6 +123,18 @@ def read_splits(ticker: str) -> pd.Series | None:
 
 def write_splits(ticker: str, series: pd.Series) -> None:
     _write_series(_splits_path(ticker), series, ticker, "splits")
+
+
+def _dividends_path(ticker: str) -> Path:
+    return _DIVIDENDS_DIR / f"{_safe(ticker)}.parquet"
+
+
+def read_dividends(ticker: str) -> pd.Series | None:
+    return _read_series(_dividends_path(ticker))
+
+
+def write_dividends(ticker: str, series: pd.Series) -> None:
+    _write_series(_dividends_path(ticker), series, ticker, "dividends")
 
 
 # ── profile (dict) as JSON ──────────────────────────────────────────────────

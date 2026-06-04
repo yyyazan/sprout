@@ -58,20 +58,17 @@ def _allocation(market_value: pd.Series, cash: float) -> dict:
 def dashboard_payload(s: PortfolioSnapshot, period: str) -> dict:
     portfolio_value = _last(s.portfolio_value_ts, default=float(s.free_cash))
     total_pnl = float(s.pnl["unrealized_pnl"].sum()) + float(s.realized_summary.sum())
-    you_pct = _last(s.twr_portfolio)
-    spy_pct = _last(s.twr_spy)
-    spy_delta = (you_pct - spy_pct) if (you_pct is not None and spy_pct is not None) else None
 
     return {
         "greeting": greeting_for(period),
         "period": period,
         "kpis": {
             "cash": _py(s.free_cash),
-            "spy_delta": _py(spy_delta),       # decimal (e.g. 0.17 = +17pp)
             "portfolio_value": _py(portfolio_value),
             "total_pnl": _py(total_pnl),
         },
         "goal": {"current": _py(s.monthly_deposits), "target": MONTHLY_SAVINGS_TARGET},
+        "dividends": s.dividends,
         "allocation": _allocation(s.pnl["market_value"], max(float(s.free_cash), 0.0)),
         "equity_curve": _xy(s.portfolio_value_ts, 2),
         # Parallel SPY portfolio ($): the same cash flows invested in SPY instead.

@@ -29,6 +29,21 @@ from portfolio.data import store
 _HISTORY_CACHE: dict[str, pd.Series] = {}
 _SPLITS_CACHE: dict[str, pd.Series] = {}
 _PROFILE_CACHE: dict[str, dict] = {}
+_DIVIDENDS_CACHE: dict[str, pd.Series] = {}
+
+
+# Ticker renames: a holding keeps its original symbol everywhere (trades, display, and
+# the cache key), but the live yfinance feed has moved to a new symbol. We fetch the new
+# symbol yet cache it under the original, so the price history stays continuous across the
+# rename (the new symbol carries the full back-history, so values don't jump).
+_YF_RENAMES = {
+    "VSCO": "VSXY",   # Victoria's Secret — ticker change, 2026-06
+}
+
+
+def yf_symbol(ticker: str) -> str:
+    """Map a position ticker to the symbol yfinance currently serves it under."""
+    return _YF_RENAMES.get(ticker.upper(), ticker)
 
 
 def _strip_tz(idx: pd.DatetimeIndex) -> pd.DatetimeIndex:
@@ -50,7 +65,7 @@ def history(ticker: str) -> pd.Series:
         return cached
 
     try:
-        hist = yf.Ticker(ticker).history(period="max")
+        hist = yf.Ticker(yf_symbol(ticker)).history(period="max")
     except Exception:
         hist = None
     if hist is None or hist.empty:
@@ -93,7 +108,7 @@ def splits(ticker: str) -> pd.Series:
         return cached
 
     try:
-        s = yf.Ticker(ticker).splits
+        s = yf.Ticker(yf_symbol(ticker)).splits
     except Exception:
         s = None
     if s is None or s.empty:
@@ -108,6 +123,36 @@ def splits(ticker: str) -> pd.Series:
     return s
 
 
+def dividends(ticker: str) -> pd.Series:
+    """Per-share dividend payment history (split-adjusted). Durably cached.
+
+    Empty series for non-payers / delisted tickers. Used for the trailing
+    12-month dividend rate when a forward rate isn't on the profile.
+    """
+    if ticker in _DIVIDENDS_CACHE:
+        return _DIVIDENDS_CACHE[ticker]
+
+    cached = store.read_dividends(ticker)
+    if cached is not None and not cached.empty and store.is_fresh(ticker, "dividends"):
+        _DIVIDENDS_CACHE[ticker] = cached
+        return cached
+
+    try:
+        d = yf.Ticker(yf_symbol(ticker)).dividends
+    except Exception:
+        d = None
+    if d is None or d.empty:
+        result = cached if (cached is not None and not cached.empty) else pd.Series(dtype=float)
+        _DIVIDENDS_CACHE[ticker] = result
+        return result
+
+    d = d.copy()
+    d.index = _strip_tz(d.index)
+    store.write_dividends(ticker, d)
+    _DIVIDENDS_CACHE[ticker] = d
+    return d
+
+
 @lru_cache(maxsize=128)
 def spot(ticker: str) -> float | None:
     """Latest live price (fast_info.last_price). LRU-cached per process.
@@ -115,7 +160,7 @@ def spot(ticker: str) -> float | None:
     Spot is inherently live, so it stays an in-process cache only (not persisted).
     """
     try:
-        return float(yf.Ticker(ticker).fast_info.last_price)
+        return float(yf.Ticker(yf_symbol(ticker)).fast_info.last_price)
     except Exception:
         return None
 
@@ -145,10 +190,13 @@ def profile(ticker: str) -> dict:
         return cached
 
     try:
-        info = yf.Ticker(ticker).info or {}
+        info = yf.Ticker(yf_symbol(ticker)).info or {}
         prof = {
             "sector": info.get("sector", "") or "",
             "name": info.get("longName") or info.get("shortName") or "",
+            # forward annual dividend per share ($); None for non-payers. Free to
+            # grab from the .info we already fetch -> the dividends calc prefers it.
+            "dividend_rate": info.get("dividendRate"),
         }
     except Exception:
         prof = None
