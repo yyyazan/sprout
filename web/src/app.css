@@ -70,6 +70,8 @@ a { color: inherit; text-decoration: none; }
 
 /* ── App shell ──────────────────────────────────────────────────────────── */
 .app-root { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+/* Sidebar temporarily hidden — collapse its column so content spans full width. */
+.app-root--nosidebar { grid-template-columns: minmax(0, 1fr); }
 .sidebar { background: var(--surface); border-right: var(--bw) solid var(--ink); display: flex; flex-direction: column; padding: 16px 12px; gap: 6px; }
 .brand { padding: 6px 10px 18px; }
 .brand-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
@@ -180,6 +182,22 @@ table.data-table tbody tr:hover { background: #fffdf3; }
 .kpi-strip .kpi-value { font-size: 26px; }
 .kpi-strip .spark-card { grid-column: span 2; }   /* jade hero = 2×1 */
 
+/* ── Dashboard P&L strip: 6 identical half-height (0.5×1) mini tiles ──────────
+   Each tile spans 1 of 6 columns and is half a --u row tall — a compact landscape
+   rectangle. Six fill the top row. Tighter padding/figure so label + value + sub
+   breathe inside the short tile. */
+.pnl-strip { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: calc(var(--u) / 2); gap: 16px; width: 100%; }
+.widget-mini { grid-column: span 1; }
+.pnl-strip .glass-card { padding: 12px 14px; }
+.pnl-strip .kpi-label { margin-bottom: 2px; }
+.pnl-strip .kpi-value { font-size: 20px; }
+.pnl-strip .kpi-subtitle { margin-top: 2px; }
+
+/* Reserved 1×1 placeholder (e.g. the half of the deck slot freed by merging
+   Cash + Goal). Dashed ink-muted outline, same convention as an empty deck-slot. */
+.deck-reserved { display: grid; place-items: center; border: var(--bw) dashed var(--muted); border-radius: var(--r);
+  color: var(--muted); font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+
 /* Spark value card: figure rides above an ambient area chart that bleeds to the
    card edges. preserveAspectRatio="none" stretches the fixed viewBox full-bleed. */
 .spark-card { position: relative; overflow: hidden; }
@@ -269,6 +287,7 @@ table.data-table tbody tr:hover { background: #fffdf3; }
   .widget-medium, .widget-large, .widget-xl, .widget-tall { grid-column: span 2; }
   /* Mobile precedent (full mobile pass is a separate session): KPI cards go 2-up. */
   .kpi-strip { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .pnl-strip { grid-template-columns: repeat(3, 1fr); gap: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .portfolio-card, .portfolio-card::after, .nav-link { transition: none; }

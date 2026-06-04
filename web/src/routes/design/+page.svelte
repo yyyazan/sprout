@@ -260,11 +260,6 @@
           <span class="nb-kpi-val">+$31,884</span>
           <span class="nb-kpi-sub">▲ unrealized + realized</span>
         </div>
-        <div class="nb-kpi" style="--fill:var(--yellow)">
-          <span class="nb-kpi-label">S&amp;P 500 delta</span>
-          <span class="nb-kpi-val">+6.42%</span>
-          <span class="nb-kpi-sub">since inception</span>
-        </div>
         <div class="nb-kpi" style="--fill:var(--pink)">
           <span class="nb-kpi-label">Free cash</span>
           <span class="nb-kpi-val">$7,204</span>

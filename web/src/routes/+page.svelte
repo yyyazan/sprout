@@ -2,8 +2,8 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
   import KpiCard from '$lib/components/KpiCard.svelte';
-  import SparkValueCard from '$lib/components/SparkValueCard.svelte';
-  import ProgressCard from '$lib/components/ProgressCard.svelte';
+  import CashGoalCard from '$lib/components/CashGoalCard.svelte';
+  import DividendWraith from '$lib/components/DividendWraith.svelte';
   import MomentumDeck from '$lib/components/MomentumDeck.svelte';
   import PortfolioChart from '$lib/components/PortfolioChart.svelte';
   import GardenView from '$lib/components/GardenView.svelte';
@@ -19,6 +19,15 @@
       error = String(e);
     }
   });
+
+  // Re-pull the dashboard after a transaction is saved from the cash tile, so cash updates.
+  async function refresh() {
+    try {
+      d = await api.dashboard();
+    } catch (e) {
+      error = String(e);
+    }
+  }
 </script>
 
 {#if error}
@@ -32,10 +41,10 @@
       </div>
     </div>
 
-    <div class="kpi-strip">
-      <SparkValueCard label="Portfolio Value" value={d.kpis.portfolio_value} series={d.equity_curve.y} />
-      <KpiCard label="Total P&L" value={d.kpis.total_pnl} kind="money_compact" size="strip" subtitle="unrealized + realized" tone="gain" />
-      <KpiCard label="S&P500 delta" value={d.kpis.spy_delta} kind="percent" size="strip" subtitle="since inception" />
+    <div class="pnl-strip">
+      {#each Array.from({ length: 6 }) as _, i (i)}
+        <KpiCard label="Total P&L" value={d.kpis.total_pnl} kind="money_compact" size="mini" subtitle="unrealized + realized" tone="gain" />
+      {/each}
     </div>
 
     <MomentumDeck cards={d.cards}>
@@ -43,13 +52,13 @@
         <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} />
       {/snippet}
       {#snippet belowDeck()}
-        <KpiCard label="Cash" value={d.kpis.cash} kind="money" size="strip"
-          subtitle={d.kpis.portfolio_value ? `${((d.kpis.cash / d.kpis.portfolio_value) * 100).toFixed(0)}% of portfolio` : 'available'} />
-        <ProgressCard label="goal" current={d.goal.current} target={d.goal.target} size="strip" />
+        <CashGoalCard cash={d.kpis.cash} portfolioValue={d.kpis.portfolio_value}
+          goalLabel="monthly goal" goalCurrent={d.goal.current} goalTarget={d.goal.target}
+          onSaved={refresh} />
+        <DividendWraith data={d.dividends} holdings={d.cards} />
       {/snippet}
     </MomentumDeck>
   </div>
 {:else}
   <div class="content"><p style="color:var(--muted)">Loading…</p></div>
 {/if}
-im/r
