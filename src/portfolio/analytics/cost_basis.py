@@ -4,31 +4,50 @@ Trades.csv has no price column — buy prices are inferred from yfinance's
 split-adjusted close on the trade date. Since both `adj_shares` (post-split)
 and `price_on_date` (back-adjusted) are in today's share-equivalent terms,
 no further adjustment is needed.
+
+Cost basis is computed from the FIFO lots that remain *after* sells are
+matched (same lot accounting as `realized.fifo_realized`), so shares that were
+sold no longer count toward the average. A position that is fully closed and
+later re-opened therefore resets to its new lots, matching how brokers report
+average cost.
 """
 from __future__ import annotations
+
+from collections import deque
 
 import pandas as pd
 
 from portfolio.data import prices as prices_mod
 
+_EPS = 0.0001
+
+
+def _remaining_lots(ticker_trades: pd.DataFrame, ticker: str) -> deque:
+    """FIFO-walk a single ticker's trades, returning lots still held: [shares, price]."""
+    queue: deque[list] = deque()
+    for _, t in ticker_trades.sort_values("date").iterrows():
+        if t["action"] == "buy":
+            price = prices_mod.price_on_date(ticker, t["date"])
+            queue.append([t["adj_shares"], price])
+        elif t["action"] == "sell":
+            shares_left = abs(t["adj_shares"])
+            while shares_left > _EPS and queue:
+                matched = min(queue[0][0], shares_left)
+                queue[0][0] -= matched
+                shares_left -= matched
+                if queue[0][0] < _EPS:
+                    queue.popleft()
+    return queue
+
 
 def weighted_avg_cost(trades_adj: pd.DataFrame, open_tickers: list[str]) -> pd.Series:
-    """Weighted average cost basis per open ticker, computed from buys only."""
-    buys = trades_adj[
-        (trades_adj["ticker"].isin(open_tickers)) & (trades_adj["action"] == "buy")
-    ].copy()
-    buys["price_paid"] = buys.apply(
-        lambda r: prices_mod.price_on_date(r["ticker"], r["date"]), axis=1
-    )
-
+    """Weighted average cost basis per open ticker, over FIFO lots still held."""
     cost = {}
     for ticker in open_tickers:
-        tb = buys[buys["ticker"] == ticker]
-        weight = tb["adj_shares"].sum()
-        if weight == 0:
-            cost[ticker] = 0.0
-        else:
-            cost[ticker] = (tb["price_paid"] * tb["adj_shares"]).sum() / weight
+        lots = _remaining_lots(trades_adj[trades_adj["ticker"] == ticker], ticker)
+        priced = [(s, p) for s, p in lots if p is not None and s > _EPS]
+        weight = sum(s for s, _ in priced)
+        cost[ticker] = sum(s * p for s, p in priced) / weight if weight else 0.0
     return pd.Series(cost)
 
 

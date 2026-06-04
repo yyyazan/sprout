@@ -52,6 +52,12 @@ def stock(ticker: str):
     div_rate = info.get("dividendRate")
     div_yld = (div_rate / price * 100) if (div_rate and price) else None
 
+    # yfinance's trailingPE field is unreliable (esp. for negative earnings:
+    # RKLB reports PE -10823 while EPS is -0.32). Derive PE locally from
+    # price / EPS so the two are always consistent.
+    eps = _first(info, "trailingEps", "forwardEps")
+    pe = (price / eps) if (price is not None and eps not in (None, 0)) else None
+
     # real split-adjusted daily closes (already cached by the prices module)
     history = []
     try:
@@ -78,8 +84,8 @@ def stock(ticker: str):
         "volume": _py(_first(info, "volume", "regularMarketVolume")),
         "avgVolume": _py(_first(info, "averageVolume", "averageVolume10days")),
         "marketCap": _py(info.get("marketCap")),
-        "pe": _py(_first(info, "trailingPE", "forwardPE")),
-        "eps": _py(_first(info, "trailingEps", "forwardEps")),
+        "pe": _py(round(pe, 1)) if pe is not None else None,
+        "eps": _py(eps),
         "divYield": _py(round(div_yld, 2)) if div_yld is not None else None,
         "beta": _py(info.get("beta")),
         "target": _py(info.get("targetMeanPrice")),
