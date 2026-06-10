@@ -27,7 +27,8 @@ export function divYieldOf(ticker) {
   return r() < 0.45 ? 0 : +lerp(0.4, 4.2, r()).toFixed(2);
 }
 
-// holding = the `peek` object from MomentumDeck (real position fields).
+// holding = a card mapped to the holding shape (cardToHolding in stores.js),
+// carrying real position fields; mockStock fills any market gaps.
 export function mockStock(h) {
   const t = h?.t || '—';
   const price = h?.last ?? 100;

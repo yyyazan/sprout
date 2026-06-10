@@ -14,12 +14,13 @@
 
 <style>
   .sd-scrim { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 28px;
-    background: color-mix(in srgb, var(--ink) 38%, transparent); backdrop-filter: blur(3px);
+    background: rgba(0, 0, 0, .62); backdrop-filter: blur(3px);
     animation: sd-fade .16s ease; }
   @keyframes sd-fade { from { opacity: 0; } to { opacity: 1; } }
-  .sd { width: min(1180px, 95vw); height: min(820px, 92vh); display: flex; flex-direction: column;
-    background: var(--surface); border: var(--bw) solid var(--ink); border-radius: calc(var(--r) + 4px);
-    box-shadow: 8px 8px 0 var(--ink); box-sizing: border-box; overflow: hidden;
+  /* paper sheet — the widget grid floats on it like the dashboard */
+  .sd { width: min(1180px, 95vw); height: min(820px, 92vh); display: block;
+    background: var(--paper); border: var(--bw) solid var(--ink); border-radius: calc(var(--r) + 4px);
+    box-shadow: 8px 8px 0 var(--ink); box-sizing: border-box; overflow-y: auto; padding: 18px;
     animation: sd-rise .2s cubic-bezier(.34, 1.4, .5, 1); }
   @keyframes sd-rise { from { transform: translateY(14px) scale(.985); opacity: 0; } to { transform: none; opacity: 1; } }
 

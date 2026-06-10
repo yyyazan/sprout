@@ -77,7 +77,7 @@ export function openSearchResult(r) {
   detail.set({ ticker: r.symbol, name: r.name, holding: card ? cardToHolding(card) : null });
 }
 
-// Map a dashboard card → the holding shape StockDetail/MomentumDeck expect.
+// Map a dashboard card → the holding shape StockPanel/StockDetail expect.
 export function cardToHolding(c) {
   const invested = c.cost_basis != null && c.shares ? c.cost_basis * c.shares : null;
   return {

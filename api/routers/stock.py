@@ -28,6 +28,12 @@ _news_cache: dict[str, tuple[float, list]] = {}
 _INTRADAY_TTL = 300.0  # 5 min — fine even mid-session for a glance app
 _intraday_cache: dict[tuple[str, str], tuple[float, dict]] = {}
 
+_ANALYST_TTL = 1800.0  # ratings move slowly
+_analyst_cache: dict[str, tuple[float, dict | None]] = {}
+
+_RELATED_TTL = 1800.0  # Yahoo's similar-symbols list + 4 quotes/sparks
+_related_cache: dict[str, tuple[float, list]] = {}
+
 
 def _info(ticker: str) -> dict:
     now = time.time()
@@ -91,6 +97,102 @@ def _news(ticker: str, limit: int = 4) -> list[dict]:
             break
     _news_cache[ticker] = (now, out)
     return out
+
+
+def _analyst(ticker: str, info: dict) -> dict | None:
+    """Analyst outlook block: rating buckets (latest month of the
+    recommendations trend) + 12-month price targets. None when Yahoo has no
+    coverage, so the frontend can skip the section entirely."""
+    now = time.time()
+    hit = _analyst_cache.get(ticker)
+    if hit is not None and now - hit[0] < _ANALYST_TTL:
+        return hit[1]
+
+    buckets = None
+    try:
+        recs = yf.Ticker(prices_mod.yf_symbol(ticker)).recommendations
+        if recs is not None and len(recs):
+            row = recs.iloc[0]
+            buckets = {
+                "strongBuy": int(row.get("strongBuy", 0)),
+                "buy": int(row.get("buy", 0)),
+                "hold": int(row.get("hold", 0)),
+                "sell": int(row.get("sell", 0)),
+                "strongSell": int(row.get("strongSell", 0)),
+            }
+    except Exception:
+        buckets = None
+
+    target_mean = _py(info.get("targetMeanPrice"))
+    out = None
+    if buckets and sum(buckets.values()) > 0 or target_mean is not None:
+        out = {
+            "buckets": buckets,
+            "count": _py(info.get("numberOfAnalystOpinions"))
+            or (sum(buckets.values()) if buckets else None),
+            "verdict": info.get("recommendationKey") or None,
+            "targetHigh": _py(info.get("targetHighPrice")),
+            "targetLow": _py(info.get("targetLowPrice")),
+            "targetMean": target_mean,
+        }
+    _analyst_cache[ticker] = (now, out)
+    return out
+
+
+@router.get("/stock/{ticker}/related")
+def related(ticker: str):
+    """Related stocks (Yahoo's similar-symbols list) with a light quote and an
+    intraday sparkline each — the GF "Related stocks" row."""
+    ticker = ticker.upper()
+    now = time.time()
+    hit = _related_cache.get(ticker)
+    if hit is not None and now - hit[0] < _RELATED_TTL:
+        return {"ticker": ticker, "related": hit[1]}
+
+    import requests
+
+    symbols: list[str] = []
+    try:
+        r = requests.get(
+            f"https://query2.finance.yahoo.com/v6/finance/recommendationsbysymbol/{prices_mod.yf_symbol(ticker)}",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=10,
+        )
+        recs = (r.json().get("finance", {}).get("result") or [{}])[0].get("recommendedSymbols") or []
+        symbols = [x["symbol"] for x in recs[:4]]
+    except Exception:
+        symbols = []
+
+    out: list[dict] = []
+    for sym in symbols:
+        try:
+            t = yf.Ticker(sym)
+            fi = t.fast_info
+            price = float(fi.last_price)
+            prev = float(fi.previous_close)
+            hist = t.history(period="1d", interval="15m")
+            spark = [
+                _py(round(float(v), 2))
+                for v in hist["Close"].dropna().tolist()
+            ] if hist is not None and not hist.empty else []
+            name = sym
+            try:
+                name = prices_mod.profile(sym).get("name") or sym
+            except Exception:
+                pass
+            out.append({
+                "ticker": sym,
+                "name": name,
+                "price": _py(round(price, 2)),
+                "dayPct": _py(round((price / prev - 1) * 100, 2)) if prev else None,
+                "prevClose": _py(round(prev, 2)) if prev else None,
+                "spark": spark,
+            })
+        except Exception:
+            continue
+
+    _related_cache[ticker] = (now, out)
+    return {"ticker": ticker, "related": out}
 
 
 def _earnings_date(info: dict) -> str | None:
@@ -164,6 +266,7 @@ def stock(ticker: str):
         "target": _py(info.get("targetMeanPrice")),
         "rating": info.get("recommendationKey") or "",
         "earningsDate": _earnings_date(info),
+        "analyst": _analyst(ticker, info),
         "news": _news(ticker),
         "history": history,
     }

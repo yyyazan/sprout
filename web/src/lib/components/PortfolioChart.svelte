@@ -7,6 +7,7 @@
   // the crosshair re-reads the big header number + delta to the hovered point.
   import { onMount } from 'svelte';
   import { createChart, AreaSeries, LineSeries, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
+  import { theme } from '$lib/theme.js';
 
   // equity = {x:['YYYY-MM-DD'...], y:[$...]} portfolio value
   // spy    = {x,y} parallel SPY portfolio ($) — same cash flows invested in SPY
@@ -22,7 +23,11 @@
     { k: 'ALL', days: Infinity },
   ];
 
-  const BRAND = '#0fb39a', SPY_C = '#b3ab9c', GRID = '#ececea', MUTED = '#8a8478';
+  const BRAND = '#0fb39a';
+  // theme-reactive chart palette (lightweight-charts can't read CSS vars)
+  const PAL = $derived($theme === 'light'
+    ? { INK: '#1a1a1a', GRID: '#e7e1d3', MUTED: '#8a8478', SPY: '#b3ab9c' }
+    : { INK: '#faf7f0', GRID: '#2a2722', MUTED: '#8f897c', SPY: '#7d776b' });
 
   let range = $state('ALL');
   let mode = $state('value');     // 'value' | 'return'
@@ -112,16 +117,16 @@
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' },
-        textColor: MUTED, fontFamily: 'Space Mono, ui-monospace, monospace',
+        textColor: PAL.MUTED, fontFamily: 'Space Mono, ui-monospace, monospace',
         fontSize: 11, attributionLogo: false,
       },
-      grid: { vertLines: { visible: false }, horzLines: { color: GRID } },
+      grid: { vertLines: { visible: false }, horzLines: { color: PAL.GRID } },
       rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
       timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
       crosshair: {
         mode: CrosshairMode.Magnet,
-        vertLine: { color: '#1a1a1a', width: 1, style: LineStyle.Solid, labelVisible: false },
-        horzLine: { color: GRID, width: 1, style: LineStyle.Dotted, labelVisible: false },
+        vertLine: { color: PAL.INK, width: 1, style: LineStyle.Solid, labelVisible: false },
+        horzLine: { color: PAL.GRID, width: 1, style: LineStyle.Dotted, labelVisible: false },
       },
       handleScroll: false, handleScale: false,
     });
@@ -134,7 +139,18 @@
     return () => { chart.remove(); chart = null; };
   });
 
-  // Rebuild series whenever the window or mode changes.
+  // re-skin chrome (axes, grid, crosshair) when the theme flips
+  $effect(() => {
+    if (!chart) return;
+    const p = PAL;
+    chart.applyOptions({
+      layout: { textColor: p.MUTED },
+      grid: { horzLines: { color: p.GRID } },
+      crosshair: { vertLine: { color: p.INK }, horzLine: { color: p.GRID } },
+    });
+  });
+
+  // Rebuild series whenever the window, mode, or theme changes.
   $effect(() => {
     if (!chart) return;
     const v = view, m = mode, base = baseRow;
@@ -162,7 +178,7 @@
       handles.push(area);
       if (showSpy) {
         const sp = chart.addSeries(LineSeries, {
-          color: SPY_C, lineWidth: 1.5, lineStyle: LineStyle.Dotted,
+          color: PAL.SPY, lineWidth: 1.5, lineStyle: LineStyle.Dotted,
           priceLineVisible: false, lastValueVisible: false,
         });
         sp.setData(v.filter((r) => r.sv != null).map((r) => ({ time: r.t, value: r.sv })));
@@ -176,14 +192,14 @@
       handles.push(you);
       if (showSpy) {
         const sp = chart.addSeries(LineSeries, {
-          color: SPY_C, lineWidth: 1.5, lineStyle: LineStyle.Dotted,
+          color: PAL.SPY, lineWidth: 1.5, lineStyle: LineStyle.Dotted,
           priceLineVisible: false, lastValueVisible: false,
         });
         sp.setData(v.filter((r) => r.sret != null).map((r) => ({ time: r.t, value: twRet(r, base, 'sret') })));
         handles.push(sp);
       }
       handles[0].createPriceLine({
-        price: 0, color: GRID, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false,
+        price: 0, color: PAL.GRID, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false,
       });
     }
 
@@ -191,7 +207,9 @@
   });
 </script>
 
-<div class="glass-card pc-card">
+<!-- two widgets matching the stock view's grid language: header (0.5) + chart -->
+<div class="pcg">
+  <section class="pc-w pc-head-w">
   <div class="pc-eyebrow"><span class="pc-dot" aria-hidden="true"></span>Your portfolio</div>
   <div class="pc-head">
     <div class="pc-read">
@@ -227,21 +245,26 @@
       <button class:on={mode === 'return'} onclick={() => (mode = 'return')}>Return</button>
     </div>
   </div>
+  </section>
 
-  <div class="pc-canvas" bind:this={host}></div>
-
-  <div class="pc-ranges" role="group" aria-label="range">
-    {#each RANGES as r}
-      <button class:on={range === r.k} onclick={() => (range = r.k)}>{r.k}</button>
-    {/each}
-  </div>
+  <section class="pc-w pc-chart-w">
+    <div class="pc-canvas" bind:this={host}></div>
+    <div class="pc-ranges" role="group" aria-label="range">
+      {#each RANGES as r}
+        <button class:on={range === r.k} onclick={() => (range = r.k)}>{r.k}</button>
+      {/each}
+    </div>
+  </section>
 </div>
 
 <style>
-  /* the portfolio hero — a brand top-edge + eyebrow mark it as YOUR whole portfolio,
-     so it's never mistaken for a single-stock card (those open as a full overlay). */
-  .pc-card { display: flex; flex-direction: column; padding: 14px 18px 16px; gap: 10px; height: 100%;
-    }
+  /* two stacked widgets, same grid language as the stock view */
+  .pcg { display: flex; flex-direction: column; gap: 16px; height: 100%; min-height: 0; }
+  .pc-w { background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r);
+    box-sizing: border-box; }
+  .pc-head-w { flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; }
+  .pc-chart-w { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px;
+    padding: 14px 16px 12px; }
   .pc-eyebrow { display: flex; align-items: center; gap: 7px; font-family: var(--sans); font-size: 10px;
     font-weight: 700; text-transform: uppercase; letter-spacing: .14em; color: var(--brand); }
   .pc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); border: 1.5px solid var(--ink); }
@@ -256,24 +279,25 @@
     font-family: var(--mono); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .pc-muted { color: var(--muted); font-weight: 400; }
 
-  /* metric toggle — segmented ink radio, matching the deck's winbar */
-  .pc-toggle { display: inline-flex; flex: 0 0 auto; border: var(--bw) solid var(--ink);
-    border-radius: var(--r); overflow: hidden; box-shadow: var(--sh); }
-  .pc-toggle button { font-family: var(--mono); font-size: 11px; font-weight: 700; cursor: pointer;
-    padding: 6px 11px; background: var(--surface); color: var(--ink); border: 0;
-    border-right: var(--bw) solid var(--ink); }
-  .pc-toggle button:last-child { border-right: 0; }
-  .pc-toggle button.on { background: var(--ink); color: var(--surface); }
+  /* metric toggle — system pills (text → outline hover → solid ink when on) */
+  .pc-toggle { display: inline-flex; flex: 0 0 auto; gap: 2px; }
+  .pc-toggle button { font-family: var(--mono); font-size: 11px; font-weight: 600; cursor: pointer;
+    padding: 5px 12px; background: transparent; color: var(--muted);
+    border: var(--bw) solid transparent; border-radius: 999px;
+    transition: border-color .12s ease, background .12s ease, color .12s ease; }
+  .pc-toggle button:hover { color: var(--ink); border-color: var(--ink); }
+  .pc-toggle button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
   .pc-canvas { flex: 1; min-height: 180px; }
 
-  /* range pills — lighter weight than the toggle, selected = ink underline chip */
-  .pc-ranges { display: flex; gap: 6px; }
-  .pc-ranges button { font-family: var(--mono); font-size: 12px; font-weight: 700; cursor: pointer;
-    padding: 4px 12px; background: var(--surface); color: var(--muted);
-    border: var(--bw) solid var(--ink); border-radius: var(--r); transition: transform .1s, box-shadow .1s; }
-  .pc-ranges button:hover { color: var(--ink); transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--ink); }
-  .pc-ranges button.on { background: var(--ink); color: var(--surface); }
+  /* GF-style range tabs — identical states to StockChart's .gf-range */
+  .pc-ranges { display: flex; align-items: center; gap: 2px;
+    border-top: var(--bw) solid var(--hairline); padding-top: 8px; }
+  .pc-ranges button { font-family: var(--mono); font-size: 11px; font-weight: 600; cursor: pointer; color: var(--muted);
+    padding: 4px 11px; background: transparent; border: var(--bw) solid transparent; border-radius: 999px;
+    letter-spacing: .02em; transition: border-color .12s ease, background .12s ease, color .12s ease; }
+  .pc-ranges button:hover { color: var(--ink); border-color: var(--ink); }
+  .pc-ranges button.on { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 
   .up { color: var(--gain); }
   .down { color: var(--loss); }

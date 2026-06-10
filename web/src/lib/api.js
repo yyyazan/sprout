@@ -29,6 +29,7 @@ export const api = {
   momentum: () => get('/momentum'),
   stock: (t) => get('/stock/' + encodeURIComponent(t)),
   intraday: (t, range) => get('/stock/' + encodeURIComponent(t) + '/intraday?range=' + encodeURIComponent(range)),
+  related: (t) => get('/stock/' + encodeURIComponent(t) + '/related'),
   market: () => get('/market'),
   watchlist: () => get('/watchlist'),
   watch: (t) => post('/watchlist', { ticker: t }),

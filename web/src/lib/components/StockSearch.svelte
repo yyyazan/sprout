@@ -88,7 +88,7 @@
 
 <style>
   .ss-scrim { position: fixed; inset: 0; z-index: 210; display: flex; justify-content: center; align-items: flex-start;
-    padding: 12vh 20px 20px; background: color-mix(in srgb, var(--ink) 32%, transparent); backdrop-filter: blur(3px);
+    padding: 12vh 20px 20px; background: rgba(0, 0, 0, .58); backdrop-filter: blur(3px);
     animation: ss-fade .14s ease; }
   @keyframes ss-fade { from { opacity: 0; } to { opacity: 1; } }
   .ss { width: min(620px, 96vw); background: var(--surface); border: var(--bw) solid var(--ink);
@@ -108,7 +108,7 @@
   .ss-list { list-style: none; margin: 0; padding: 6px; max-height: 52vh; overflow-y: auto; }
   .ss-item { width: 100%; display: flex; align-items: baseline; gap: 12px; padding: 10px 12px; cursor: pointer;
     border: 0; border-radius: var(--r); background: transparent; color: var(--ink); text-align: left; font: inherit; }
-  .ss-item.active { background: var(--paper); }
+  .ss-item.active { background: var(--hover); }
   .ss-sym { flex: 0 0 auto; font-family: var(--mono); font-weight: 700; font-size: 14px; min-width: 64px; }
   .ss-name { flex: 1; min-width: 0; font-family: var(--sans); font-size: 13px; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

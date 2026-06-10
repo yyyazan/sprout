@@ -62,10 +62,11 @@
   }
 </script>
 
-<section class="stage" class:stage-card={mode !== 'portfolio'}>
+<!-- stock mode renders the widget grid bare on the page paper; search keeps a card shell -->
+<section class="stage" class:stage-card={mode === 'search'}>
   {#if mode === 'stock'}
     {#key $detail.ticker}
-      <div class="stage-in">
+      <div class="stage-in stage-widgets">
         <StockPanel ticker={$detail.ticker} name={$detail.name} holding={$detail.holding} onClose={() => closeStock()} glyph="←" />
       </div>
     {/key}
@@ -112,12 +113,14 @@
 
 <style>
   .stage { min-height: 0; height: 100%; display: flex; flex-direction: column; }
-  /* stock + search modes bring their own shell; the chart card is its own chrome */
+  /* search brings a card shell; stock mode is a bare widget grid; the chart card is its own chrome */
   .stage-card { background: var(--surface); border: var(--bw) solid var(--ink);
     border-radius: calc(var(--r) + 2px); box-shadow: var(--sh); overflow: hidden; }
   .stage-in { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
     animation: stage-in .18s ease; }
   @keyframes stage-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* let the widget grid set its own height — the page scrolls, not the stage */
+  .stage-widgets { display: block; min-height: 0; }
   .stage-chart { min-height: 0; }
   .stage-chart :global(.pc-card) { flex: 1 1 auto; }
 
@@ -136,7 +139,7 @@
   .ss-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
   .ss-item { width: 100%; display: flex; align-items: baseline; gap: 12px; padding: 10px 12px; cursor: pointer;
     border: 0; border-radius: var(--r); background: transparent; color: var(--ink); text-align: left; font: inherit; }
-  .ss-item.active { background: var(--paper); }
+  .ss-item.active { background: var(--hover); }
   .ss-sym { flex: 0 0 auto; font-family: var(--mono); font-weight: 700; font-size: 14px; min-width: 64px; }
   .ss-name { flex: 1; min-width: 0; font-family: var(--sans); font-size: 13px; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

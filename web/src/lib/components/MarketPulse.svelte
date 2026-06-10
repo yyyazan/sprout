@@ -1,6 +1,7 @@
 <script>
-  // Market pulse — the "how's the market" ambient widget (Google Finance /
-  // Apple Stocks inspo): index quotes up top, a few market headlines below.
+  // Market pulse — "how's the market" at a glance. Three index cells split by
+  // hairlines (big day-% as the hero figure), then market headlines as
+  // neo-brutalist underlined links.
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
   import { openStock } from '$lib/stores.js';
@@ -49,29 +50,36 @@
 </div>
 
 <style>
-  .pulse { display: flex; flex-direction: column; gap: 10px; padding: 13px 15px 14px; }
+  .pulse { display: flex; flex-direction: column; gap: 12px; padding: 13px 15px 14px; }
   .pulse-h { font-family: var(--sans); font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .12em; color: var(--ink); opacity: .5; }
+    letter-spacing: .12em; color: var(--muted); }
   .pulse-empty { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 
-  .idx-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .idx { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; min-width: 0; cursor: pointer;
-    padding: 8px 10px; font: inherit; text-align: left; color: var(--ink);
-    background: var(--paper); border: 1.5px solid var(--ink); border-radius: var(--r);
-    transition: transform .1s ease, box-shadow .1s ease; }
-  .idx:hover { transform: translate(-1px, -1px); box-shadow: 2px 2px 0 var(--ink); }
+  /* three cells split by hairlines — no boxes, the % is the hero */
+  .idx-row { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .idx { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; min-width: 0; cursor: pointer;
+    padding: 2px 0 2px 12px; font: inherit; text-align: left; color: var(--ink);
+    background: transparent; border: 0; border-left: var(--bw) solid var(--hairline);
+    transition: border-color .15s ease; }
+  .idx:first-child { border-left: 0; padding-left: 0; }
+  .idx:hover { border-left-color: var(--ink); }
+  .idx:hover .idx-label { color: var(--ink); }
   .idx-label { font-family: var(--sans); font-size: 9px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--muted); white-space: nowrap; }
-  .idx-pct { font-family: var(--mono); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    letter-spacing: .06em; color: var(--muted); white-space: nowrap; transition: color .15s ease; }
+  .idx-pct { font-family: var(--mono); font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
   .idx-px { font-family: var(--mono); font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-  .pulse-news { display: flex; flex-direction: column; }
-  .pn-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-decoration: none; padding: 7px 0;
-    border-top: 1.5px solid color-mix(in srgb, var(--ink) 11%, transparent); }
-  .pn-item:last-child { padding-bottom: 0; }
-  .pn-title { font-family: var(--sans); font-size: 11.5px; font-weight: 600; line-height: 1.35; color: var(--ink);
+  /* headlines — neo-brutalist links: always underlined, ink on hover */
+  .pulse-news { display: flex; flex-direction: column; border-top: var(--bw) solid var(--hairline); padding-top: 4px; }
+  .pn-item { display: flex; flex-direction: column; gap: 3px; min-width: 0; text-decoration: none; padding: 8px 0;
+    border-top: var(--bw) solid var(--hairline); }
+  .pn-item:first-child { border-top: 0; }
+  .pn-title { font-family: var(--sans); font-size: 11.5px; font-weight: 600; line-height: 1.4; color: var(--ink);
+    text-decoration: underline; text-underline-offset: 2.5px;
+    text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent);
+    transition: text-decoration-color .15s ease;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .pn-item:hover .pn-title { text-decoration: underline; }
+  .pn-item:hover .pn-title { text-decoration-color: var(--ink); }
   .pn-meta { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 
   .up { color: var(--gain); } .down { color: var(--loss); }

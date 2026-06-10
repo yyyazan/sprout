@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import { holdings, moves, loadHoldings, startMomentum, openStock, openSearch, cardToHolding, watchlist, loadWatchlist } from '$lib/stores.js';
+  import { theme, toggleTheme } from '$lib/theme.js';
 
   const NAV = [
     { label: 'home', path: '/', glyph: '❖' },
@@ -10,12 +11,6 @@
   function isActive(pathname, path) {
     return path === '/' ? pathname === '/' : pathname.startsWith(path);
   }
-  // Each hover paints the nav link's hard shadow a fresh random accent.
-  const ACCENTS = ['#ff90e8', '#ffc900', '#23a094', '#5b8def', '#c994e8', '#ff6e5e'];
-  function randAccent(e) {
-    e.currentTarget.style.setProperty('--hovsh', ACCENTS[Math.floor(Math.random() * ACCENTS.length)]);
-  }
-
   onMount(() => { loadHoldings(); startMomentum(); loadWatchlist(); });
 
   let win = $state('day');   // 'day' | 'wk' — which move window the strips encode
@@ -48,11 +43,16 @@
 </script>
 
 <aside class="sidebar">
-  <div class="brand"><span class="brand-title">sprout</span></div>
+  <div class="brand brand-row">
+    <span class="brand-title">sprout</span>
+    <button class="theme-btn" onclick={toggleTheme} aria-label="Toggle light/dark theme" title="{$theme === 'dark' ? 'Light' : 'Dark'} mode">
+      {$theme === 'dark' ? '☀' : '☾'}
+    </button>
+  </div>
 
   <nav class="nav">
     {#each NAV as item}
-      <a href={item.path} class="nav-link" class:active={isActive($page.url.pathname, item.path)} onmouseenter={randAccent}>
+      <a href={item.path} class="nav-link" class:active={isActive($page.url.pathname, item.path)}>
         <div class="nav-item">
           <span class="nav-icon">{item.glyph}</span>
           <span class="nav-label">{item.label}</span>
@@ -61,17 +61,17 @@
     {/each}
   </nav>
 
-  <button class="rail-search" onclick={() => openSearch()}>
+  <button class="btn btn-line rail-search" onclick={() => openSearch()}>
     <span class="rs-icon" aria-hidden="true">⌕</span>
-    <span class="rs-label">Search stocks</span>
+    <span class="rs-label">search</span>
     <kbd>⌘K</kbd>
   </button>
 
   <div class="rail-head">
     <span class="rh-title">Holdings</span>
     <div class="rh-win" role="group" aria-label="move window">
-      <button class:on={win === 'day'} onclick={() => (win = 'day')}>D</button>
-      <button class:on={win === 'wk'} onclick={() => (win = 'wk')}>W</button>
+      <button class="btn btn-mono rh-btn" class:on={win === 'day'} onclick={() => (win = 'day')}>D</button>
+      <button class="btn btn-mono rh-btn" class:on={win === 'wk'} onclick={() => (win = 'wk')}>W</button>
     </div>
   </div>
 
@@ -118,25 +118,27 @@
 </aside>
 
 <style>
-  .rail-search { display: flex; align-items: center; gap: 8px; margin: 12px 0 4px; padding: 9px 11px;
-    background: var(--paper); border: var(--bw) solid var(--ink); border-radius: var(--r); cursor: pointer;
-    font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink);
-    box-shadow: var(--sh); transition: transform .1s ease, box-shadow .1s ease; }
-  .rail-search:hover { transform: translate(-2px, -2px); box-shadow: var(--sh-pop); }
+  .brand-row { display: flex; align-items: center; justify-content: space-between; }
+  .theme-btn { width: 28px; height: 28px; display: grid; place-items: center; cursor: pointer;
+    font-size: 14px; line-height: 1; color: var(--muted); background: transparent;
+    border: var(--bw) solid var(--hairline); border-radius: 999px;
+    transition: color .12s ease, border-color .12s ease, transform .12s ease; }
+  .theme-btn:hover { color: var(--ink); border-color: var(--ink); transform: rotate(20deg); }
+
+  /* rail search rides the global .btn .btn-line pill; layout extras only */
+  .rail-search { width: 100%; justify-content: flex-start; margin: 12px 0 4px; padding: 8px 14px; }
   .rail-search .rs-icon { font-size: 14px; color: var(--muted); }
   .rail-search .rs-label { flex: 1; text-align: left; }
   .rail-search kbd { font-family: var(--mono); font-size: 9.5px; color: var(--muted);
-    border: 1.5px solid var(--muted); border-radius: 4px; padding: 1px 4px; }
+    border: 1px solid var(--hairline); border-radius: 4px; padding: 1px 4px; }
+  .rail-search:active kbd, .rail-search:active .rs-icon { color: var(--paper); }
 
-  /* ── rail header: title + D/W move-window toggle ── */
+  /* ── rail header: title + D/W move-window toggle (mini system pills) ── */
   .rail-head { display: flex; align-items: center; justify-content: space-between; margin: 14px 4px 7px; }
   .rh-title { font-family: var(--sans); font-size: 9.5px; font-weight: 700;
     text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
-  .rh-win { display: inline-flex; border: 1.5px solid var(--ink); border-radius: 5px; overflow: hidden; }
-  .rh-win button { font-family: var(--mono); font-size: 9px; font-weight: 700; cursor: pointer; padding: 2px 7px;
-    background: var(--surface); color: var(--ink); border: 0; border-left: 1.5px solid var(--ink); line-height: 1.3; }
-  .rh-win button:first-child { border-left: 0; }
-  .rh-win button.on { background: var(--ink); color: var(--surface); }
+  .rh-win { display: inline-flex; gap: 2px; }
+  .rh-win :global(.rh-btn) { font-size: 9px; padding: 2px 8px; }
 
   .rail { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-bottom: 8px; }
   .rail-empty { padding: 10px 6px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
@@ -147,17 +149,17 @@
     border-top: 1.5px solid color-mix(in srgb, var(--ink) 13%, transparent); }
   .wl-row { animation: none; }
 
-  /* ── a holding row: growth strip · two stat lines ── */
-  .row { display: flex; align-items: stretch; gap: 10px; padding: 9px 8px; border: 0; border-radius: var(--r);
-    background: transparent; cursor: pointer; text-align: left; font: inherit; position: relative; overflow: hidden;
-    transition: background .12s ease;
+  /* ── a holding row: two stat lines. neo-brutalist states: static ink border on
+     hover, full ink inversion while pressed. no sweeps, no washes. ── */
+  .row { display: flex; align-items: stretch; gap: 10px; padding: 9px 12px;
+    border: var(--bw) solid transparent; border-radius: var(--r);
+    background: transparent; cursor: pointer; text-align: left; font: inherit;
+    transition: border-color .12s ease, background .12s ease;
     animation: rise .42s cubic-bezier(.2, .8, .3, 1) backwards; animation-delay: calc(var(--i) * 26ms); }
-  .row:hover { background: var(--paper); }
-  /* diagonal shine sweep on hover — the one bit of card flair we keep */
-  .row::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
-    background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,.5) 50%, transparent 58%);
-    transform: translateX(-130%); transition: transform .6s ease; }
-  .row:hover::after { transform: translateX(130%); }
+  .row:hover { border-color: var(--ink); }
+  .row:active { background: var(--ink); border-color: var(--ink); }
+  .row:active .r-sym { color: var(--paper); }
+  .row:active .r-val, .row:active .r-wt { color: var(--paper); opacity: .75; }
 
   .r-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
   .r-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -172,7 +174,6 @@
   @keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) {
     .row { animation: none; }
-    .row::after { transition: none; }
   }
 
   /* On mobile the sidebar collapses to a top nav bar — the rail would be huge there. */

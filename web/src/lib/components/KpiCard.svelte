@@ -1,13 +1,19 @@
 <script>
   import { formatValue, valueClass } from '$lib/format.js';
-  // `tone` paints the card a flat block: 'brand' (jade hero) / 'gain' / 'loss' / default white.
-  // On a toned card the figure stays ink (no up/down colour — it would clash with the fill).
+  // `tone` colours the FIGURE, not the card — flat fills read loud/childish next
+  // to the rest of the system. 'brand' keeps the jade hero fill (used sparingly).
   let { label, value, kind = 'money', subtitle = null, size = 'small', tone = 'surface' } = $props();
-  const FILL = { surface: 'var(--surface)', brand: 'var(--brand)', gain: 'var(--gain)', loss: 'var(--loss)' };
+  const fill = tone === 'brand' ? 'var(--brand)' : 'var(--surface)';
+  const toneClass = tone === 'gain' ? 'up' : tone === 'loss' ? 'down' : '';
 </script>
 
-<div class="glass-card kpi-card widget-{size}" style="--fill:{FILL[tone] ?? 'var(--surface)'}">
+<div class="glass-card kpi-card widget-{size}" style="--fill:{fill}">
   <div class="kpi-label">{label}</div>
-  <div class="kpi-value {tone === 'surface' ? valueClass(value, kind) : ''}">{formatValue(value, kind)}</div>
+  <div class="kpi-value {toneClass || (tone === 'surface' ? valueClass(value, kind) : '')}">{formatValue(value, kind)}</div>
   {#if subtitle}<div class="kpi-subtitle">{subtitle}</div>{/if}
 </div>
+
+<style>
+  .kpi-value.up { color: var(--gain); }
+  .kpi-value.down { color: var(--loss); }
+</style>

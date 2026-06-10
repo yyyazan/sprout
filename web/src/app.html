@@ -10,13 +10,22 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="icon" href="%sveltekit.assets%/favicon.png" />
 
-    <!-- Neo-brutalist type: Space Grotesk (structural) + Space Mono (figures). -->
+    <!-- Neo-brutalist type: Archivo (structural grotesque) +
+         IBM Plex Mono (figures). Space fonts kept loaded as an easy revert path. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap"
       rel="stylesheet"
     />
+
+    <!-- apply the saved theme before first paint to avoid a light/dark flash -->
+    <script>
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('sprout-theme') === 'light' ? 'light' : 'dark';
+      } catch (e) {}
+    </script>
 
     <!-- three.js + addons (VOXLoader, TransformControls) and lil-gui are now npm
          deps imported as ES modules from src/lib/three/garden/ — no global CDN
