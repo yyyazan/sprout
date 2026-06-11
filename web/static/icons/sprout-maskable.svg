@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Maskable variant: same glyph scaled to ~62% so any platform mask
+       (circle, squircle) keeps the seedling inside the safe zone. -->
+  <rect width="512" height="512" fill="#0d0c0a"/>
+  <g transform="translate(256 266) scale(0.62) translate(-256 -298)">
+    <line x1="120" y1="392" x2="392" y2="392" stroke="#faf7f0" stroke-width="14" stroke-linecap="round"/>
+    <path d="M256 392 V232" stroke="#0fb39a" stroke-width="22" stroke-linecap="round" fill="none"/>
+    <path d="M256 300 C 200 300, 152 268, 148 204 C 212 208, 252 244, 256 300 Z"
+          fill="#0fb39a" stroke="#faf7f0" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M256 252 C 312 252, 360 220, 364 156 C 300 160, 260 196, 256 252 Z"
+          fill="#23a094" stroke="#faf7f0" stroke-width="10" stroke-linejoin="round"/>
+  </g>
+</svg>

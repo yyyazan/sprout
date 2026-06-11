@@ -5,6 +5,7 @@
   import StockDetail from '$lib/components/StockDetail.svelte';
   import StockSearch from '$lib/components/StockSearch.svelte';
   import { detail, searchOpen, holdings, openSearchResult, closeStock, openSearch, closeSearch } from '$lib/stores.js';
+  import { isMobile } from '$lib/isMobile.js';
   let { children } = $props();
 
   // The dashboard renders stock view + search INSIDE its main stage widget;
@@ -21,10 +22,16 @@
   });
 </script>
 
-<div class="app-root">
-  <Sidebar />
+<!-- On a phone, the dashboard brings its own chrome (tab bar, safe-area shell) —
+     render it bare. Every other route (and all of desktop) keeps the sidebar shell. -->
+{#if $isMobile && onDashboard}
   {@render children()}
-</div>
+{:else}
+  <div class="app-root">
+    <Sidebar />
+    {@render children()}
+  </div>
+{/if}
 
 {#if $detail && !onDashboard}
   <StockDetail ticker={$detail.ticker} name={$detail.name} holding={$detail.holding} onClose={() => closeStock()} />

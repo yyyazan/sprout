@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -24,6 +25,10 @@ from api.routers import dashboard, entries, search, stock, watchlist
 # Static SvelteKit bundle (adapter-static). Served by this same process so the
 # whole app is one deploy; missing in dev when the frontend runs on Vite :5173.
 BUILD_DIR = (Path(__file__).resolve().parent.parent / "web" / "build")
+
+# FileResponse guesses MIME via mimetypes; .webmanifest isn't registered on all
+# platforms, and the PWA manifest should serve as application/manifest+json.
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 
 @asynccontextmanager

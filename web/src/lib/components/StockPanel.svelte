@@ -394,4 +394,14 @@
     .w-chart { height: 340px; }
     .ks-cols { grid-template-columns: 1fr; column-gap: 0; }
   }
+
+  /* phone (mobile stock sheet): tighter rhythm, shorter chart, self-sized header */
+  @media (max-width: 700px) {
+    .spg { gap: 12px; }
+    .w-head { min-height: 0; }
+    .w-chart { height: 300px; padding: 10px 8px; }
+    .hw-px { font-size: 24px; }
+    .hw-pos { gap: 4px 10px; }
+    .w-bare { min-height: 0; padding: 14px 8px; }
+  }
 </style>

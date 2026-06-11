@@ -10,7 +10,9 @@
   import TradeTicket from '$lib/components/TradeTicket.svelte';
   import ResearchChat from '$lib/components/ResearchChat.svelte';
   import GardenView from '$lib/components/GardenView.svelte';
+  import MobileDashboard from '$lib/components/mobile/MobileDashboard.svelte';
   import { primeHoldings } from '$lib/stores.js';
+  import { isMobile } from '$lib/isMobile.js';
 
   let d = $state(null);
   let garden = $state(null);
@@ -39,6 +41,11 @@
 {#if error}
   <div class="content"><p style="color:var(--loss)">Failed to load: {error}</p></div>
 {:else if d && garden}
+  {#if $isMobile}
+    <!-- phone: dedicated tree (tab bar, sheet, safe areas). EXCLUSIVE with the
+         desktop tree — the garden's #garden-root is a singleton. -->
+    <MobileDashboard {d} {garden} {refresh} />
+  {:else}
   <div class="content content-has-hero">
     <div class="page-hero">
       <GardenView positions={garden.positions} period={garden.period} />
@@ -74,6 +81,7 @@
       </aside>
     </div>
   </div>
+  {/if}
 {:else}
   <div class="content"><p style="color:var(--muted)">Loading…</p></div>
 {/if}
