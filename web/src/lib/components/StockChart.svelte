@@ -9,7 +9,7 @@
   // a deterministic client-side mock (clearly a visual scaffold). Real volume is
   // a backend follow-up; the histogram swaps in transparently once it lands.
   import { onMount } from 'svelte';
-  import { createChart, AreaSeries, CandlestickSeries, LineSeries, HistogramSeries, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
+  import { createChart, AreaSeries, CandlestickSeries, LineSeries, HistogramSeries, ColorType, CrosshairMode, LineStyle, TrackingModeExitMode } from 'lightweight-charts';
   import { priceSeries } from '$lib/mockStock.js';
   import { api } from '$lib/api.js';
   import { theme } from '$lib/theme.js';
@@ -156,6 +156,9 @@
         horzLine: { color: PAL.GRID, width: 1, style: LineStyle.Dotted, labelVisible: false },
       },
       handleScroll: false, handleScale: false,
+      // touch: press-drag scrubs the crosshair (drag-measure rides the same
+      // pointer events); window stays fixed — the range pills own it
+      trackingMode: { exitMode: TrackingModeExitMode.OnNextTap },
     });
     highlight = chart.addSeries(AreaSeries, {
       lineColor: 'rgba(0,0,0,0)', lineWidth: 1, topColor: hexA(PAL.INK, 0.08), bottomColor: hexA(PAL.INK, 0.08),
@@ -376,6 +379,11 @@
 
   /* chart */
   .sc-chartwrap { flex: 1 1 auto; min-height: 200px; position: relative; user-select: none; touch-action: none; }
+  /* phone: give vertical swipes back to the page/sheet scroll; horizontal drags
+     and the long-press crosshair scrub stay with the chart */
+  @media (max-width: 700px) {
+    .sc-chartwrap { touch-action: pan-y; }
+  }
   .sc-chart { position: absolute; inset: 0; overflow: hidden; }
   .sc-prev { position: absolute; top: 6px; right: 8px; z-index: 3; pointer-events: none;
     font-family: var(--mono); font-size: 10px; color: var(--muted); }

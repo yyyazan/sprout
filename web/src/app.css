@@ -336,9 +336,10 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
 @media (max-width: 700px) {
   html, body { -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
   /* 100dvh tracks Safari's collapsing URL bar; equals 100vh in standalone.
-     Bottom padding clears the fixed tab bar + home indicator. */
+     Bottom padding clears the floating dock (64px capsule + 12px inset) + home
+     indicator, with a little air above it. */
   .m-shell { min-height: 100dvh; box-sizing: border-box;
-    padding: 0 14px calc(70px + env(safe-area-inset-bottom));
+    padding: 0 14px calc(88px + env(safe-area-inset-bottom));
     display: flex; flex-direction: column; }
   .m-pane { min-width: 0; }
   .m-pane.hidden { display: none; }

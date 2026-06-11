@@ -6,7 +6,7 @@
   // both to time-weighted % from the window start. Range buttons zoom the window;
   // the crosshair re-reads the big header number + delta to the hovered point.
   import { onMount } from 'svelte';
-  import { createChart, AreaSeries, LineSeries, ColorType, CrosshairMode, LineStyle } from 'lightweight-charts';
+  import { createChart, AreaSeries, LineSeries, ColorType, CrosshairMode, LineStyle, TrackingModeExitMode } from 'lightweight-charts';
   import { theme } from '$lib/theme.js';
 
   // equity = {x:['YYYY-MM-DD'...], y:[$...]} portfolio value
@@ -133,6 +133,9 @@
         horzLine: { color: PAL.GRID, width: 1, style: LineStyle.Dotted, labelVisible: false },
       },
       handleScroll: false, handleScale: false,
+      // touch: press-drag scrubs the crosshair (Apple-Stocks style), stays until
+      // the next tap. Range stays fixed — the range pills own the window.
+      trackingMode: { exitMode: TrackingModeExitMode.OnNextTap },
     });
 
     chart.subscribeCrosshairMove((p) => {
@@ -360,7 +363,9 @@
   .pc-toggle button:hover { color: var(--ink); border-color: var(--ink); }
   .pc-toggle button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 
-  .pc-canvas { flex: 1; min-height: 0; }
+  /* pan-y: vertical swipes keep scrolling the page; horizontal drags and the
+     long-press scrub belong to the chart */
+  .pc-canvas { flex: 1; min-height: 0; touch-action: pan-y; }
 
   /* GF-style range tabs — identical states to StockChart's .gf-range */
   .pc-ranges { display: flex; align-items: center; gap: 2px;

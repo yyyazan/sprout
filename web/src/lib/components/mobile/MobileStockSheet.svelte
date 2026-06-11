@@ -12,7 +12,10 @@
   $effect(() => {
     if ($detail && !pushed) {
       pushed = true;
-      pushState('', { mobileSheet: true });   // SvelteKit-aware shallow push
+      // SvelteKit-aware shallow push; guarded so a router edge case (e.g. not
+      // initialized yet) degrades to "no back-swipe dismissal" instead of
+      // taking the whole sheet down with it.
+      try { pushState('', { mobileSheet: true }); } catch { pushed = false; }
     }
   });
 
