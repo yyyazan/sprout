@@ -64,7 +64,7 @@
         <div class="al-row">
           <span class="al-sym">{t.ticker}</span>
           <span class="al-kind {t.action === 'buy' ? 'up' : 'down'}">{t.action}</span>
-          <span class="al-fig">{fmt.shares(t.shares)} sh</span>
+          <span class="al-fig">{fmt.shares(t.shares)} sh{#if t.price != null}<span class="al-px"> @ {fmt.money2(t.price)}</span>{/if}</span>
           <span class="al-date">{t.date}</span>
         </div>
       {/each}
@@ -171,6 +171,7 @@
     text-transform: uppercase; letter-spacing: .06em; }
   .al-fig { flex: 1 1 auto; text-align: right; font-family: var(--mono); font-size: 12px; font-weight: 700;
     font-variant-numeric: tabular-nums; }
+  .al-px { font-weight: 700; color: var(--muted); }
   .al-date { flex: 0 0 auto; font-family: var(--mono); font-size: 11px; color: var(--muted);
     font-variant-numeric: tabular-nums; }
 

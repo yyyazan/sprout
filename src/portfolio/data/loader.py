@@ -42,7 +42,7 @@ def load_transactions(path: str | Path) -> pd.DataFrame:
 
 def load_trades_db(user_id: int, conn: sqlite3.Connection) -> pd.DataFrame:
     df = pd.read_sql_query(
-        "SELECT ticker, action, shares, trade_date AS date FROM trades "
+        "SELECT ticker, action, shares, price, trade_date AS date FROM trades "
         "WHERE user_id = ? ORDER BY id",
         conn,
         params=(user_id,),

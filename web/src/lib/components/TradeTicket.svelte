@@ -41,6 +41,7 @@
   let side = $state('buy');
   let ticker = $state('');
   let shares = $state('');
+  let price = $state(''); // per-share execution price; blank → server uses the close
   let date = $state(today());
   let saving = $state(false);
   let saveError = $state(null);
@@ -56,6 +57,7 @@
     const tk = (ticker || '').trim().toUpperCase();
     if (!TICKER_RE.test(tk)) { saveError = 'Enter a valid ticker'; return; }
     if (!(Number(shares) > 0)) { saveError = 'Enter shares > 0'; return; }
+    if (price !== '' && !(Number(price) > 0)) { saveError = 'Enter price > 0'; return; }
     saving = true;
     saveError = null;
     try {
@@ -63,10 +65,11 @@
         ticker: tk,
         action: side,
         shares: Number(shares),
+        price: price === '' ? null : Number(price),
         trade_date: date
       });
       if (res?.ok) {
-        ticker = ''; shares = '';
+        ticker = ''; shares = ''; price = '';
         await loadTrades();
         onSaved?.();
       } else {
@@ -145,7 +148,15 @@
     <datalist id="tt-tickers">
       {#each $holdings ?? [] as h (h.ticker)}<option value={h.ticker}>{h.company_name}</option>{/each}
     </datalist>
-    <input class="tt-date-input" type="date" bind:value={date} max={today()} aria-label="Trade date" />
+    <!-- date · execution price; price blank = filled with that day's close on save -->
+    <div class="tt-date-row">
+      <input class="tt-date-input" type="date" bind:value={date} max={today()} aria-label="Trade date" />
+      <input class="tt-price-input" type="number" step="any" min="0" inputmode="decimal"
+        placeholder="@ close" bind:value={price}
+        oninput={() => { saveError = null; }}
+        onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } }}
+        aria-label="Execution price per share (blank uses closing price)" />
+    </div>
     {#if saveError}<div class="tt-save-err" role="alert">{saveError}</div>{/if}
   </div>
 </div>
@@ -200,11 +211,17 @@
   .tt-in::placeholder { color: #1a1a1a; opacity: .3; }
   .tt-in::-webkit-outer-spin-button, .tt-in::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-  /* Date row — native date input, matches the cash tile's date row. */
-  .tt-date-input { flex: 0 0 auto; box-sizing: border-box; height: 28px; width: 100%;
+  /* Date row — native date input plus the execution-price box to its right. */
+  .tt-date-row { flex: 0 0 auto; display: flex; gap: 7px; }
+  .tt-date-input, .tt-price-input { box-sizing: border-box; height: 28px; min-width: 0;
     padding: 0 12px; border: var(--bw) solid #1a1a1a; border-radius: var(--r); background: #fff; box-shadow: var(--sh);
-    font-family: var(--mono); font-size: 12px; font-weight: 700; color: #1a1a1a; cursor: pointer; }
+    font-family: var(--mono); font-size: 12px; font-weight: 700; color: #1a1a1a; }
+  .tt-date-input { flex: 1 1 auto; cursor: pointer; }
   .tt-date-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .85; }
+  .tt-price-input { flex: 0 0 84px; padding: 0 8px; font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield; appearance: textfield; }
+  .tt-price-input::placeholder { color: #1a1a1a; opacity: .3; }
+  .tt-price-input::-webkit-outer-spin-button, .tt-price-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
   .tt-save-err { flex: 0 0 auto; color: #1a1a1a; font-family: var(--mono); font-size: 10px; font-weight: 700; text-align: center; }
 

@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS trades (
     ticker     TEXT    NOT NULL,
     action     TEXT    NOT NULL CHECK (action IN ('buy', 'sell')),
     shares     REAL    NOT NULL,
+    price      REAL,
     trade_date TEXT    NOT NULL,
     created_at TEXT    NOT NULL
 );
@@ -137,9 +138,22 @@ def _migrate_price_cache_meta(conn: sqlite3.Connection) -> None:
     )
 
 
+def _migrate_trades_price(conn: sqlite3.Connection) -> None:
+    """Add the per-share execution price to trades created before it existed.
+
+    NULL means "unknown" — rows are backfilled with the closing price by
+    scripts/backfill_trade_prices.py, and new trades default to the close
+    server-side when the user leaves the price blank.
+    """
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(trades)").fetchall()}
+    if cols and "price" not in cols:
+        conn.execute("ALTER TABLE trades ADD COLUMN price REAL")
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
     _migrate_price_cache_meta(conn)
+    _migrate_trades_price(conn)
     conn.commit()
 
 

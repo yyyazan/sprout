@@ -4,7 +4,9 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from portfolio.data import db as db_mod, loader, writer
+import pandas as pd
+
+from portfolio.data import db as db_mod, loader, prices, writer
 
 from api import state
 from api.serialize import _py, realized_payload
@@ -26,9 +28,12 @@ def trades(user_id: int = db_mod.DEFAULT_USER_ID):
             "ticker": str(t),
             "action": str(a),
             "shares": _py(sh),
+            "price": _py(px),
             "date": pd_ts.strftime("%Y-%m-%d"),
         }
-        for t, a, sh, pd_ts in zip(df["ticker"], df["action"], df["shares"], df["date"])
+        for t, a, sh, px, pd_ts in zip(
+            df["ticker"], df["action"], df["shares"], df["price"], df["date"]
+        )
     ]
 
 
@@ -55,6 +60,7 @@ class TradeIn(BaseModel):
     ticker: str
     action: str
     shares: float | None = None
+    price: float | None = None  # per-share execution price; None → closing price
     trade_date: str
 
 
@@ -68,10 +74,15 @@ class TxnIn(BaseModel):
 def add_trade(body: TradeIn, user_id: int = db_mod.DEFAULT_USER_ID):
     snap = state.get_snapshot(user_id)
     errors, clean = validate_trade(
-        body.ticker, body.action, body.shares, body.trade_date, snapshot=snap
+        body.ticker, body.action, body.shares, body.trade_date, body.price, snapshot=snap
     )
     if errors:
         return {"ok": False, "errors": errors}
+    price = clean["price"]
+    if price is None:
+        # No price entered → record the close on the trade date (same convention
+        # as the backfill of pre-price trades).
+        price = prices.price_on_date(clean["ticker"], pd.Timestamp(clean["trade_date"]))
     conn = db_mod.connect()
     writer.insert_trade_db(
         user_id,
@@ -80,6 +91,7 @@ def add_trade(body: TradeIn, user_id: int = db_mod.DEFAULT_USER_ID):
         action=clean["action"],
         shares=clean["shares"],
         trade_date=clean["trade_date"],
+        price=price,
     )
     state.invalidate(user_id)
     return {"ok": True, "errors": {}}

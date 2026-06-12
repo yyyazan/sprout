@@ -79,15 +79,17 @@ def insert_trade_db(
     action: str,
     shares: float,
     trade_date: date,
+    price: float | None = None,
 ) -> int:
     cur = conn.execute(
-        "INSERT INTO trades (user_id, ticker, action, shares, trade_date, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO trades (user_id, ticker, action, shares, price, trade_date, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             user_id,
             ticker.upper(),
             str(action).lower(),
             float(shares),
+            float(price) if price is not None else None,
             pd.Timestamp(trade_date).strftime("%Y-%m-%d"),
             _now(),
         ),

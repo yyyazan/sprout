@@ -23,7 +23,9 @@ def parse_date(value) -> date | None:
         return None
 
 
-def validate_trade(ticker, action, shares, trade_date, *, snapshot) -> tuple[dict[str, str], dict]:
+def validate_trade(
+    ticker, action, shares, trade_date, price=None, *, snapshot
+) -> tuple[dict[str, str], dict]:
     errors: dict[str, str] = {}
 
     cleaned_ticker = str(ticker or "").strip().upper()
@@ -44,6 +46,15 @@ def validate_trade(ticker, action, shares, trade_date, *, snapshot) -> tuple[dic
     elif shares_val <= 0:
         errors["shares"] = "Must be > 0."
 
+    # Execution price is optional — blank means "use the closing price".
+    try:
+        price_val = float(price) if price not in (None, "") else None
+    except (TypeError, ValueError):
+        price_val = None
+        errors["price"] = "Must be a number."
+    if price_val is not None and price_val <= 0:
+        errors["price"] = "Must be > 0."
+
     parsed = parse_date(trade_date)
     if parsed is None:
         errors["date"] = "Invalid date."
@@ -63,7 +74,13 @@ def validate_trade(ticker, action, shares, trade_date, *, snapshot) -> tuple[dic
 
     if errors:
         return errors, {}
-    return {}, {"ticker": cleaned_ticker, "action": action, "shares": shares_val, "trade_date": parsed}
+    return {}, {
+        "ticker": cleaned_ticker,
+        "action": action,
+        "shares": shares_val,
+        "trade_date": parsed,
+        "price": price_val,
+    }
 
 
 def validate_txn(txn_date, txn_type, amount) -> tuple[str | None, dict]:
