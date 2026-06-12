@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from api import backup, state
+from portfolio.data import db as db_mod
 from api.config import CORS_ORIGINS
 from api.routers import dashboard, entries, search, stock, watchlist
 
@@ -33,6 +34,15 @@ mimetypes.add_type("application/manifest+json", ".webmanifest")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Apply any pending schema migrations before the first snapshot warm.
+    try:
+        conn = db_mod.connect()
+        db_mod.init_schema(conn)
+        db_mod.seed_defaults(conn)
+        conn.close()
+    except Exception:
+        pass
+
     # Warm the default user's snapshot at boot (hits yfinance / Parquet cache).
     try:
         state.get_snapshot()
