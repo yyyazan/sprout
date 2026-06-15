@@ -56,7 +56,12 @@ def _allocation(market_value: pd.Series, cash: float) -> dict:
 
 
 def dashboard_payload(s: PortfolioSnapshot, period: str) -> dict:
-    portfolio_value = _last(s.portfolio_value_ts, default=float(s.free_cash))
+    # Headline total from LIVE spot prices (same source as the positions and
+    # allocation below) rather than the last point of the daily-close equity
+    # curve — otherwise the big number lags the per-holding cards intraday.
+    # (.sum() skips NaN, so an unpriced holding just drops out, as it already
+    # does from the cards/allocation.)
+    portfolio_value = float(s.pnl["market_value"].sum()) + float(s.free_cash)
     total_pnl = float(s.pnl["unrealized_pnl"].sum()) + float(s.realized_summary.sum())
 
     return {

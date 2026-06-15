@@ -25,10 +25,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_DB_PATH = Path(os.environ.get("PORTFOLIO_DB", _REPO_ROOT / "data" / "portfolio.db"))
 
 DEFAULT_USER_ID = 1
-# Untraced cash drift seeded for the default user (FX rounding + legacy fees).
-# Lifted out of analytics/cash.py so it becomes per-user data. Last reconciled
-# 2026-05-28, broker cash = $3.
-DEFAULT_RECONCILIATION_OFFSET = -107.0
+# Cash reconciliation offset seeded for a brand-new default user. Starts at 0
+# (no plug) — reconcile against the broker and update the cash_reconciliation
+# row with a real value. Existing DBs keep whatever offset they already hold.
+DEFAULT_RECONCILIATION_OFFSET = 0.0
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -172,7 +172,7 @@ def seed_defaults(conn: sqlite3.Connection) -> None:
         conn.execute(
             "INSERT INTO cash_reconciliation (user_id, offset_usd, reconciled_at, note) "
             "VALUES (?, ?, ?, ?)",
-            (DEFAULT_USER_ID, DEFAULT_RECONCILIATION_OFFSET, "2026-05-28", "broker cash = $3"),
+            (DEFAULT_USER_ID, DEFAULT_RECONCILIATION_OFFSET, _now(), "seeded at 0 — not yet reconciled"),
         )
     conn.commit()
 

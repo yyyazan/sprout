@@ -6,7 +6,8 @@
 
   const NAV = [
     { label: 'home', path: '/', glyph: '❖' },
-    { label: 'log', path: '/trades', glyph: '⊞' }
+    { label: 'log', path: '/trades', glyph: '⊞' },
+    { label: 'lab', path: '/lab', glyph: '⚗' }
   ];
   function isActive(pathname, path) {
     return path === '/' ? pathname === '/' : pathname.startsWith(path);

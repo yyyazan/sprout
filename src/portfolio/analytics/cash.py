@@ -19,16 +19,20 @@ import pandas as pd
 
 from portfolio.data import prices as prices_mod
 
-# Untraced cash drift (FX rounding + legacy fees). Adjust to match
-# actual broker cash. Last reconciled: 2026-05-28, broker cash = $3.
-CASH_RECONCILIATION_OFFSET = -107.0
+# Untraced cash drift (FX rounding + legacy fees). Now per-user data (table
+# `cash_reconciliation`); this constant is only the fallback for the CSV/no-DB
+# path. Zeroed 2026-06-15 — re-reconcile against the broker and set a real
+# per-user value when you next check the actual cash balance.
+CASH_RECONCILIATION_OFFSET = 0.0
 
 
 def _trade_cash_impact(trades_adj: pd.DataFrame) -> float:
     """Net cash spent (negative) or received (positive) across all trades."""
     total = 0.0
     for _, r in trades_adj.iterrows():
-        price = prices_mod.price_on_date(r["ticker"], r["date"])
+        price = prices_mod.adjusted_trade_price(
+            r["ticker"], r["date"], r.get("price"), r["split_factor"]
+        )
         if price is None:
             continue
         total += -r["adj_shares"] * price
@@ -59,7 +63,9 @@ def cash_timeseries(
     """Daily cash balance over `calendar`, reconciled via `reconciliation_offset`."""
     trade_cash_daily = pd.Series(0.0, index=calendar)
     for _, r in trades_adj.iterrows():
-        price = prices_mod.price_on_date(r["ticker"], r["date"])
+        price = prices_mod.adjusted_trade_price(
+            r["ticker"], r["date"], r.get("price"), r["split_factor"]
+        )
         if price is None:
             continue
         if r["date"] in trade_cash_daily.index:

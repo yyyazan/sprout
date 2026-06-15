@@ -233,6 +233,26 @@ def price_on_date(ticker: str, date: pd.Timestamp) -> float | None:
     return float(valid.iloc[-1]) if not valid.empty else None
 
 
+def adjusted_trade_price(
+    ticker: str,
+    date: pd.Timestamp,
+    recorded: float | None = None,
+    split_factor: float = 1.0,
+) -> float | None:
+    """Per-share trade price in today's split-adjusted terms.
+
+    Prefers the *recorded execution price* (what was actually paid/received),
+    divided forward by any post-trade splits so it lines up with `adj_shares`
+    and live spot. Falls back to the back-adjusted yfinance close on the trade
+    date when no price was recorded (older trades / the price-less CSV path).
+    Works for buys and sells alike — pair it with `adj_shares`, whose sign
+    already encodes the direction.
+    """
+    if recorded is not None and not pd.isna(recorded):
+        return float(recorded) / split_factor
+    return price_on_date(ticker, date)
+
+
 def profile(ticker: str) -> dict:
     """Sector + company name from yfinance `.info`. Durably cached.
 

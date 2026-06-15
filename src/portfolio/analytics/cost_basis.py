@@ -1,9 +1,10 @@
 """Weighted-average cost basis and unrealized P&L for open positions.
 
-Trades.csv has no price column — buy prices are inferred from yfinance's
-split-adjusted close on the trade date. Since both `adj_shares` (post-split)
-and `price_on_date` (back-adjusted) are in today's share-equivalent terms,
-no further adjustment is needed.
+Buy prices use the recorded execution price when present (what was actually
+paid, normalized to today's split-adjusted terms via
+`prices.adjusted_trade_price`), falling back to yfinance's split-adjusted close
+on the trade date for older trades. Both that price and `adj_shares` are in
+today's share-equivalent terms, so no further adjustment is needed.
 
 Cost basis is computed from the FIFO lots that remain *after* sells are
 matched (same lot accounting as `realized.fifo_realized`), so shares that were
@@ -27,7 +28,9 @@ def _remaining_lots(ticker_trades: pd.DataFrame, ticker: str) -> deque:
     queue: deque[list] = deque()
     for _, t in ticker_trades.sort_values("date").iterrows():
         if t["action"] == "buy":
-            price = prices_mod.price_on_date(ticker, t["date"])
+            price = prices_mod.adjusted_trade_price(
+                ticker, t["date"], t.get("price"), t["split_factor"]
+            )
             queue.append([t["adj_shares"], price])
         elif t["action"] == "sell":
             shares_left = abs(t["adj_shares"])

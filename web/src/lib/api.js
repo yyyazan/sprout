@@ -56,5 +56,8 @@ export const api = {
   realized: () => get('/realized'),
   addTrade: (body) => post('/trades', body),
   addTransaction: (body) => post('/transactions', body),
-  login: (password) => post('/auth/login', { password })
+  login: (password) => post('/auth/login', { password }),
+  labBacktest: ({ ticker, fast, slow, years }) =>
+    get(`/lab/backtest?ticker=${encodeURIComponent(ticker)}&fast=${fast}&slow=${slow}&years=${years}`),
+  labFactors: () => get('/lab/factors')
 };

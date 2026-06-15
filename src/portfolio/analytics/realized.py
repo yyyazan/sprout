@@ -1,9 +1,10 @@
 """FIFO realized P&L matcher.
 
 Walks each ticker's trades in chronological order. Buys push lots onto a queue
-with their inferred buy price (yfinance close on trade date). Sells consume
-lots from the front of the queue, splitting partial lots when the sell size
-is smaller than the head lot. Each sell yields one row per matched lot.
+with their buy price — the recorded execution price when present, else the
+yfinance close on the trade date (see `prices.adjusted_trade_price`). Sells
+consume lots from the front of the queue, splitting partial lots when the sell
+size is smaller than the head lot. Each sell yields one row per matched lot.
 """
 from __future__ import annotations
 
@@ -24,12 +25,16 @@ def fifo_realized(trades_adj: pd.DataFrame) -> pd.DataFrame:
 
         for _, t in ticker_trades.iterrows():
             if t["action"] == "buy":
-                price = prices_mod.price_on_date(ticker, t["date"])
+                price = prices_mod.adjusted_trade_price(
+                    ticker, t["date"], t.get("price"), t["split_factor"]
+                )
                 queue.append([t["adj_shares"], price, t["date"]])
 
             elif t["action"] == "sell":
                 shares_left = abs(t["adj_shares"])
-                sell_price = prices_mod.price_on_date(ticker, t["date"])
+                sell_price = prices_mod.adjusted_trade_price(
+                    ticker, t["date"], t.get("price"), t["split_factor"]
+                )
                 sell_date = t["date"]
 
                 while shares_left > _EPS and queue:
