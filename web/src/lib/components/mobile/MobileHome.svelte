@@ -3,7 +3,8 @@
   // chart → dividend/allocation rings → market pulse. The desktop's research
   // chat and card fan are intentionally absent on the phone.
   import GardenView from '../GardenView.svelte';
-  import KpiCard from '../KpiCard.svelte';
+  import BalanceCard from '../BalanceCard.svelte';
+  import PnlCard from '../PnlCard.svelte';
   import PortfolioChart from '../PortfolioChart.svelte';
   import DividendRing from '../DividendRing.svelte';
   import AllocationRing from '../AllocationRing.svelte';
@@ -26,13 +27,12 @@
 </div>
 
 <div class="mh-kpis">
-  <KpiCard label="Portfolio Value" value={d.kpis.portfolio_value} kind="money" size="mini" subtitle="stocks + cash" />
-  <KpiCard label="Total P&L" value={d.kpis.total_pnl} kind="money_compact" size="mini" subtitle="unrealized + realized"
-    tone={d.kpis.total_pnl >= 0 ? 'gain' : 'loss'} />
+  <BalanceCard total={d.kpis.portfolio_value} equities={d.kpis.equities} />
+  <PnlCard total={d.kpis.total_pnl} realized={d.kpis.realized_pnl} unrealized={d.kpis.unrealized_pnl} />
 </div>
 
 <div class="mh-chart">
-  <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} />
+  <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} />
 </div>
 
 <div class="mh-rings">

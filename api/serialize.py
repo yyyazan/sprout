@@ -61,21 +61,31 @@ def dashboard_payload(s: PortfolioSnapshot, period: str) -> dict:
     # curve — otherwise the big number lags the per-holding cards intraday.
     # (.sum() skips NaN, so an unpriced holding just drops out, as it already
     # does from the cards/allocation.)
-    portfolio_value = float(s.pnl["market_value"].sum()) + float(s.free_cash)
-    total_pnl = float(s.pnl["unrealized_pnl"].sum()) + float(s.realized_summary.sum())
+    equities = float(s.pnl["market_value"].sum())
+    portfolio_value = equities + float(s.free_cash)
+    unrealized_pnl = float(s.pnl["unrealized_pnl"].sum())
+    realized_pnl = float(s.realized_summary.sum())
+    total_pnl = unrealized_pnl + realized_pnl
 
     return {
         "greeting": greeting_for(period),
         "period": period,
         "kpis": {
             "cash": _py(s.free_cash),
+            "equities": _py(equities),
             "portfolio_value": _py(portfolio_value),
             "total_pnl": _py(total_pnl),
+            "realized_pnl": _py(realized_pnl),
+            "unrealized_pnl": _py(unrealized_pnl),
         },
         "goal": {"current": _py(s.monthly_deposits), "target": MONTHLY_SAVINGS_TARGET},
         "dividends": s.dividends,
         "allocation": _allocation(s.pnl["market_value"], max(float(s.free_cash), 0.0)),
         "equity_curve": _xy(s.portfolio_value_ts, 2),
+        # Cumulative net external cash in (deposits − withdrawals), aligned to the
+        # equity curve. Lets the chart strip deposits out of a window's $ gain so
+        # the headline reads earnings, not balance growth.
+        "net_invested": _xy(s.net_invested, 2),
         # Parallel SPY portfolio ($): the same cash flows invested in SPY instead.
         # This is the HONEST dollar benchmark — the gap vs equity_curve is real
         # out/under-performance, not deposits (a TWR-rebased line would be ~99%

@@ -7,7 +7,7 @@
   import { api } from '$lib/api.js';
   import { detail, searchOpen, holdings, closeStock, closeSearch, openSearchResult } from '$lib/stores.js';
 
-  let { equity = { x: [], y: [] }, spy = null, twr = null } = $props();
+  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null } = $props();
 
   // search wins over an open stock view (⌘K should always summon the palette);
   // closing search falls back to the stock still in $detail, then the chart
@@ -106,7 +106,7 @@
     </div>
   {:else}
     <div class="stage-in stage-chart">
-      <PortfolioChart {equity} {spy} {twr} />
+      <PortfolioChart {equity} {spy} {twr} {netInvested} />
     </div>
   {/if}
 </section>

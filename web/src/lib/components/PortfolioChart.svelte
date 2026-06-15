@@ -1,10 +1,10 @@
 <script>
-  // First-class interactive portfolio chart — fills cols 4–6 beside the peek.
-  // Hero = portfolio value ($) as an area, with SPY overlaid as "the same starting
-  // money grown at SPY's return" (rebased to the visible window's start, so the gap
-  // between the lines reads as out/under-performance). A Value|Return toggle flips
-  // both to time-weighted % from the window start. Range buttons zoom the window;
-  // the crosshair re-reads the big header number + delta to the hovered point.
+  // First-class interactive portfolio chart. The header reads PERFORMANCE over the
+  // selected range — a deposit-stripped $ gain + the window's time-weighted return,
+  // and the gap to SPY — so the range buttons (1W…ALL) drive the headline, not just
+  // the zoom. Scrubbing the crosshair swaps it for the hovered day's value and its
+  // return-to-date. A Value|Return toggle flips the plotted line between $ and
+  // time-weighted %; adding benchmarks rebases everything to the window start.
   import { onMount } from 'svelte';
   import { createChart, AreaSeries, LineSeries, ColorType, CrosshairMode, LineStyle, PriceScaleMode } from 'lightweight-charts';
   import { theme } from '$lib/theme.js';
@@ -15,7 +15,9 @@
   // spy    = {x,y} parallel SPY portfolio ($) — same cash flows invested in SPY
   //          (the honest $ benchmark; the gap is real performance, not deposits)
   // twr    = {portfolio:{x,y}, spy:{x,y}} decimals — for the apples-to-apples % view
-  let { equity = { x: [], y: [] }, spy = null, twr = null } = $props();
+  // netInvested = {x,y} cumulative net deposits ($) — lets a window's $ gain strip
+  //          out deposits, so the headline reads earnings rather than balance growth
+  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null } = $props();
 
   const RANGES = [
     { k: '1W', days: 7 },
@@ -118,13 +120,14 @@
   //   pv = portfolio $ · sv = parallel-SPY $ · pret/sret = TWR decimals
   const rows = $derived.by(() => {
     const x = equity?.x ?? [], y = equity?.y ?? [];
-    const svmap = mapOf(spy), pmap = mapOf(twr?.portfolio), smap = mapOf(twr?.spy);
+    const svmap = mapOf(spy), pmap = mapOf(twr?.portfolio), smap = mapOf(twr?.spy), nimap = mapOf(netInvested);
     const out = [];
     for (let i = 0; i < x.length; i++) {
       if (y[i] == null) continue;
       out.push({
         t: x[i], pv: y[i], sv: svmap.get(x[i]) ?? null,
         pret: pmap.get(x[i]) ?? null, sret: smap.get(x[i]) ?? null,
+        ni: nimap.get(x[i]) ?? null,
       });
     }
     return out;
@@ -148,26 +151,37 @@
   });
 
   const baseRow = $derived(view[0] ?? null);
-  // Dollar overlay (Value mode) needs the parallel-SPY $ series; the % overlay
-  // (Return mode) needs a TWR anchor at the window start.
-  const hasSpyUsd = $derived(view.some((r) => r.sv != null));
-  const hasSpyRet = $derived(!!(baseRow && baseRow.sret != null && view.some((r) => r.sret != null)));
 
   // time-weighted return of a row vs the window start (decimals → percent)
   const twRet = (r, base, key) =>
     r?.[key] == null || base?.[key] == null ? null : ((1 + r[key]) / (1 + base[key]) - 1) * 100;
 
-  // The number block reads the hovered row, or the latest point at rest.
+  // SCRUBBING readout: the hovered day's value + its return-to-date (vs the window
+  // start). Null at rest — the rest-state headline is `period` below.
   const read = $derived.by(() => {
-    if (!view.length) return null;
-    const r = hoverRow ?? view[view.length - 1];
+    if (!hoverRow) return null;
     return {
-      t: r.t,
-      pv: r.pv,
-      youPct: twRet(r, baseRow, 'pret'),
-      spyPct: twRet(r, baseRow, 'sret'),
-      gap: hasSpyUsd && r.sv != null ? r.pv - r.sv : null,   // real $ ahead of / behind SPY
+      t: hoverRow.t,
+      pv: hoverRow.pv,
+      youPct: twRet(hoverRow, baseRow, 'pret'),
+      spyPct: twRet(hoverRow, baseRow, 'sret'),
     };
+  });
+
+  const RANGE_LABELS = { '1W': 'Past week', '1M': 'Past month', '3M': 'Past 3 months', '1Y': 'Past year', 'ALL': 'All-time' };
+
+  // REST-state headline = performance over the visible window. The $ is deposit-
+  // stripped (window value change minus net deposits in the window) so it reads as
+  // earnings, not balance growth; the % is the window's time-weighted return, and
+  // `vs` is the gap to SPY in percentage points.
+  const lastRow = $derived(view.length ? view[view.length - 1] : null);
+  const period = $derived.by(() => {
+    if (!baseRow || !lastRow) return null;
+    const deposits = baseRow.ni != null && lastRow.ni != null ? lastRow.ni - baseRow.ni : 0;
+    const dollar = (lastRow.pv - baseRow.pv) - deposits;
+    const youPct = twRet(lastRow, baseRow, 'pret');
+    const spyPct = twRet(lastRow, baseRow, 'sret');
+    return { dollar, youPct, spyPct, vs: youPct != null && spyPct != null ? youPct - spyPct : null };
   });
 
   // ── upcoming earnings (right header half) — own fetch, never blocks the chart ──
@@ -370,30 +384,24 @@
   <section class="pc-w pc-head-w">
   <div class="pc-head">
     <div class="pc-read">
-      <div class="pc-label">
-        {hoverRow ? fmtDate(read?.t) : (mode === 'value' ? 'Portfolio value' : 'Time-weighted return')}
-      </div>
-      {#if read}
-        {#if mode === 'value'}
-          <div class="pc-value">{fmtUsd(read.pv)}</div>
-          <div class="pc-delta">
-            {#if !comparing && read.gap != null}
-              <span class={read.gap >= 0 ? 'up' : 'down'}>{fmtUsdSigned(read.gap)} vs SPY</span>
-            {/if}
-            <span class="pc-muted">you {fmtPct(read.youPct)}{#if !comparing && read.spyPct != null} · SPY {fmtPct(read.spyPct)}{/if}</span>
-          </div>
-        {:else}
-          <div class="pc-value {(read.youPct ?? 0) >= 0 ? 'up' : 'down'}">{fmtPct(read.youPct)}</div>
-          <div class="pc-delta">
-            {#if !comparing && read.spyPct != null}
-              <span class="pc-muted">SPY {fmtPct(read.spyPct)}</span>
-              {#if read.youPct != null}
-                {@const diff = read.youPct - read.spyPct}
-                <span class={diff >= 0 ? 'up' : 'down'}>{(diff >= 0 ? '+' : '') + diff.toFixed(1)}pp {diff >= 0 ? 'ahead' : 'behind'}</span>
-              {/if}
-            {/if}
-          </div>
-        {/if}
+      {#if hoverRow && read}
+        <!-- scrubbing a past point: that day's value + its return-to-date -->
+        <div class="pc-label">{fmtDate(read.t)}</div>
+        <div class="pc-value">{fmtUsd(read.pv)}</div>
+        <div class="pc-delta">
+          <span class="pc-muted">return {fmtPct(read.youPct)}{#if !comparing && read.spyPct != null} · SPY {fmtPct(read.spyPct)}{/if}</span>
+        </div>
+      {:else if period}
+        <!-- at rest: performance over the visible range (deposit-stripped $ + TWR %) -->
+        <div class="pc-label">{RANGE_LABELS[range] ?? 'Performance'}</div>
+        <div class="pc-value {(period.dollar ?? 0) >= 0 ? 'up' : 'down'}">{fmtUsdSigned(period.dollar)}</div>
+        <div class="pc-delta">
+          <span class={(period.youPct ?? 0) >= 0 ? 'up' : 'down'}>{fmtPct(period.youPct)}</span>
+          {#if !comparing && period.vs != null}
+            <span class="pc-muted">vs SPY</span>
+            <span class={period.vs >= 0 ? 'up' : 'down'}>{(period.vs >= 0 ? '+' : '') + period.vs.toFixed(1)}pp {period.vs >= 0 ? 'ahead' : 'behind'}</span>
+          {/if}
+        </div>
       {/if}
     </div>
   </div>

@@ -132,6 +132,14 @@
   const dayAbs = $derived(
     stock.prevClose && stock.price ? stock.price - stock.prevClose : null
   );
+
+  // Realized P&L for this ticker (lifetime; from /api/stock) → show TOTAL P&L =
+  // realized + the open position's unrealized. Covers holdings and tickers we've
+  // fully sold (those have no card, so they land in the non-owned branch below).
+  const realizedPnl = $derived(remote?.realizedPnl ?? null);
+  const hasRealized = $derived(realizedPnl != null && Math.abs(realizedPnl) > 0.005);
+  const totalPnl = $derived((owned ? (stock.plAbs ?? 0) : 0) + (realizedPnl ?? 0));
+  const prevHeld = $derived(!owned && hasRealized);
   // ── headline sentiment — crude keyword scan driving the news dots (green /
   // yellow / red). SWAP POINT: replace with a real sentiment score on the
   // /api/stock news items; the 'pos'|'neu'|'neg' contract stays. ──
@@ -189,10 +197,21 @@
           <span class="pos-ret {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">
             <b>{pctS(stock.plPct)}</b><small>{usdS(stock.plAbs)}</small>
           </span>
+          <span class="pos-kv"><span>p&amp;l</span><b class={totalPnl >= 0 ? 'up' : 'down'}>{usdS(totalPnl)}</b></span>
           <span class="pos-kv"><span>sh</span><b>{f(stock.shares)}</b></span>
           <span class="pos-kv"><span>avg</span><b>${f(stock.avgCost)}</b></span>
           <span class="pos-kv"><span>val</span><b>${f(stock.mktValue)}</b></span>
           <span class="pos-kv"><span>wt</span><b>{stock.weight != null ? stock.weight + '%' : '—'}</b></span>
+        </div>
+      {:else if prevHeld}
+        <!-- fully sold out of this ticker: no live position, but a realized P&L -->
+        <div class="hw-prev">
+          <span class="pos-ret {totalPnl >= 0 ? 'up' : 'down'}">
+            <b>{usdS(totalPnl)}</b><small>total p&amp;l · previously held</small>
+          </span>
+          <button class="btn btn-line hw-watch" class:on={watched} disabled={watchBusy} onclick={onWatch}>
+            {watched ? '✓ Watching' : '+ Watch'}
+          </button>
         </div>
       {:else}
         <button class="btn btn-line hw-watch" class:on={watched} disabled={watchBusy} onclick={onWatch}>
@@ -338,6 +357,8 @@
   .hw-back span { font-size: 15px; line-height: 1; }
   .hw-crumb { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
   .hw-watch { align-self: flex-end; }
+  /* previously-held: realized P&L stacked above the watch pill, right-aligned */
+  .hw-prev { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   .hw-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .hw-name { margin: 0 0 5px; font-family: var(--sans); font-size: 20px; font-weight: 700;
     letter-spacing: -.01em; line-height: 1.1; }

@@ -1,7 +1,8 @@
 <script>
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
-  import KpiCard from '$lib/components/KpiCard.svelte';
+  import BalanceCard from '$lib/components/BalanceCard.svelte';
+  import PnlCard from '$lib/components/PnlCard.svelte';
   import CashGoalCard from '$lib/components/CashGoalCard.svelte';
   import DividendRing from '$lib/components/DividendRing.svelte';
   import AllocationRing from '$lib/components/AllocationRing.svelte';
@@ -61,13 +62,12 @@
 
     <!-- stage (big, leftmost) · widget rail (mid) · template column (right) -->
     <div class="dash">
-      <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} />
+      <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} />
 
       <aside class="dash-rail">
         <div class="rail-duo">
-          <KpiCard label="Portfolio Value" value={d.kpis.portfolio_value} kind="money" size="mini" subtitle="stocks + cash" />
-          <KpiCard label="Total P&L" value={d.kpis.total_pnl} kind="money_compact" size="mini" subtitle="unrealized + realized"
-            tone={d.kpis.total_pnl >= 0 ? 'gain' : 'loss'} />
+          <BalanceCard total={d.kpis.portfolio_value} equities={d.kpis.equities} />
+          <PnlCard total={d.kpis.total_pnl} realized={d.kpis.realized_pnl} unrealized={d.kpis.unrealized_pnl} />
         </div>
         <CashGoalCard cash={d.kpis.cash} portfolioValue={d.kpis.portfolio_value}
           goalLabel="monthly goal" goalCurrent={d.goal.current} goalTarget={d.goal.target}

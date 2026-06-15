@@ -289,6 +289,12 @@ def stock(ticker: str):
     except Exception:
         history = []
 
+    # Realized P&L for this ticker (lifetime, from closed lots) so the deep view
+    # can show TOTAL P&L = realized + the open position's unrealized — for anything
+    # held or previously held. 0.0 when we've never sold it.
+    rs = state.get_snapshot().realized_summary
+    realized = float(rs.get(ticker, 0.0)) if len(rs) else 0.0
+
     return {
         "ticker": ticker,
         "sector": info.get("sector") or info.get("industry") or "",
@@ -312,6 +318,7 @@ def stock(ticker: str):
         "analyst": _analyst(ticker, info),
         "news": _news(ticker),
         "history": history,
+        "realizedPnl": _py(round(realized, 2)),
     }
 
 
