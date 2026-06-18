@@ -4,6 +4,7 @@
   // when a holding/search result is opened, and an inline search panel for ⌘K.
   import PortfolioChart from './PortfolioChart.svelte';
   import StockPanel from './StockPanel.svelte';
+  import TickerBadge from './TickerBadge.svelte';
   import { api } from '$lib/api.js';
   import { detail, searchOpen, holdings, closeStock, closeSearch, openSearchResult } from '$lib/stores.js';
 
@@ -93,7 +94,7 @@
             <li>
               <button class="ss-item" class:active={i === active} role="option" aria-selected={i === active}
                       onmouseenter={() => (active = i)} onclick={() => pick(r)}>
-                <span class="ss-sym">{r.symbol}</span>
+                <span class="ss-sym"><TickerBadge sym={r.symbol} size="md" /></span>
                 <span class="ss-name">{r.name}</span>
                 <span class="ss-meta">{r.type}{#if r.exchange} · {r.exchange}{/if}</span>
               </button>

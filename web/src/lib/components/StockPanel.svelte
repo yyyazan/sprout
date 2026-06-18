@@ -188,14 +188,14 @@
         <div class="hw-quote">
           <span class="hw-px">${f(stock.price)}</span>
           <span class="hw-day {stock.dayPct >= 0 ? 'up' : 'down'}">
-            {stock.dayPct >= 0 ? '▲' : '▼'} {pctS(stock.dayPct)}{#if dayAbs != null} ({usdS(dayAbs)}){/if} today
+            {stock.dayPct >= 0 ? '▲' : '▼'} <span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span>{#if dayAbs != null} ({usdS(dayAbs)}){/if} today
           </span>
         </div>
       </div>
       {#if owned}
         <div class="hw-pos">
           <span class="pos-ret {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">
-            <b>{pctS(stock.plPct)}</b><small>{usdS(stock.plAbs)}</small>
+            <b class="pct-pill {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">{pctS(stock.plPct)}</b><small>{usdS(stock.plAbs)}</small>
           </span>
           <span class="pos-kv"><span>p&amp;l</span><b class={totalPnl >= 0 ? 'up' : 'down'}>{usdS(totalPnl)}</b></span>
           <span class="pos-kv"><span>sh</span><b>{f(stock.shares)}</b></span>
@@ -319,7 +319,7 @@
         <span class="rel-tkr">{r.ticker}</span>
         <span class="rel-name">{r.name}</span>
         <span class="rel-px">{money(r.price)}</span>
-        <span class="rel-day {up ? 'up' : 'down'}">{r.dayPct != null ? pctS(r.dayPct) : '—'}</span>
+        <span class="rel-day pct-pill {up ? 'up' : 'down'}">{r.dayPct != null ? pctS(r.dayPct) : '—'}</span>
         {#if sp}
           <svg class="rel-spark" viewBox="0 0 100 32" preserveAspectRatio="none" aria-hidden="true">
             {#if sp.prevY != null}<line x1="0" y1={sp.prevY} x2="100" y2={sp.prevY} stroke="var(--muted)" stroke-width="0.7" stroke-dasharray="1.5 2.4" />{/if}

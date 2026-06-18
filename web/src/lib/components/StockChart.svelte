@@ -9,11 +9,12 @@
   // a deterministic client-side mock (clearly a visual scaffold). Real volume is
   // a backend follow-up; the histogram swaps in transparently once it lands.
   import { onMount } from 'svelte';
-  import { createChart, AreaSeries, CandlestickSeries, LineSeries, HistogramSeries, ColorType, CrosshairMode, LineStyle, PriceScaleMode } from 'lightweight-charts';
+  import { createChart, AreaSeries, CandlestickSeries, LineSeries, HistogramSeries, ColorType, CrosshairMode, LineStyle, PriceScaleMode, createSeriesMarkers } from 'lightweight-charts';
   import { priceSeries } from '$lib/mockStock.js';
   import { api } from '$lib/api.js';
   import { cachedStock, cachedIntraday } from '$lib/stockCache.js';
   import { theme } from '$lib/theme.js';
+  import { trades as tradesStore, loadTrades } from '$lib/stores.js';
 
   let { ticker = '—', history = null, price = 100 } = $props();
 
@@ -26,15 +27,19 @@
     { k: '6M',  days: 190,  intraday: null, mock: '3M' },
     { k: 'YTD', days: null, intraday: null, mock: '1Y' },
     { k: '1Y',  days: 370,  intraday: null, mock: '1Y' },
+    { k: '2Y',  days: 740,  intraday: null, mock: '5Y' },
+    { k: '3Y',  days: 1100, intraday: null, mock: '5Y' },
     { k: '5Y',  days: 1850, intraday: null, mock: '5Y' },
     { k: 'MAX', days: Infinity, intraday: null, mock: '5Y' },
   ];
 
   let range = $state('1D');
+  let panBars = $state(0);            // bars the fixed-width window is shifted back
   let chartType = $state('area');     // 'area' | 'candles' | 'line'
   let showVolume = $state(true);
   let sma50 = $state(false);
   let sma200 = $state(false);
+  let showTrades = $state(true);      // overlay my buy/sell fills as markers
   let openMenu = $state(null);        // 'type' | 'compare' | 'indicators' | null
   const cfg = $derived(RANGES.find((r) => r.k === range) ?? RANGES[0]);
 
@@ -130,15 +135,18 @@
   function isoMinusDays(iso, days) { const d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - days); return d.toISOString().slice(0, 10); }
   function ytdCutoff(iso) { return iso.slice(0, 4) + '-01-01'; }
 
+  // Daily series over the FULL history + `fromIdx` = where the selected range's
+  // window starts. `data` slices this to a fixed-WIDTH window (shifted by panBars)
+  // so a horizontal scroll pans it back through history (see onWheel).
   function realSeries(hist, c) {
     if (!hist || hist.length < 2) return null;
     const last = hist[hist.length - 1].t;
     const cutoff = c.k === 'YTD' ? ytdCutoff(last) : (c.days === Infinity ? '0000' : isoMinusDays(last, c.days));
-    let win = hist.filter((p) => p.t >= cutoff);
-    if (win.length < 2) win = hist.slice(-2);
-    const area = win.map((p) => ({ time: p.t, value: p.c }));
-    const candles = win.map((p, i) => { const o = i ? win[i - 1].c : p.c; return { time: p.t, open: o, high: Math.max(o, p.c), low: Math.min(o, p.c), close: p.c }; });
-    return { area, candles, prevClose: null };
+    const area = hist.map((p) => ({ time: p.t, value: p.c }));
+    const candles = hist.map((p, i) => { const o = i ? hist[i - 1].c : p.c; return { time: p.t, open: o, high: Math.max(o, p.c), low: Math.min(o, p.c), close: p.c }; });
+    let fromIdx = hist.findIndex((p) => p.t >= cutoff);
+    if (fromIdx < 0 || fromIdx > hist.length - 2) fromIdx = Math.max(0, hist.length - 2);
+    return { area, candles, fromIdx };
   }
 
   const data = $derived.by(() => {
@@ -149,10 +157,18 @@
         const o = i ? pts[i - 1].c : (intra.prevClose ?? p.c);
         return { time: p.t, open: o, high: Math.max(o, p.c), low: Math.min(o, p.c), close: p.c };
       });
-      return { area, candles, prevClose: cfg.k === '1D' ? intra.prevClose : null };
+      return { area, candles, prevClose: cfg.k === '1D' ? intra.prevClose : null, real: true };
     }
-    const real = history?.length ? realSeries(history, cfg) : null;
-    return real ?? { ...priceSeries(ticker, cfg.mock, price ?? 100), prevClose: null };
+    const full = history?.length ? realSeries(history, cfg) : null;
+    // no real data yet → mock series (hidden behind the loading skeleton, never plotted)
+    if (!full) return { ...priceSeries(ticker, cfg.mock, price ?? 100), prevClose: null, real: false };
+    // slice the full history to a fixed-WIDTH window, shifted back by panBars
+    const N = full.area.length;
+    const W = Math.max(2, Math.min(N, N - full.fromIdx));
+    const pan = Math.max(0, Math.min(panBars, N - W));
+    const end = N - pan;
+    const start = Math.max(0, end - W);
+    return { area: full.area.slice(start, end), candles: full.candles.slice(start, end), prevClose: null, real: true, total: N };
   });
 
   // deterministic mock volume per bar, coloured up/down by the bar's move
@@ -212,6 +228,66 @@
   let highlight = null;
   let hover = $state(null);
   let drag = $state(null);
+
+  // ── my buy/sell fills as chart markers ──────────────────────────────────
+  // Trades live in the shared store (no per-ticker endpoint); filter client-side.
+  onMount(() => loadTrades());
+  const myTrades = $derived(
+    ($tradesStore ?? []).filter((t) => (t.ticker || '').toUpperCase() === (ticker || '').toUpperCase())
+  );
+  // local YYYY-MM-DD for a bar time (intraday=unix seconds, daily=already a string)
+  const barDay = (time) => (typeof time === 'number'
+    ? (() => { const d = new Date(time * 1000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })()
+    : time);
+  // stable lookup key matching both bar times and crosshair times. lightweight-charts
+  // hands back daily times as a {year,month,day} object (not the original string), so
+  // both sides must normalize the same way or the hover lookup never matches.
+  const timeKey = (t) => {
+    if (t == null) return '';
+    if (typeof t === 'number') return String(t);
+    if (typeof t === 'string') return t;
+    if (typeof t === 'object' && t.year) return `${t.year}-${String(t.month).padStart(2, '0')}-${String(t.day).padStart(2, '0')}`;
+    return String(t);
+  };
+  // { markers: sorted lightweight-charts markers, byTime: Map(String(barTime) → trades) }
+  const tradeMarkers = $derived.by(() => {
+    const bars = data.area;
+    if (!bars?.length || !myTrades.length) return { markers: [], byTime: new Map() };
+    const days = bars.map((b) => ({ day: barDay(b.time), time: b.time }));
+    const first = days[0].day, last = days[days.length - 1].day;
+    // place each in-window trade on its day's bar, snapping to the nearest prior bar
+    const agg = new Map();     // `${barTime}|${side}` → true (one marker per day+side)
+    const byTime = new Map();  // String(barTime) → [trades]
+    for (const t of myTrades) {
+      const d = t.date;
+      if (!d || d < first || d > last) continue;
+      let barTime = null;
+      for (const bd of days) { if (bd.day <= d) barTime = bd.time; else break; }
+      if (barTime == null) continue;
+      const side = (t.action || '').toLowerCase() === 'buy' ? 'buy' : 'sell';
+      agg.set(`${barTime}|${side}`, true);
+      const k = timeKey(barTime);
+      (byTime.get(k) ?? byTime.set(k, []).get(k)).push(t);
+    }
+    // emit in bar order so the array is time-ascending (lightweight-charts requires it)
+    const markers = [];
+    for (const b of bars) {
+      for (const side of ['buy', 'sell']) {
+        if (!agg.has(`${b.time}|${side}`)) continue;
+        markers.push({
+          time: b.time,
+          position: side === 'buy' ? 'belowBar' : 'aboveBar',
+          color: side === 'buy' ? GAIN : LOSS,
+          shape: side === 'buy' ? 'arrowUp' : 'arrowDown',
+        });
+      }
+    }
+    return { markers, byTime };
+  });
+  // fills under the crosshair (resting hover, not the drag-measure) → tooltip detail
+  const hoverTrades = $derived(
+    hover && !drag && showTrades ? (tradeMarkers.byTime.get(timeKey(hover.time)) ?? null) : null
+  );
   // click-drag span measure is a mouse affordance; touch gets the hold-scrub below
   function startDrag(e) {
     if (e?.pointerType === 'touch') return;
@@ -263,6 +339,16 @@
   }
   function onTouchEnd(e) { if (e.pointerType === 'touch') endScrub(); }
 
+  // Two-finger / horizontal-wheel pan: shift the fixed-width window back/forward
+  // through history (no zoom). Vertical scroll is left to the page.
+  function onWheel(e) {
+    if (!chart || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // vertical → page scroll
+    const N = data.total ?? 0, W = data.area?.length ?? 0;
+    if (!N || N <= W) return; // whole history (or intraday feed) already in view
+    e.preventDefault();
+    panBars = Math.max(0, Math.min(Math.round(panBars - e.deltaX / 8), N - W));
+  }
+
   onMount(() => {
     chart = createChart(host, {
       autoSize: true,
@@ -292,7 +378,12 @@
     });
     const endDrag = () => { drag = null; updateHighlight(); };
     window.addEventListener('pointerup', endDrag);
-    return () => { window.removeEventListener('pointerup', endDrag); chart?.remove(); chart = null; };
+    host.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      window.removeEventListener('pointerup', endDrag);
+      host.removeEventListener('wheel', onWheel);
+      chart?.remove(); chart = null;
+    };
   });
 
   // re-skin chrome (axes, grid, crosshair) when the theme flips
@@ -310,34 +401,41 @@
   $effect(() => {
     if (!chart) return;
     const d = data, type = chartType;
+    // while data is still mock (loading), plot NOTHING — the skeleton covers the area
+    // so no fake trajectory ever flashes
+    const real = d.real;
     if (series) { chart.removeSeries(series); series = null; }
     if (type === 'candles') {
       series = chart.addSeries(CandlestickSeries, {
         upColor: GAIN, downColor: LOSS, borderUpColor: PAL.INK, borderDownColor: PAL.INK,
         wickUpColor: PAL.INK, wickDownColor: PAL.INK, priceLineVisible: false, lastValueVisible: false,
       });
-      series.setData(d.candles);
+      series.setData(real ? d.candles : []);
     } else if (type === 'line') {
       series = chart.addSeries(LineSeries, { color: BRAND, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
-      series.setData(d.area);
+      series.setData(real ? d.area : []);
     } else {
       series = chart.addSeries(AreaSeries, {
         lineColor: BRAND, lineWidth: 2, topColor: hexA(BRAND, 0.16), bottomColor: hexA(BRAND, 0),
         priceLineVisible: false, lastValueVisible: false,
       });
-      series.setData(d.area);
+      series.setData(real ? d.area : []);
     }
     // a raw-$ reference line is meaningless on the % compare scale
-    if (d.prevClose != null && !compares.length) {
+    if (real && d.prevClose != null && !compares.length) {
       series.createPriceLine({ price: d.prevClose, color: PAL.MUTED, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'prev close' });
     }
-    chart.timeScale().fitContent();
+    // my buy/sell fills (reading these re-runs the effect when trades load / toggle flips;
+    // markers attach to the fresh series, so the old ones go with the removed series)
+    createSeriesMarkers(series, real && showTrades ? tradeMarkers.markers : []);
+    // the series IS the window slice (shifted by panBars), so fit it edge-to-edge
+    if (real) chart.timeScale().fitContent();
   });
 
   // volume histogram, pinned to the bottom on its own overlay scale
   $effect(() => {
     if (!chart) return;
-    const vol = showVolume ? volumeData : [];
+    const vol = showVolume && data.real ? volumeData : [];
     if (!volSeries) {
       volSeries = chart.addSeries(HistogramSeries, { priceScaleId: 'vol', priceLineVisible: false, lastValueVisible: false });
       chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
@@ -348,7 +446,7 @@
   // SMA overlays
   $effect(() => {
     if (!chart) return;
-    const want50 = sma50, want200 = sma200, area = data.area;
+    const want50 = sma50, want200 = sma200, area = data.real ? data.area : [];
     if (want50 && !sma50Series) sma50Series = chart.addSeries(LineSeries, { color: '#d8a23a', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
     if (!want50 && sma50Series) { chart.removeSeries(sma50Series); sma50Series = null; }
     if (want200 && !sma200Series) sma200Series = chart.addSeries(LineSeries, { color: '#7f77dd', lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false });
@@ -470,6 +568,7 @@
       </button>
       {#if openMenu === 'indicators'}
         <div class="gf-menu gf-menu-wide">
+          <button class="gf-item" class:sel={showTrades} onclick={() => (showTrades = !showTrades)}><span class="gf-check">{showTrades ? '✓' : ''}</span>My trades</button>
           <button class="gf-item" class:sel={showVolume} onclick={() => (showVolume = !showVolume)}><span class="gf-check">{showVolume ? '✓' : ''}</span>Volume</button>
           <button class="gf-item" class:sel={sma50} onclick={() => (sma50 = !sma50)}><span class="gf-check">{sma50 ? '✓' : ''}</span>SMA 50</button>
           <button class="gf-item" class:sel={sma200} onclick={() => (sma200 = !sma200)}><span class="gf-check">{sma200 ? '✓' : ''}</span>SMA 200</button>
@@ -495,7 +594,12 @@
     onpointerdown={(e) => { startDrag(e); onTouchDown(e); }}
     onpointermove={onTouchMove} onpointerup={onTouchEnd} onpointercancel={onTouchEnd}>
     <div class="sc-chart" bind:this={host}></div>
-    {#if data.prevClose != null && !compares.length}
+    {#if !data.real}
+      <!-- loading: a calm breathing block — deliberately NO line/shape so it never
+           reads as a price trajectory -->
+      <div class="sc-skel" role="img" aria-label="loading chart"></div>
+    {/if}
+    {#if data.real && data.prevClose != null && !compares.length}
       <div class="sc-prev">prev close <b>${f(data.prevClose)}</b></div>
     {/if}
     {#if drag}<div class="sc-anchor" style="left:{drag.x}px"></div>{/if}
@@ -514,6 +618,13 @@
         <div class="sc-tip" class:below={hover.y < 48} style="left:{hover.x}px; top:{hover.y}px">
           <span class="sc-tip-v">${f(hover.price)}</span>
           <span class="sc-tip-d">{fmtDate(hover.time)}</span>
+          {#if hoverTrades}
+            {#each hoverTrades as t (t.date + t.action + t.shares + (t.price ?? ''))}
+              <span class="sc-tip-trade {(t.action || '').toLowerCase() === 'buy' ? 'up' : 'down'}">
+                {(t.action || '').toLowerCase()} {Number(t.shares).toLocaleString('en-US', { maximumFractionDigits: 4 })} sh{#if t.price != null} @ ${f(t.price)}{/if}
+              </span>
+            {/each}
+          {/if}
         </div>
       {/if}
     {/if}
@@ -522,7 +633,7 @@
   <!-- GF range tabs -->
   <div class="gf-ranges" role="group" aria-label="range">
     {#each RANGES as rg}
-      <button class="gf-range" class:on={range === rg.k} onclick={() => (range = rg.k)}>{rg.k}</button>
+      <button class="gf-range" class:on={range === rg.k} onclick={() => { range = rg.k; panBars = 0; }}>{rg.k}</button>
     {/each}
   </div>
 </div>
@@ -586,6 +697,13 @@
     .sc-chartwrap { touch-action: pan-y; }
   }
   .sc-chart { position: absolute; inset: 0; overflow: hidden; }
+  /* loading skeleton — a single breathing block (no line/shape = no trajectory) */
+  .sc-skel { position: absolute; inset: 0; z-index: 4; pointer-events: none;
+    border: var(--bw) solid color-mix(in srgb, var(--ink) 16%, transparent);
+    border-radius: var(--r); background: color-mix(in srgb, var(--ink) 6%, transparent);
+    animation: sc-skel 1.4s ease-in-out infinite; }
+  @keyframes sc-skel { 0%, 100% { opacity: .35; } 50% { opacity: .85; } }
+  @media (prefers-reduced-motion: reduce) { .sc-skel { animation: none; opacity: .5; } }
   .sc-prev { position: absolute; top: 6px; right: 8px; z-index: 3; pointer-events: none;
     font-family: var(--mono); font-size: 10px; color: var(--muted); }
   .sc-prev b { color: var(--ink); font-weight: 700; }
@@ -597,6 +715,9 @@
     padding: 3px 7px; background: var(--ink); color: var(--paper) !important; border-radius: 4px; }
   .sc-tip-v { font-size: 11px; font-weight: 700; }
   .sc-tip-d { font-size: 9px; font-weight: 400; }
+  .sc-tip-trade { margin-top: 3px; font-size: 10px; font-weight: 700; text-transform: capitalize; }
+  .sc-tip-trade.up { color: var(--gain) !important; }
+  .sc-tip-trade.down { color: var(--loss) !important; }
   .sc-tip.pos { background: var(--gain); color: #fff !important; }
   .sc-tip.neg { background: var(--loss); color: #fff !important; }
   .sc-tip.below { transform: translate(-50%, 12px); }

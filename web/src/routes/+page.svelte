@@ -3,6 +3,7 @@
   import { api } from '$lib/api.js';
   import BalanceCard from '$lib/components/BalanceCard.svelte';
   import PnlCard from '$lib/components/PnlCard.svelte';
+  import EarningsCard from '$lib/components/EarningsCard.svelte';
   import CashGoalCard from '$lib/components/CashGoalCard.svelte';
   import DividendRing from '$lib/components/DividendRing.svelte';
   import AllocationRing from '$lib/components/AllocationRing.svelte';
@@ -11,7 +12,7 @@
   import TradeTicket from '$lib/components/TradeTicket.svelte';
   import GardenView from '$lib/components/GardenView.svelte';
   import MobileDashboard from '$lib/components/mobile/MobileDashboard.svelte';
-  import { primeHoldings } from '$lib/stores.js';
+  import { primeHoldings, moves, portfolioDayMove } from '$lib/stores.js';
   import { isMobile } from '$lib/isMobile.js';
 
   let d = $state(null);
@@ -23,6 +24,9 @@
   const garden = $derived(
     d ? { positions: d.cards.filter((c) => !c.is_joker), period: d.period } : null
   );
+
+  // today's aggregate intraday change — live via the momentum store, card fallback
+  const dayMove = $derived(d ? portfolioDayMove(d.cards, $moves) : { gain: null, pct: null });
 
   onMount(async () => {
     try {
@@ -66,25 +70,24 @@
 
       <aside class="dash-rail">
         <div class="rail-duo">
-          <BalanceCard total={d.kpis.portfolio_value} equities={d.kpis.equities} />
+          <BalanceCard total={d.kpis.portfolio_value} equities={d.kpis.equities}
+            dayGain={dayMove.gain} dayPct={dayMove.pct} />
           <PnlCard total={d.kpis.total_pnl} realized={d.kpis.realized_pnl} unrealized={d.kpis.unrealized_pnl} />
         </div>
         <CashGoalCard cash={d.kpis.cash} portfolioValue={d.kpis.portfolio_value}
           goalLabel="monthly goal" goalCurrent={d.goal.current} goalTarget={d.goal.target}
           onSaved={refresh} />
         <TradeTicket onSaved={refresh} />
-        <div class="rail-duo rail-bare">
-          <DividendRing data={d.dividends} holdings={d.cards} />
-          <AllocationRing holdings={d.cards.filter((c) => !c.is_joker)} />
-        </div>
+        <EarningsCard />
         <MarketPulse />
       </aside>
 
-      <!-- template column (absolute right) — empty widget slots, contents TBD -->
-      <aside class="dash-templates" aria-hidden="true">
-        {#each { length: 4 } as _, i (i)}
-          <div class="tmpl-slot">+ tbd</div>
-        {/each}
+      <!-- template column (absolute right) — dividends + allocation rings (chrome-less), then TBD slots -->
+      <aside class="dash-templates">
+        <div class="tmpl-ring"><DividendRing data={d.dividends} holdings={d.cards} /></div>
+        <div class="tmpl-ring"><AllocationRing holdings={d.cards.filter((c) => !c.is_joker)} /></div>
+        <div class="tmpl-slot">+ tbd</div>
+        <div class="tmpl-slot">+ tbd</div>
       </aside>
     </div>
   </div>
@@ -98,7 +101,7 @@
   /* --stage-h = title card (--title-h) + gap (16) + chart box (440); keeps the
      portfolio stage the exact height of the stock view's header + chart stack */
   .dash { --stage-h: calc(var(--title-h) + 16px + 440px); display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr) minmax(180px, 0.7fr);
+    grid-template-columns: minmax(0, 2fr) minmax(312px, 1.05fr) minmax(180px, 0.7fr);
     gap: 16px; align-items: start; }
   .dash > :global(.stage) { min-height: var(--stage-h); }
 
@@ -109,15 +112,15 @@
     border: var(--bw) dashed var(--muted); border-radius: var(--r); color: var(--muted);
     font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
     opacity: .7; }
+  /* dividends + allocation rings, framed as widgets in the right column */
+  .tmpl-ring { height: 190px; padding: 10px; display: flex; }
+  .tmpl-ring > :global(*) { flex: 1; min-width: 0; }
 
   .dash-rail { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-  .rail-duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .rail-duo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
   .rail-duo > :global(.glass-card) { padding: 12px 14px; }
-  /* KPI duo locked to the title-card height so the top band lines up across columns
-     (rail-bare = dividends + allocation, left to size themselves) */
-  .rail-duo:not(.rail-bare) > :global(.glass-card) { height: var(--title-h); }
-  /* dividends + allocation: intentionally chrome-less, side by side */
-  .rail-bare { align-items: center; }
+  /* KPI duo locked to the title-card height so the top band lines up across columns */
+  .rail-duo > :global(.glass-card) { height: var(--title-h); }
 
   /* template column drops first; stage + rail keep the 2:1 split */
   @media (max-width: 1280px) {

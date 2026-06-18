@@ -1,5 +1,6 @@
 <script>
   import { fmt } from '$lib/format.js';
+  import TickerBadge from './TickerBadge.svelte';
   let { positions } = $props();
 
   const COLUMNS = [
@@ -52,7 +53,9 @@
             {#each COLUMNS as col}
               <td>
                 {#if col.id === 'ticker'}
-                  <span class="ticker-chip">{col.f(row[col.id])}</span>
+                  <TickerBadge sym={col.f(row[col.id])} size="md" />
+                {:else if col.id === 'return_pct'}
+                  <span class="pct-pill {row[col.id] >= 0 ? 'up' : 'down'}">{col.f(row[col.id])}</span>
                 {:else if col.color}
                   <span class={row[col.id] >= 0 ? 'cell-gain' : 'cell-loss'}>{col.f(row[col.id])}</span>
                 {:else}

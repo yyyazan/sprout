@@ -95,10 +95,11 @@
 <div class="glass-card trade-card" class:open role="button" tabindex="0" aria-expanded={open}
   onclick={toggle}
   onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
-  <!-- corner token: ink-outlined tile with a gold up-arrow over a muted down-arrow —
-       reads as "trades", and lifts on hover like the cash coin (logger affordance). -->
+  <!-- corner token: ink-outlined tile with an up-arrow over a muted down-arrow —
+       reads as "trades", and lifts on hover like the cash coin (logger affordance).
+       Neutral blue (not red/green) so it never reads as a buy/sell signal. -->
   <svg class="tt-badge" viewBox="0 0 120 120" width="32" height="32" aria-hidden="true">
-    <rect x="6" y="6" width="108" height="108" rx="26" fill="#FF3E00" stroke="#1a1a1a" stroke-width="6" />
+    <rect x="6" y="6" width="108" height="108" rx="26" fill="#5b8def" stroke="#1a1a1a" stroke-width="6" />
     <!-- up arrow (buy) -->
     <path d="M44 78 V52 M44 52 L33 63 M44 52 L55 63" fill="none" stroke="#1a1a1a"
       stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
@@ -115,9 +116,9 @@
 
   <div class="tt-foot">
     <div class="tt-foot-head">
-      <span class="tt-split">{buys} buys / {sells} sells</span>
+      <span class="tt-split"><span class="tt-buys">{buys} buys</span> / <span class="tt-sells">{sells} sells</span></span>
       {#if last}
-        <span class="tt-last">last {last.ticker} {lastIsBuy ? '+' : '−'}{sharesFmt(last.shares)} · {shortDate(last.date)}</span>
+        <span class="tt-last {lastIsBuy ? 'tt-up' : 'tt-down'}">last {last.ticker} {lastIsBuy ? '+' : '−'}{sharesFmt(last.shares)} · {shortDate(last.date)}</span>
       {/if}
     </div>
   </div>
@@ -125,7 +126,7 @@
   <!-- Yellow logger panel: rises from the bottom to 60% of the tile on click. Holds the
        trade-entry bar ([buy/sell] · ticker · shares · ✓) and a date row. Clicks/keys
        inside are stopped so interacting doesn't toggle the tile; inert when closed. -->
-  <div class="tt-rise" inert={!open}
+  <div class="tt-rise" inert={!open} style="background:{side === 'buy' ? '#00b050' : '#ff4d4d'}"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}>
     <div class="tt-entry" class:invalid={saveError}>
@@ -172,15 +173,19 @@
   .trade-card:hover .tt-badge { transform: translateY(-2px); }
 
   .tt-foot-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-  .tt-split { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--ink); opacity: .6; white-space: nowrap; }
+  .tt-split { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .tt-buys { color: var(--gain); }
+  .tt-sells { color: var(--loss); }
   .tt-last { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tt-last.tt-up { color: var(--gain); }
+  .tt-last.tt-down { color: var(--loss); }
 
-  /* Logger panel: Svelte-orange bar floats up to 60% of the tile on click, rounded top.
-     Everything inside sits on this fixed light bg, so its controls use fixed ink/white
-     colors (NOT theme vars) — otherwise dark-mode --ink turns the input text white-on-white. */
+  /* Logger panel: floats up to 60% of the tile on click, rounded top. Its bg is set
+     inline — green for buy, red for sell — so the selected side reads at a glance.
+     Controls inside use fixed ink/white colors (NOT theme vars) — otherwise dark-mode
+     --ink turns the input text white-on-white. */
   .tt-rise {
     position: absolute; left: 0; right: 0; bottom: 0; height: 0;
-    background: #FF3E00;
     border-radius: 16px 16px 0 0;
     z-index: 2; overflow: hidden; cursor: default;
     display: flex; flex-direction: column; justify-content: center; gap: 7px;

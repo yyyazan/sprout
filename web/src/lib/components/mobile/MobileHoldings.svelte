@@ -59,7 +59,7 @@
       </span>
       <span class="mho-right">
         <span class="mho-px">{px(c.current_price)}</span>
-        <span class="mho-day {mv >= 0 ? 'up' : 'down'}">{pct(mv)}</span>
+        <span class="mho-day pct-pill {mv >= 0 ? 'up' : 'down'}">{pct(mv)}</span>
       </span>
     </button>
   {/each}
@@ -68,6 +68,7 @@
 {#if $watchlist?.length}
   <div class="mho-wl-head">Watchlist</div>
   {#each $watchlist as w (w.ticker)}
+    {@const wv = win === 'day' ? w.dayPct : w.weekPct}
     <button class="mho-row" onclick={() => openStock({ ticker: w.ticker, name: w.name, holding: null })}>
       <span class="mho-main">
         <span class="mho-line">
@@ -77,7 +78,7 @@
       </span>
       <span class="mho-right">
         <span class="mho-px">{w.price != null ? '$' + w.price.toFixed(2) : '—'}</span>
-        <span class="mho-day {(w.dayPct ?? 0) >= 0 ? 'up' : 'down'}">{w.dayPct != null ? pct(w.dayPct) : '—'}</span>
+        <span class="mho-day pct-pill {(wv ?? 0) >= 0 ? 'up' : 'down'}">{wv != null ? pct(wv) : '—'}</span>
       </span>
     </button>
   {/each}

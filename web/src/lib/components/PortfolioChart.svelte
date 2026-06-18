@@ -24,6 +24,8 @@
     { k: '1M', days: 31 },
     { k: '3M', days: 92 },
     { k: '1Y', days: 366 },
+    { k: '2Y', days: 731 },
+    { k: '3Y', days: 1096 },
     { k: 'ALL', days: Infinity },
   ];
 
@@ -34,9 +36,9 @@
     : { INK: '#faf7f0', GRID: '#2a2722', MUTED: '#8f897c', SPY: '#7d776b' });
 
   let range = $state('ALL');
-  let mode = $state('value');     // 'value' | 'return'
-  let chartType = $state('area'); // 'area' | 'line' — render of the value series
-  let openMenu = $state(null);    // 'type' | 'compare' | null — toolbar dropdowns
+  let mode = $state('return');    // 'value' | 'return' — Return is the default metric
+  let panBars = $state(0);        // how many bars the fixed-width window is shifted back
+  let openMenu = $state(null);    // 'compare' | null — toolbar dropdowns
   let hoverRow = $state(null);    // aligned row under the crosshair, or null at rest
   const toggleMenu = (m) => (openMenu = openMenu === m ? null : m);
 
@@ -139,15 +141,23 @@
     return d.toISOString().slice(0, 10);
   }
 
-  // The visible window for the chosen range (always ≥2 points if data allows).
+  // The visible window for the chosen range — a fixed bar-WIDTH (W) that can be
+  // shifted back through history by `panBars` (two-finger horizontal scroll), so
+  // every downstream read (series, stats, rebasing, compare) tracks the window.
   const view = $derived.by(() => {
     const all = rows;
     if (all.length < 2) return all;
     const cfg = RANGES.find((r) => r.k === range);
-    if (!cfg || cfg.days === Infinity) return all;
-    const cutoff = isoMinusDays(all[all.length - 1].t, cfg.days);
-    const sliced = all.filter((r) => r.t >= cutoff);
-    return sliced.length >= 2 ? sliced : all.slice(-2);
+    let W;
+    if (!cfg || cfg.days === Infinity) W = all.length;
+    else {
+      const cutoff = isoMinusDays(all[all.length - 1].t, cfg.days);
+      W = all.filter((r) => r.t >= cutoff).length;
+    }
+    W = Math.max(2, Math.min(W, all.length));
+    const pan = Math.max(0, Math.min(panBars, all.length - W));
+    const end = all.length - pan;          // exclusive
+    return all.slice(Math.max(0, end - W), end);
   });
 
   const baseRow = $derived(view[0] ?? null);
@@ -168,7 +178,7 @@
     };
   });
 
-  const RANGE_LABELS = { '1W': 'Past week', '1M': 'Past month', '3M': 'Past 3 months', '1Y': 'Past year', 'ALL': 'All-time' };
+  const RANGE_LABELS = { '1W': 'Past week', '1M': 'Past month', '3M': 'Past 3 months', '1Y': 'Past year', '2Y': 'Past 2 years', '3Y': 'Past 3 years', 'ALL': 'All-time' };
 
   // REST-state headline = performance over the visible window. The $ is deposit-
   // stripped (window value change minus net deposits in the window) so it reads as
@@ -184,24 +194,32 @@
     return { dollar, youPct, spyPct, vs: youPct != null && spyPct != null ? youPct - spyPct : null };
   });
 
-  // ── upcoming earnings (right header half) — own fetch, never blocks the chart ──
-  let earnings = $state(null);   // null = loading · [] = none · [{ticker,date,past}]
-  onMount(() => {
-    api.earnings()
-      .then((r) => { earnings = r?.items ?? []; })
-      .catch(() => { earnings = []; });
+  // Quality/risk stats over the visible window, from the time-weighted growth
+  // index (so deposits don't distort them). These live nowhere else on the
+  // dashboard — they're the chart widget's own contribution.
+  const stats = $derived.by(() => {
+    const v = view;
+    if (v.length < 3 || !baseRow) return null;
+    // growth index rebased to the window start (fall back to raw value if TWR is absent)
+    const b = baseRow.pret;
+    const idx = v.map((r) => (r.pret != null && b != null ? (1 + r.pret) / (1 + b) : r.pv / baseRow.pv));
+    // daily returns for volatility
+    const rets = [];
+    for (let i = 1; i < idx.length; i++) if (idx[i - 1]) rets.push(idx[i] / idx[i - 1] - 1);
+    const mean = rets.reduce((s, x) => s + x, 0) / (rets.length || 1);
+    const variance = rets.reduce((s, x) => s + (x - mean) ** 2, 0) / (rets.length || 1);
+    const vol = Math.sqrt(variance) * Math.sqrt(252) * 100;
+    // max drawdown (peak-to-trough on the growth index)
+    let peak = idx[0], mdd = 0;
+    for (const g of idx) { if (g > peak) peak = g; const dd = g / peak - 1; if (dd < mdd) mdd = dd; }
+    // annualized return (only meaningful past ~a month; below that it's noise)
+    const days = (new Date(lastRow.t + 'T00:00:00Z') - new Date(baseRow.t + 'T00:00:00Z')) / 86400000;
+    const total = idx[idx.length - 1] - 1;
+    const annualized = days >= 28 ? (Math.pow(1 + total, 365 / days) - 1) * 100 : null;
+    return { vol, mdd: mdd * 100, annualized };
   });
-  const fmtEarn = (iso) => new Date(iso + 'T00:00:00')
-    .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  // "today" / "in Nd" for scheduled dates; past reports just say "reported"
-  function earnWhen(e) {
-    if (e.past) return 'reported';
-    const days = Math.round((new Date(e.date + 'T00:00:00') - new Date().setHours(0, 0, 0, 0)) / 86400000);
-    return days <= 0 ? 'today' : `in ${days}d`;
-  }
 
   const fmtUsd = (n) => '$' + Math.round(n).toLocaleString('en-US');
-  const fmtUsdSigned = (n) => (n >= 0 ? '+$' : '−$') + Math.round(Math.abs(n)).toLocaleString('en-US');
   const fmtPct = (n) => (n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%');
   const fmtDate = (iso) =>
     new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -216,6 +234,16 @@
   function hexA(hex, a) {
     const n = parseInt(hex.slice(1), 16);
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+  }
+
+  // Two-finger / horizontal-wheel pan: shift the fixed-width window back/forward
+  // through history (no zoom). Vertical scroll stays with the page.
+  function onWheel(e) {
+    if (!chart || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    const N = rows.length, W = view.length;
+    if (N <= W) return; // whole series in view (e.g. ALL) — nothing to pan
+    e.preventDefault();
+    panBars = Math.max(0, Math.min(Math.round(panBars - e.deltaX / 8), N - W));
   }
 
   onMount(() => {
@@ -242,7 +270,8 @@
       hoverRow = byTime.get(p.time) ?? null;
     });
 
-    return () => { chart.remove(); chart = null; };
+    host.addEventListener('wheel', onWheel, { passive: false });
+    return () => { host.removeEventListener('wheel', onWheel); chart.remove(); chart = null; };
   });
 
   // close the toolbar dropdowns on any outside click
@@ -263,7 +292,7 @@
   // Rebuild series whenever the window, mode, benchmarks, or theme changes.
   $effect(() => {
     if (!chart) return;
-    const v = view, m = mode, base = baseRow, t = chartType;
+    const v = view, m = mode, base = baseRow;
     const cmp = benchmarks, bmData = bmHist;
 
     for (const h of handles) chart.removeSeries(h);
@@ -279,11 +308,9 @@
       chart.applyOptions({ localization: { priceFormatter: undefined } });
 
       const lo = v[0]?.t, hi = v[v.length - 1]?.t;
-      const you = t === 'line'
-        ? chart.addSeries(LineSeries, { color: BRAND, lineWidth: 2, priceLineVisible: false, lastValueVisible: false })
-        : chart.addSeries(AreaSeries, { lineColor: BRAND, lineWidth: 2,
-            topColor: hexA(BRAND, 0.22), bottomColor: hexA(BRAND, 0),
-            priceLineVisible: false, lastValueVisible: false });
+      const you = chart.addSeries(AreaSeries, { lineColor: BRAND, lineWidth: 2,
+        topColor: hexA(BRAND, 0.22), bottomColor: hexA(BRAND, 0),
+        priceLineVisible: false, lastValueVisible: false });
       mainData = v.filter((r) => r.pret != null).map((r) => ({ time: r.t, value: 1 + r.pret }));
       // fall back to raw value if TWR isn't available, so the line never vanishes
       you.setData(mainData.length >= 2 ? mainData : (mainData = v.map((r) => ({ time: r.t, value: r.pv }))));
@@ -310,13 +337,11 @@
       });
 
       if (m === 'value') {
-        const main = t === 'line'
-          ? chart.addSeries(LineSeries, { color: BRAND, lineWidth: 2, priceLineVisible: false, lastValueVisible: false })
-          : chart.addSeries(AreaSeries, {
-              lineColor: BRAND, lineWidth: 2,
-              topColor: hexA(BRAND, 0.26), bottomColor: hexA(BRAND, 0),
-              priceLineVisible: false, lastValueVisible: false,
-            });
+        const main = chart.addSeries(AreaSeries, {
+          lineColor: BRAND, lineWidth: 2,
+          topColor: hexA(BRAND, 0.26), bottomColor: hexA(BRAND, 0),
+          priceLineVisible: false, lastValueVisible: false,
+        });
         mainData = v.map((r) => ({ time: r.t, value: r.pv }));
         main.setData(mainData);
         handles.push(main);
@@ -378,73 +403,56 @@
   function onPtrEnd(e) { if (e.pointerType === 'touch') endScrub(); }
 </script>
 
-<!-- two widgets matching the stock view's grid language: header (split 2-up) + chart -->
+<!-- two widgets matching the stock view's grid language: full-width performance header + chart -->
 <div class="pcg">
-  <div class="pc-head-row">
   <section class="pc-w pc-head-w">
-  <div class="pc-head">
-    <div class="pc-read">
-      {#if hoverRow && read}
-        <!-- scrubbing a past point: that day's value + its return-to-date -->
+    {#if hoverRow && read}
+      <!-- HOVER: the scrubbed point — return-to-date leads, gap-to-SPY + value below -->
+      <div class="pc-head-top">
         <div class="pc-label">{fmtDate(read.t)}</div>
-        <div class="pc-value">{fmtUsd(read.pv)}</div>
-        <div class="pc-delta">
-          <span class="pc-muted">return {fmtPct(read.youPct)}{#if !comparing && read.spyPct != null} · SPY {fmtPct(read.spyPct)}{/if}</span>
-        </div>
-      {:else if period}
-        <!-- at rest: performance over the visible range (deposit-stripped $ + TWR %) -->
+        <div class="pc-value {(read.youPct ?? 0) >= 0 ? 'up' : 'down'}">{fmtPct(read.youPct)}</div>
+      </div>
+      <div class="pc-sub">
+        {#if !comparing && read.spyPct != null}
+          {@const gap = read.youPct - read.spyPct}
+          <span class={gap >= 0 ? 'up' : 'down'}>{(gap >= 0 ? '+' : '') + gap.toFixed(1)}pp vs SPY</span>
+          <span class="pc-dot-sep">·</span>
+        {/if}
+        <span class="pc-muted">value {fmtUsd(read.pv)}</span>
+      </div>
+    {:else if period}
+      <!-- AT REST: window time-weighted return + a strip of quality/risk stats -->
+      <div class="pc-head-top">
         <div class="pc-label">{RANGE_LABELS[range] ?? 'Performance'}</div>
-        <div class="pc-value {(period.dollar ?? 0) >= 0 ? 'up' : 'down'}">{fmtUsdSigned(period.dollar)}</div>
-        <div class="pc-delta">
-          <span class={(period.youPct ?? 0) >= 0 ? 'up' : 'down'}>{fmtPct(period.youPct)}</span>
-          {#if !comparing && period.vs != null}
-            <span class="pc-muted">vs SPY</span>
-            <span class={period.vs >= 0 ? 'up' : 'down'}>{(period.vs >= 0 ? '+' : '') + period.vs.toFixed(1)}pp {period.vs >= 0 ? 'ahead' : 'behind'}</span>
-          {/if}
+        <div class="pc-value {(period.youPct ?? 0) >= 0 ? 'up' : 'down'}">{fmtPct(period.youPct)}</div>
+      </div>
+      <div class="pc-stats">
+        <div class="pc-stat">
+          <span class="pc-stat-k">vs SPY</span>
+          <span class="pc-stat-v {(period.vs ?? 0) >= 0 ? 'up' : 'down'}">{period.vs != null ? (period.vs >= 0 ? '+' : '') + period.vs.toFixed(1) + 'pp' : '—'}</span>
         </div>
-      {/if}
-    </div>
-  </div>
-  </section>
-  <!-- right half: next earnings dates across the holdings (6 max, 3×2 grid) -->
-  <section class="pc-w pc-head-earn">
-    <div class="pc-label">Upcoming earnings</div>
-    {#if earnings === null}
-      <div class="pe-note">loading…</div>
-    {:else if earnings.length === 0}
-      <div class="pe-note">no earnings dates</div>
-    {:else}
-      <div class="pe-grid">
-        {#each earnings as e (e.ticker)}
-          <div class="pe-cell" class:pe-past={e.past}>
-            <span class="pe-tkr">{e.ticker}</span>
-            <span class="pe-date">{fmtEarn(e.date)}</span>
-            <span class="pe-when">{earnWhen(e)}</span>
-          </div>
-        {/each}
+        <div class="pc-stat">
+          <span class="pc-stat-k">Max drawdown</span>
+          <span class="pc-stat-v">{stats ? stats.mdd.toFixed(0) + '%' : '—'}</span>
+        </div>
+        <div class="pc-stat">
+          <span class="pc-stat-k">Volatility</span>
+          <span class="pc-stat-v">{stats ? stats.vol.toFixed(0) + '%' : '—'}</span>
+        </div>
+        <div class="pc-stat">
+          <span class="pc-stat-k">Annualized</span>
+          <span class="pc-stat-v {(stats?.annualized ?? 0) >= 0 ? 'up' : 'down'}">{stats?.annualized != null ? (stats.annualized >= 0 ? '+' : '') + stats.annualized.toFixed(0) + '%' : '—'}</span>
+        </div>
       </div>
     {/if}
   </section>
-  </div>
 
   <section class="pc-w pc-chart-w">
     <!-- toolbar mirrors the stock chart's gf-bar so both views line up -->
     <div class="pc-bar">
       <div class="pc-tool">
-        <button class="pc-btn" class:active={openMenu === 'type'} onclick={() => toggleMenu('type')}>
-          <svg class="pc-ic" viewBox="0 0 24 24" aria-hidden="true"><polyline points="2,15 8,9 13,13 22,4" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" /></svg>{chartType === 'line' ? 'Line' : 'Area'}<span class="pc-cv" aria-hidden="true">▾</span>
-        </button>
-        {#if openMenu === 'type'}
-          <div class="pc-menu">
-            <button class="pc-item" class:sel={chartType === 'area'} onclick={() => { chartType = 'area'; openMenu = null; }}>Area</button>
-            <button class="pc-item" class:sel={chartType === 'line'} onclick={() => { chartType = 'line'; openMenu = null; }}>Line</button>
-          </div>
-        {/if}
-      </div>
-
-      <div class="pc-tool">
         <button class="pc-btn" class:active={openMenu === 'compare' || comparing} onclick={() => toggleMenu('compare')}>
-          <span class="pc-ic" aria-hidden="true">⇄</span>Benchmark{#if comparing}<span class="pc-count">{benchmarks.length}</span>{/if}<span class="pc-cv" aria-hidden="true">▾</span>
+          <span class="pc-ic" aria-hidden="true">⇄</span>Compare{#if comparing}<span class="pc-count">{benchmarks.length}</span>{/if}<span class="pc-cv" aria-hidden="true">▾</span>
         </button>
         {#if openMenu === 'compare'}
           <div class="pc-menu pc-menu-cmp">
@@ -508,7 +516,7 @@
       onpointerup={onPtrEnd} onpointercancel={onPtrEnd}></div>
     <div class="pc-ranges" role="group" aria-label="range">
       {#each RANGES as r}
-        <button class:on={range === r.k} onclick={() => (range = r.k)}>{r.k}</button>
+        <button class:on={range === r.k} onclick={() => { range = r.k; panBars = 0; }}>{r.k}</button>
       {/each}
     </div>
   </section>
@@ -519,40 +527,34 @@
   .pcg { display: flex; flex-direction: column; gap: 16px; height: 100%; min-height: 0; }
   .pc-w { background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r);
     box-sizing: border-box; }
-  /* header row is split 2-up (right half blank for now); both halves + the chart
-     box are pinned to the stock view's dimensions (--title-h header · 440 chart)
-     so the graph sits in the same place when you toggle modes */
-  .pc-head-row { flex: 0 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .pc-head-w { height: var(--title-h, 152px); display: flex; flex-direction: column;
-    gap: 10px; padding: 12px 16px 14px; box-sizing: border-box; }
-  /* earnings half — same locked header height; 3×2 cells split by hairlines */
-  .pc-head-earn { height: var(--title-h, 152px); display: flex; flex-direction: column;
-    gap: 8px; padding: 12px 16px 14px; box-sizing: border-box; overflow: hidden; }
-  .pe-note { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  .pe-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: 1fr 1fr; column-gap: 14px; }
-  .pe-cell { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 1px;
-    border-bottom: var(--bw) solid var(--hairline); }
-  .pe-grid .pe-cell:nth-child(n + 4) { border-bottom: 0; }
-  .pe-tkr { font-family: var(--mono); font-size: 11.5px; font-weight: 700; letter-spacing: .04em;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pe-date { font-family: var(--mono); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
-    white-space: nowrap; }
-  .pe-when { font-family: var(--sans); font-size: 9px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--brand); white-space: nowrap; }
-  .pe-past { opacity: .55; }
-  .pe-past .pe-when { color: var(--muted); }
+  /* full-width performance header + chart box, both pinned to the stock view's
+     dimensions (--title-h header · 440 chart) so the graph sits in the same
+     place when you toggle modes */
+  .pc-head-w { flex: 0 0 auto; height: var(--title-h, 152px); display: flex; flex-direction: column;
+    justify-content: space-between; gap: 10px; padding: 14px 16px; box-sizing: border-box; }
   .pc-chart-w { flex: 0 0 440px; min-height: 0; display: flex; flex-direction: column; gap: 10px;
     padding: 14px 16px; }
-  .pc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-  .pc-read { min-width: 0; }
+  .pc-head-top { min-width: 0; }
   .pc-label { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700;
     color: var(--ink); opacity: .55; margin-bottom: 4px; white-space: nowrap; }
   .pc-value { font-family: var(--mono); font-size: 30px; font-weight: 700; line-height: 1;
     font-variant-numeric: tabular-nums; }
-  .pc-delta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 6px;
-    font-family: var(--mono); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .pc-muted { color: var(--muted); font-weight: 400; }
+
+  /* hover sub-line: gap-to-SPY + the day's value */
+  .pc-sub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+    font-family: var(--mono); font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pc-dot-sep { color: var(--muted); }
+
+  /* at-rest stat strip — hairline-split cells, same language as MarketPulse */
+  .pc-stats { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .pc-stat { min-width: 0; display: flex; flex-direction: column; gap: 3px;
+    padding-left: 14px; border-left: var(--bw) solid var(--hairline); }
+  .pc-stat:first-child { padding-left: 0; border-left: 0; }
+  .pc-stat-k { font-family: var(--sans); font-size: 9px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pc-stat-v { font-family: var(--mono); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
+    line-height: 1; white-space: nowrap; }
 
   /* toolbar — mirrors StockChart's .gf-bar so the two charts align pixel-for-pixel */
   .pc-bar { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }

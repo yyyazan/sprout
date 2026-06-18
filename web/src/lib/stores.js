@@ -18,6 +18,24 @@ export const searchOpen = writable(false);
 // resumes with an immediate tick on refocus if the data has gone stale.
 const MOMENTUM_MS = 60_000;
 export const moves = writable({});
+
+// Aggregate intraday day-change ($ and %) across the non-joker holdings, using
+// the live momentum move when present and the frozen card day_pct as fallback.
+// Each holding's prior value is backed out from its current market value and
+// day %, so the totals stay correct across mixed up/down moves.
+export function portfolioDayMove(cards, liveMoves = {}) {
+  let curr = 0, prev = 0;
+  for (const c of cards ?? []) {
+    if (c.is_joker) continue;
+    const mv = c.market_value ?? 0;
+    const live = liveMoves[c.ticker];
+    const r = ((live ? live.day_pct : c.day_pct) ?? 0) / 100;
+    curr += mv;
+    prev += r > -1 ? mv / (1 + r) : mv;
+  }
+  const gain = curr - prev;
+  return { gain, pct: prev > 0 ? (gain / prev) * 100 : 0 };
+}
 let momentumStarted = false;
 export function startMomentum() {
   if (momentumStarted) return;

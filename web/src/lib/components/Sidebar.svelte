@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { holdings, moves, loadHoldings, startMomentum, openStock, openSearch, cardToHolding, watchlist, loadWatchlist } from '$lib/stores.js';
   import { theme, toggleTheme } from '$lib/theme.js';
+  import TickerBadge from './TickerBadge.svelte';
 
   const NAV = [
     { label: 'home', path: '/', glyph: '❖' },
@@ -87,8 +88,8 @@
         <button class="row" style="--i:{Math.min(i, 16)}" onclick={() => open(c)}>
           <span class="r-main">
             <span class="r-line">
-              <b class="r-sym">{c.ticker}</b>
-              <span class="r-day {mv >= 0 ? 'up' : 'down'}">{pct(mv)}</span>
+              <TickerBadge sym={c.ticker} />
+              <span class="r-day pct-pill {mv >= 0 ? 'up' : 'down'}">{pct(mv)}</span>
             </span>
             <span class="r-line r-sub">
               <span class="r-val">{usd(c.market_value)}</span>
@@ -102,11 +103,12 @@
     {#if $watchlist?.length}
       <div class="wl-head">Watchlist</div>
       {#each $watchlist as w (w.ticker)}
+        {@const wv = win === 'day' ? w.dayPct : w.weekPct}
         <button class="row wl-row" onclick={() => openStock({ ticker: w.ticker, name: w.name, holding: null })}>
           <span class="r-main">
             <span class="r-line">
-              <b class="r-sym">{w.ticker}</b>
-              <span class="r-day {(w.dayPct ?? 0) >= 0 ? 'up' : 'down'}">{w.dayPct != null ? pct(w.dayPct) : '—'}</span>
+              <TickerBadge sym={w.ticker} />
+              <span class="r-day pct-pill {(wv ?? 0) >= 0 ? 'up' : 'down'}">{wv != null ? pct(wv) : '—'}</span>
             </span>
             <span class="r-line r-sub">
               <span class="r-val">{w.price != null ? '$' + w.price.toFixed(2) : '—'}</span>

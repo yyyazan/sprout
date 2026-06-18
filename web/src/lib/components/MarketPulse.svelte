@@ -31,7 +31,7 @@
       {#each m.indices as ix (ix.symbol)}
         <button class="idx" onclick={() => openStock({ ticker: ix.symbol, name: ix.label, holding: null })}>
           <span class="idx-label">{ix.label}</span>
-          <span class="idx-pct {(ix.dayPct ?? 0) >= 0 ? 'up' : 'down'}">{pct(ix.dayPct)}</span>
+          <span class="idx-pct pct-pill {(ix.dayPct ?? 0) >= 0 ? 'up' : 'down'}">{pct(ix.dayPct)}</span>
           <span class="idx-px">{px(ix.price)}</span>
         </button>
       {/each}
