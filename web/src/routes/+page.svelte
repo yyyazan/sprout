@@ -28,24 +28,36 @@
   // today's aggregate intraday change — live via the momentum store, card fallback
   const dayMove = $derived(d ? portfolioDayMove(d.cards, $moves) : { gain: null, pct: null });
 
-  onMount(async () => {
-    try {
-      d = await api.dashboard();
-      primeHoldings(d.cards);          // share holdings with the sidebar rail
-    } catch (e) {
-      error = String(e);
-    }
-  });
-
   // Re-pull the dashboard after a transaction is saved from the cash tile, so cash updates.
+  // Also the poll tick below, so the equity curve / stats widget stays live.
+  let lastFetch = 0;
   async function refresh() {
     try {
       d = await api.dashboard();
-      primeHoldings(d.cards);
+      primeHoldings(d.cards);          // share holdings with the sidebar rail
+      lastFetch = Date.now();
     } catch (e) {
       error = String(e);
     }
   }
+
+  // Poll like the momentum store does (see startMomentum in stores.js): pause
+  // while the tab is hidden, catch up immediately on refocus if stale.
+  const DASHBOARD_POLL_MS = 60_000;
+  onMount(() => {
+    refresh();
+
+    const onVisible = () => {
+      if (!document.hidden && Date.now() - lastFetch > DASHBOARD_POLL_MS) refresh();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    const timer = setInterval(() => { if (!document.hidden) refresh(); }, DASHBOARD_POLL_MS);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(timer);
+    };
+  });
 </script>
 
 {#if error}
