@@ -11,6 +11,7 @@
   import MarketPulse from '../MarketPulse.svelte';
   import { theme, toggleTheme } from '$lib/theme.js';
   import { moves, portfolioDayMove } from '$lib/stores.js';
+  import { SHOW_GARDEN } from '$lib/config.js';
 
   let { d, garden } = $props();
   const dayMove = $derived(d ? portfolioDayMove(d.cards, $moves) : { gain: null, pct: null });
@@ -18,8 +19,10 @@
 
 <!-- full-bleed hero; the greeting overlay clears the iOS status bar (standalone
      runs content under it via black-translucent) -->
-<div class="mh-hero">
-  <GardenView positions={garden.positions} period={garden.period} />
+<div class="mh-hero" class:mh-hero--flat={!SHOW_GARDEN}>
+  {#if SHOW_GARDEN}
+    <GardenView positions={garden.positions} period={garden.period} />
+  {/if}
   <div class="mh-hero-overlay">
     <div class="greeting-title">{d.greeting}</div>
     <button class="mh-theme" onclick={toggleTheme} aria-label="Toggle light/dark theme">
@@ -55,6 +58,12 @@
   .mh-theme { pointer-events: auto; width: 30px; height: 30px; display: grid; place-items: center;
     cursor: pointer; font-size: 14px; line-height: 1; color: #1a1a1a; background: transparent;
     border: 1px solid rgba(26, 26, 26, .4); border-radius: 999px; }
+
+  /* garden hidden (SHOW_GARDEN=false): overlay drops into flow, text/icon pick
+     up theme color since there's no garden sky underneath anymore */
+  .mh-hero--flat .mh-hero-overlay { position: static; pointer-events: auto; padding-bottom: 12px; }
+  .mh-hero--flat .greeting-title { color: var(--text); }
+  .mh-hero--flat .mh-theme { color: var(--text); border-color: color-mix(in srgb, var(--text) 40%, transparent); }
 
   .mh-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
   .mh-kpis :global(.glass-card) { padding: 14px 16px; }

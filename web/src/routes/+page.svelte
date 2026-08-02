@@ -14,6 +14,7 @@
   import MobileDashboard from '$lib/components/mobile/MobileDashboard.svelte';
   import { primeHoldings, moves, portfolioDayMove } from '$lib/stores.js';
   import { isMobile } from '$lib/isMobile.js';
+  import { SHOW_GARDEN } from '$lib/config.js';
 
   let d = $state(null);
   let error = $state(null);
@@ -69,8 +70,10 @@
     <MobileDashboard {d} {garden} {refresh} />
   {:else}
   <div class="content content-has-hero">
-    <div class="page-hero">
-      <GardenView positions={garden.positions} period={garden.period} />
+    <div class="page-hero" class:page-hero--flat={!SHOW_GARDEN}>
+      {#if SHOW_GARDEN}
+        <GardenView positions={garden.positions} period={garden.period} />
+      {/if}
       <div class="page-header-overlay">
         <div class="greeting-title">{d.greeting}</div>
       </div>

@@ -258,6 +258,12 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
   color: #1a1a1a;
 }
 
+/* Garden hidden (see $lib/config.js SHOW_GARDEN): overlay drops into normal
+   flow instead of floating over the canvas, and text picks up theme color
+   since there's no garden sky underneath it anymore. */
+.page-hero--flat .page-header-overlay { position: static; pointer-events: auto; padding-bottom: 16px; }
+.page-hero--flat .greeting-title { color: var(--text); }
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 700px) {
   .app-root { grid-template-columns: minmax(0, 1fr); }
