@@ -30,11 +30,26 @@ from portfolio.data import store
 # throttling radar while still collapsing N round-trips into ~1.
 _MAX_QUOTE_WORKERS = 8
 
-# L1 in-process memo (cleared on process restart).
-_HISTORY_CACHE: dict[str, pd.Series] = {}
-_SPLITS_CACHE: dict[str, pd.Series] = {}
-_PROFILE_CACHE: dict[str, dict] = {}
-_DIVIDENDS_CACHE: dict[str, pd.Series] = {}
+# L1 in-process memo (cleared on process restart). Entries carry a fetch
+# timestamp and expire on the same per-kind TTL as the L2 Parquet store
+# (store.TTL) — without this, a long-running server process would cache the
+# first fetch forever and never see new daily bars again, regardless of how
+# fresh store.is_fresh() considers the underlying Parquet cache.
+_HISTORY_CACHE: dict[str, tuple[float, pd.Series]] = {}
+_SPLITS_CACHE: dict[str, tuple[float, pd.Series]] = {}
+_PROFILE_CACHE: dict[str, tuple[float, dict]] = {}
+_DIVIDENDS_CACHE: dict[str, tuple[float, pd.Series]] = {}
+
+
+def _l1_get(cache: dict, ticker: str, kind: str):
+    hit = cache.get(ticker)
+    if hit is not None and time.monotonic() - hit[0] < store.TTL[kind]:
+        return hit[1]
+    return None
+
+
+def _l1_set(cache: dict, ticker: str, value) -> None:
+    cache[ticker] = (time.monotonic(), value)
 
 
 # Ticker renames: a holding keeps its original symbol everywhere (trades, display, and
@@ -61,12 +76,13 @@ def history(ticker: str) -> pd.Series:
     Returns an empty series for delisted/unknown tickers — yfinance can raise
     AttributeError on its internal cache for those cases.
     """
-    if ticker in _HISTORY_CACHE:
-        return _HISTORY_CACHE[ticker]
+    hit = _l1_get(_HISTORY_CACHE, ticker, "history")
+    if hit is not None:
+        return hit
 
     cached = store.read_history(ticker)
     if cached is not None and not cached.empty and store.is_fresh(ticker, "history"):
-        _HISTORY_CACHE[ticker] = cached
+        _l1_set(_HISTORY_CACHE, ticker, cached)
         return cached
 
     try:
@@ -76,13 +92,13 @@ def history(ticker: str) -> pd.Series:
     if hist is None or hist.empty:
         # Fall back to a stale cache before giving up.
         result = cached if (cached is not None and not cached.empty) else pd.Series(dtype=float)
-        _HISTORY_CACHE[ticker] = result
+        _l1_set(_HISTORY_CACHE, ticker, result)
         return result
 
     hist.index = _strip_tz(hist.index)
     series = hist["Close"]
     store.write_history(ticker, series)
-    _HISTORY_CACHE[ticker] = series
+    _l1_set(_HISTORY_CACHE, ticker, series)
     return series
 
 
@@ -121,12 +137,13 @@ def history_from(ticker: str, start: datetime | pd.Timestamp) -> pd.Series:
 
 
 def splits(ticker: str) -> pd.Series:
-    if ticker in _SPLITS_CACHE:
-        return _SPLITS_CACHE[ticker]
+    hit = _l1_get(_SPLITS_CACHE, ticker, "splits")
+    if hit is not None:
+        return hit
 
     cached = store.read_splits(ticker)
     if cached is not None and store.is_fresh(ticker, "splits"):
-        _SPLITS_CACHE[ticker] = cached
+        _l1_set(_SPLITS_CACHE, ticker, cached)
         return cached
 
     try:
@@ -135,13 +152,13 @@ def splits(ticker: str) -> pd.Series:
         s = None
     if s is None or s.empty:
         result = cached if cached is not None else pd.Series(dtype=float)
-        _SPLITS_CACHE[ticker] = result
+        _l1_set(_SPLITS_CACHE, ticker, result)
         return result
 
     s = s.copy()
     s.index = _strip_tz(s.index)
     store.write_splits(ticker, s)
-    _SPLITS_CACHE[ticker] = s
+    _l1_set(_SPLITS_CACHE, ticker, s)
     return s
 
 
@@ -151,12 +168,13 @@ def dividends(ticker: str) -> pd.Series:
     Empty series for non-payers / delisted tickers. Used for the trailing
     12-month dividend rate when a forward rate isn't on the profile.
     """
-    if ticker in _DIVIDENDS_CACHE:
-        return _DIVIDENDS_CACHE[ticker]
+    hit = _l1_get(_DIVIDENDS_CACHE, ticker, "dividends")
+    if hit is not None:
+        return hit
 
     cached = store.read_dividends(ticker)
     if cached is not None and not cached.empty and store.is_fresh(ticker, "dividends"):
-        _DIVIDENDS_CACHE[ticker] = cached
+        _l1_set(_DIVIDENDS_CACHE, ticker, cached)
         return cached
 
     try:
@@ -165,13 +183,13 @@ def dividends(ticker: str) -> pd.Series:
         d = None
     if d is None or d.empty:
         result = cached if (cached is not None and not cached.empty) else pd.Series(dtype=float)
-        _DIVIDENDS_CACHE[ticker] = result
+        _l1_set(_DIVIDENDS_CACHE, ticker, result)
         return result
 
     d = d.copy()
     d.index = _strip_tz(d.index)
     store.write_dividends(ticker, d)
-    _DIVIDENDS_CACHE[ticker] = d
+    _l1_set(_DIVIDENDS_CACHE, ticker, d)
     return d
 
 
@@ -260,12 +278,13 @@ def profile(ticker: str) -> dict:
     snapshot. Returns {} for delisted/unknown tickers (yfinance can raise on
     its internal cache) — callers fall back to neutral suit/name defaults.
     """
-    if ticker in _PROFILE_CACHE:
-        return _PROFILE_CACHE[ticker]
+    hit = _l1_get(_PROFILE_CACHE, ticker, "profile")
+    if hit is not None:
+        return hit
 
     cached = store.read_profile(ticker)
     if cached is not None and store.is_fresh(ticker, "profile"):
-        _PROFILE_CACHE[ticker] = cached
+        _l1_set(_PROFILE_CACHE, ticker, cached)
         return cached
 
     try:
@@ -281,9 +300,9 @@ def profile(ticker: str) -> dict:
         prof = None
     if prof is None:
         result = cached if cached is not None else {}
-        _PROFILE_CACHE[ticker] = result
+        _l1_set(_PROFILE_CACHE, ticker, result)
         return result
 
     store.write_profile(ticker, prof)
-    _PROFILE_CACHE[ticker] = prof
+    _l1_set(_PROFILE_CACHE, ticker, prof)
     return prof
