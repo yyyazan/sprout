@@ -135,32 +135,7 @@
      stock + search modes keep height:100% (page-scrolling grid / bounded card). */
   .stage-portfolio { height: var(--stage-h, 520px); }
 
-  /* ── persistent search strip ── */
-  /* same box, same place, whatever mode the stage is in — idle button or live
-     input, so opening/closing search never shifts anything else on the page */
-  .strip { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; min-width: 0;
-    padding: 12px 16px; box-sizing: border-box; width: 100%; text-align: left;
-    background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r);
-    color: var(--ink); font: inherit; }
-  .strip-idle { cursor: pointer; transition: box-shadow .12s ease, transform .12s ease; }
-  .strip-idle:hover { box-shadow: var(--sh-pop); transform: translate(-1px, -1px); }
-  .strip-idle:active { transform: none; box-shadow: none; }
-  .strip-icon { font-size: 16px; color: var(--muted); flex: 0 0 auto; }
-  .strip-ph { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--muted);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .strip-idle:hover .strip-ph { color: var(--ink); }
-  .strip-kbd, .strip-esc { flex: 0 0 auto; font-family: var(--num); font-size: var(--fs-meta); font-weight: 500;
-    line-height: 1; color: var(--muted); border: var(--bw) solid var(--muted); border-radius: 4px; padding: 3px 6px;
-    background: transparent; }
-  .strip-esc { cursor: pointer; }
-  .strip-esc:hover { color: var(--ink); border-color: var(--ink); }
-  .strip-active input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
-    color: var(--text); font-size: 14px; font-weight: 500; }
-  .strip-active input::placeholder { color: var(--muted); }
-  .strip-spin { flex: 0 0 auto; width: 13px; height: 13px;
-    border: 2px solid color-mix(in srgb, var(--ink) 25%, transparent);
-    border-top-color: var(--brand); border-radius: 50%; animation: strip-rot .6s linear infinite; }
-  @keyframes strip-rot { to { transform: rotate(360deg); } }
+  /* .strip and .ss-* (search strip + result rows) are shared with the phone — see app.css */
 
   /* search brings a card shell; stock mode is a bare widget grid; the chart card is its own chrome */
   .stage-card { background: var(--surface); border: var(--bw) solid var(--ink);
@@ -172,16 +147,5 @@
   .stage-widgets { display: block; min-height: 0; }
   .stage-chart { min-height: 0; }
 
-  /* ── inline search results (the query input itself lives in .strip-active) ── */
   .stage-search { overflow: hidden; }
-  .ss-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
-  .ss-item { width: 100%; display: flex; align-items: baseline; gap: 12px; padding: 10px 12px; cursor: pointer;
-    border: 0; border-radius: var(--r); background: transparent; color: var(--ink); text-align: left; font: inherit; }
-  .ss-item.active { background: var(--hover); }
-  .ss-sym { flex: 0 0 auto; min-width: 64px; }
-  .ss-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: var(--text);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ss-meta { flex: 0 0 auto; display: inline-flex; gap: 10px; font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
-  .ss-empty { padding: 18px 18px 20px; font-size: 13px; font-weight: 500; color: var(--muted); }
-  .ss-section { padding: 14px 18px 4px; font-size: var(--fs-body); font-weight: 600; color: var(--ink); }
 </style>

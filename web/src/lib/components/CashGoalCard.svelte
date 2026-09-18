@@ -94,6 +94,11 @@
     </g>
   </svg>
 
+  <!-- persistent "this opens" badge, half-overlapping the coin's corner. Quiet
+       hairline at rest; fills ink on hover and spins into an × once the panel
+       is open, so the same mark reads as both "add" and "close". -->
+  <span class="cg-add" aria-hidden="true"></span>
+
   <div class="cg-cash">
     <div class="kpi-label">Cash</div>
     <div class="kpi-value">{formatValue(cash, 'money')}</div>
@@ -143,6 +148,20 @@
   .cg-coin { position: absolute; top: 12px; right: 12px; z-index: 1; overflow: visible;
     transition: transform .2s cubic-bezier(.34, 1.56, .5, 1); }
   .cashgoal-card:hover .cg-coin { transform: translateY(-2px); }
+
+  /* quiet "+" affordance badge, half-overlapping the coin's bottom-right edge.
+     The plus is drawn as two CSS bars (not text) so it sits dead-center
+     regardless of font metrics; the whole badge spins 45° into an × on open. */
+  .cg-add { position: absolute; top: 39px; right: 7px; z-index: 2; pointer-events: none;
+    width: 17px; height: 17px; border-radius: 50%;
+    background: var(--surface); border: 1.5px solid var(--hairline); color: var(--muted);
+    transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease; }
+  .cg-add::before, .cg-add::after { content: ''; position: absolute; top: 50%; left: 50%;
+    background: currentColor; transform: translate(-50%, -50%); }
+  .cg-add::before { width: 8px; height: 1.5px; }
+  .cg-add::after { width: 1.5px; height: 8px; }
+  .cashgoal-card:hover .cg-add { border-color: var(--ink); color: var(--ink); }
+  .cashgoal-card.open .cg-add { background: var(--ink); border-color: var(--ink); color: var(--paper); transform: rotate(45deg); }
 
   /* diagonal shine swipe clipped to the coin face,
      triggered by hovering the card. transform-box: view-box so the % resolves in viewBox units. */
@@ -203,5 +222,6 @@
     .cg-coin-shine { transition: none; }
     .cashgoal-card:hover .cg-coin-shine { transform: translateX(-120%); }
     .cg-rise { transition: none; }
+    .cg-add { transition: none; }
   }
 </style>

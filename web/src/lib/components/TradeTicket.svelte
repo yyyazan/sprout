@@ -108,6 +108,10 @@
       stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.45" />
   </svg>
 
+  <!-- persistent "this opens" badge, half-overlapping the badge's corner — same
+       mark as the cash tile's, so the two logger cards read as one pattern. -->
+  <span class="tt-add" aria-hidden="true"></span>
+
   <div class="tt-head">
     <div class="kpi-label">Trades</div>
     <div class="kpi-value">{monthTrades.length}</div>
@@ -173,6 +177,20 @@
     transition: transform .2s cubic-bezier(.34, 1.56, .5, 1); }
   .trade-card:hover .tt-badge { transform: translateY(-2px); }
 
+  /* quiet "+" affordance badge, half-overlapping the token's bottom-right edge.
+     The plus is drawn as two CSS bars (not text) so it sits dead-center
+     regardless of font metrics; the whole badge spins 45° into an × on open. */
+  .tt-add { position: absolute; top: 39px; right: 7px; z-index: 2; pointer-events: none;
+    width: 17px; height: 17px; border-radius: 50%;
+    background: var(--surface); border: 1.5px solid var(--hairline); color: var(--muted);
+    transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease; }
+  .tt-add::before, .tt-add::after { content: ''; position: absolute; top: 50%; left: 50%;
+    background: currentColor; transform: translate(-50%, -50%); }
+  .tt-add::before { width: 8px; height: 1.5px; }
+  .tt-add::after { width: 1.5px; height: 8px; }
+  .trade-card:hover .tt-add { border-color: var(--ink); color: var(--ink); }
+  .trade-card.open .tt-add { background: var(--ink); border-color: var(--ink); color: var(--paper); transform: rotate(45deg); }
+
   .up { color: var(--gain); }
   .down { color: var(--loss); }
 
@@ -230,5 +248,6 @@
     .tt-badge { transition: none; }
     .trade-card:hover .tt-badge { transform: none; }
     .tt-rise { transition: none; }
+    .tt-add { transition: none; }
   }
 </style>

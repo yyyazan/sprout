@@ -45,7 +45,10 @@ export const TICKER_COLORS = {
 };
 
 // Design accent deck (app.css) — the fallback palette for unknown tickers.
-const ACCENT_DECK = ['#ff90e8', '#ffc900', '#23a094', '#5b8def', '#c994e8', '#ff6e5e'];
+// Yellow is swapped for an orange here (badges only): the app.css yellow is
+// too light for white text, which would break the white-on-color look every
+// other badge has.
+const ACCENT_DECK = ['#ff90e8', '#d9480f', '#23a094', '#5b8def', '#c994e8', '#ff6e5e'];
 
 // Deterministic string hash (djb2-ish) → stable index into the accent deck.
 function hashIndex(str, mod) {

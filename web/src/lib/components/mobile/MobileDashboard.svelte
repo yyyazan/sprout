@@ -1,6 +1,6 @@
 <script>
-  // Phone dashboard shell: four always-mounted panes (Home · Search · Holdings ·
-  // Log) toggled by display so the three.js garden and the charts never re-init
+  // Phone dashboard shell: three always-mounted panes (Home, Holdings, Log)
+  // toggled by display so the three.js garden and the charts never re-init
   // on tab bounces, plus the fixed bottom tab bar and the full-screen stock
   // sheet. Takes over the data wiring the desktop Sidebar normally does
   // (momentum poll + watchlist), since the sidebar isn't mounted on mobile.
@@ -8,7 +8,6 @@
   import { startMomentum, loadWatchlist, detail } from '$lib/stores.js';
   import MobileTabBar from './MobileTabBar.svelte';
   import MobileHome from './MobileHome.svelte';
-  import MobileSearch from './MobileSearch.svelte';
   import MobileHoldings from './MobileHoldings.svelte';
   import MobileLog from './MobileLog.svelte';
   import MobileStockSheet from './MobileStockSheet.svelte';
@@ -23,8 +22,7 @@
 </script>
 
 <div class="m-shell">
-  <div class="m-pane" class:hidden={tab !== 'home'}><MobileHome {d} {garden} /></div>
-  <div class="m-pane" class:hidden={tab !== 'search'}><MobileSearch /></div>
+  <div class="m-pane" class:hidden={tab !== 'home'}><MobileHome {d} {garden} onSeeAll={() => (tab = 'holdings')} /></div>
   <div class="m-pane" class:hidden={tab !== 'holdings'}><MobileHoldings /></div>
   <div class="m-pane" class:hidden={tab !== 'log'}><MobileLog {d} {refresh} /></div>
 </div>

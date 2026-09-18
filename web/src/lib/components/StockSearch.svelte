@@ -107,8 +107,9 @@
 
   .ss-list { list-style: none; margin: 0; padding: 6px; max-height: 52vh; overflow-y: auto; }
   .ss-item { width: 100%; display: flex; align-items: baseline; gap: 12px; padding: 10px 12px; cursor: pointer;
-    border: 0; border-radius: var(--r); background: transparent; color: var(--ink); text-align: left; font: inherit; }
-  .ss-item.active { background: var(--hover); }
+    border: var(--bw) solid transparent; border-radius: var(--r); background: transparent; color: var(--ink);
+    text-align: left; font: inherit; transition: border-color .12s ease; }
+  .ss-item.active { border-color: var(--ink); }
   .ss-sym { flex: 0 0 auto; font-family: var(--mono); font-weight: 700; font-size: 14px; min-width: 64px; }
   .ss-name { flex: 1; min-width: 0; font-family: var(--sans); font-size: 13px; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

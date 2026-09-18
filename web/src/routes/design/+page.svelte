@@ -17,6 +17,8 @@
   import DashboardStage from '$lib/components/DashboardStage.svelte';
   import StockPanel from '$lib/components/StockPanel.svelte';
   import ActivityLog from '$lib/components/ActivityLog.svelte';
+  import Sparkline from '$lib/components/Sparkline.svelte';
+  import TickerBadge from '$lib/components/TickerBadge.svelte';
 
   let d = $state(null);
   let trades = $state([]);
@@ -73,8 +75,10 @@
   const JUMP = [
     ['principles', 'Principles'], ['tokens', 'Tokens'], ['type', 'Type'], ['buttons', 'Buttons'],
     ['charts', 'Charts'], ['ring', 'Ring'], ['rings-live', 'Live rings'], ['stage', 'Stage'], ['cards', 'Rail cards'],
-    ['stock', 'Stock view'], ['log', 'Log'],
+    ['stock', 'Stock view'], ['log', 'Log'], ['mobile', 'Mobile'],
   ];
+
+  const SPARK_DEMO = [219, 217, 216, 214, 208, 213, 209, 228, 217, 221, 217, 224, 228, 230, 225, 223, 218, 218, 211, 212, 214, 219];
 </script>
 
 <div class="dm">
@@ -263,6 +267,51 @@
     <ActivityLog {trades} {txns} {realized} />
   </section>
 
+  <!-- ── mobile ── -->
+  <section class="w dm-sec" id="mobile">
+    <div class="w-h">Mobile</div>
+    <p class="dm-usage">Same components, three panes: Home, Holdings, Log. Search is the strip on Home, not a tab.
+      The stock view is a full-screen sheet. Nothing here has its own type — it uses the four sizes above.</p>
+    <div class="dm-rows">
+      <div class="dm-row"><code class="dm-code">dock</code><span class="dm-usage">52px capsule on --surface, ink hairline, 3px inset. Each tab is a .btn: icon 18 + label 13/600 on one line; the sliding ink pill is .btn.on.</span></div>
+      <div class="dm-row"><code class="dm-code">header</code><span class="dm-usage">greeting 28/700 lowercase, 18px under the status bar; theme + profile as 30px rings on the right, the profile a 24-box person icon.</span></div>
+      <div class="dm-row"><code class="dm-code">strip</code><span class="dm-usage">the desktop .strip. Idle = button; live = input + Cancel, results take the pane over.</span></div>
+      <div class="dm-row"><code class="dm-code">rows</code><span class="dm-usage">48–56px touch rows, hairline between, press tint. Badge, name (body muted), figure (num).</span></div>
+      <div class="dm-row"><code class="dm-code">scroll</code><span class="dm-usage">no overscroll-behavior on html/body — it kills the iOS bounce. The shell clips x.</span></div>
+    </div>
+    <div class="dm-mobile-demo">
+      <div class="dm-dock" aria-hidden="true">
+        <span class="dm-dock-pill"></span>
+        <span class="dm-dock-tab on">
+          <svg viewBox="0 0 24 24"><path d="M12 21 V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /><path d="M12 13 C 8.5 13, 6 10.8, 5.6 6.8 C 9.6 7, 11.7 9.4, 12 13 Z" fill="currentColor" /><path d="M12 11 C 15.5 11, 18 8.8, 18.4 4.8 C 14.4 5, 12.3 7.4, 12 11 Z" fill="currentColor" /></svg>
+          <span>Home</span>
+        </span>
+        <span class="dm-dock-tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 20 V13" /><path d="M12 20 V5" /><path d="M19 20 V9" /></svg>
+          <span>Holdings</span>
+        </span>
+        <span class="dm-dock-tab">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7 h.01" /><path d="M10 7 h9" /><path d="M5 12 h.01" /><path d="M10 12 h9" /><path d="M5 17 h.01" /><path d="M10 17 h9" /></svg>
+          <span>Log</span>
+        </span>
+      </div>
+      <div class="dm-glance">
+        <div class="dm-glance-head"><span class="w-h">Holdings, past month</span><span class="btn btn-sm btn-quiet">See all</span></div>
+        <div class="dm-glance-row">
+          <TickerBadge sym="NVDA" />
+          <span class="dm-glance-name">NVIDIA Corporation</span>
+          <span class="dm-glance-move down"><Sparkline values={SPARK_DEMO} /><span class="dm-glance-pct">−0.07%</span></span>
+        </div>
+        <div class="dm-glance-row">
+          <TickerBadge sym="AAPL" />
+          <span class="dm-glance-name">Apple Inc.</span>
+          <span class="dm-glance-move up"><Sparkline values={[...SPARK_DEMO].reverse()} /><span class="dm-glance-pct">+8.70%</span></span>
+        </div>
+        <p class="dm-usage">Top 5 by weight, 21 closes + spot from /api/momentum. Sparkline = one 1.5 path in the row's gain/loss ink. No axes.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- ── widget anatomy ── -->
   <section class="w dm-sec">
     <div class="w-h">Widget anatomy</div>
@@ -280,6 +329,26 @@
 </div>
 
 <style>
+  /* mobile section: a static dock (the real one is position: fixed) and a glance row */
+  .dm-mobile-demo { display: grid; grid-template-columns: 343px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 4px; }
+  .dm-dock { position: relative; height: 52px; padding: 3px; box-sizing: border-box; display: grid; grid-template-columns: repeat(3, 1fr);
+    border: var(--bw) solid var(--ink); border-radius: 999px; background: var(--surface); }
+  .dm-dock-pill { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 3); background: var(--ink); border-radius: 999px; }
+  .dm-dock-tab { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    color: var(--muted); font-size: 13px; font-weight: 600; }
+  .dm-dock-tab.on { color: var(--paper); }
+  .dm-dock-tab svg { width: 18px; height: 18px; display: block; }
+  .dm-glance { display: flex; flex-direction: column; }
+  .dm-glance-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 2px; }
+  .dm-glance-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 48px; padding: 8px 0;
+    border-bottom: var(--bw) solid var(--hairline); }
+  .dm-glance-name { min-width: 0; font-size: var(--fs-body); font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dm-glance-move { display: flex; align-items: center; gap: 10px; }
+  .dm-glance-pct { min-width: 64px; text-align: right; font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .dm-glance-move.up { color: var(--gain-ink); }
+  .dm-glance-move.down { color: var(--loss-ink); }
+  @media (max-width: 760px) { .dm-mobile-demo { grid-template-columns: 1fr; } }
+
   .dm { max-width: 1120px; margin: 0 auto; padding: 28px 28px 80px; display: flex; flex-direction: column; gap: 16px; }
   .dm-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 8px 2px 10px; }
   .dm-title { margin: 0; font-family: var(--sans); font-size: 34px; font-weight: 800; letter-spacing: -.02em; text-transform: lowercase; }

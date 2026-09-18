@@ -12,7 +12,6 @@
   import TickerBadge from './TickerBadge.svelte';
   import { mockStock, fmtCap, fmtVol } from '$lib/mockStock.js';
   import { api } from '$lib/api.js';
-  import { tickerColor } from '$lib/tickerColor.js';
   import { watchlist, loadWatchlist, toggleWatch, holdings, openStock, cardToHolding } from '$lib/stores.js';
 
   // showClose=false when a host provides its own way back (the dashboard stage's
@@ -20,9 +19,6 @@
   let { ticker, name = null, holding = null, onClose, glyph = '✕', showClose = true } = $props();
 
   const owned = $derived(!!holding);
-  // the ticker's brand color marks the header so a stock never reads as the
-  // (neutral) portfolio card — the sanctioned ticker-identity exception
-  const accent = $derived(tickerColor(ticker || ''));
 
   // watch state for non-held tickers — shared store keeps the sidebar in sync
   const watched = $derived(($watchlist ?? []).some((w) => w.ticker === (ticker || '').toUpperCase()));
@@ -181,7 +177,7 @@
 
 <div class="spg">
   <!-- header widget — 4 × 0.5: crumb · back (top right) · identity · quote · position/watch -->
-  <section class="w w-head" style="--accent:{accent}">
+  <section class="w w-head">
     <div class="hw-top">
       <span class="hw-crumb"><TickerBadge sym={ticker} size="md" />{#if stock.sector && stock.sector !== '—'}<span class="hw-sector">{stock.sector}</span>{/if}</span>
       {#if showClose}
@@ -358,9 +354,7 @@
      position row would sit. min-height (not height) so a wrapped position row is
      never clipped; --title-h is sized to fit the holdings content. */
   .w-head { grid-column: 1 / -1; min-height: var(--title-h, 152px); display: flex; flex-direction: column;
-    justify-content: space-between; gap: 10px; padding: 12px 16px 14px;
-    /* identity: the ticker's brand color as a top bar (set via --accent inline) */
-    border-top: 4px solid var(--accent, var(--ink)); }
+    justify-content: space-between; gap: 10px; padding: 12px 16px 14px; }
   .hw-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .hw-back span { font-size: 15px; line-height: 1; }
   .hw-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }

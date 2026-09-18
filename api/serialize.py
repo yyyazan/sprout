@@ -128,10 +128,16 @@ def momentum_payload(s: PortfolioSnapshot) -> dict:
         spot = quotes[t]["price"]
         day = _spot_move(hist, spot, 1)
         week = _spot_move(hist, spot, 5)
+        month = _spot_move(hist, spot, 21)
+        # last 21 completed closes + spot: the month sparkline on the phone home
+        closes = hist.dropna().tail(21).tolist() if hist is not None else []
+        spark = [round(float(v), 2) for v in closes] + ([round(float(spot), 2)] if spot is not None else [])
         moves[t] = {
             "day_pct": round(day * 100, 2) if day is not None else None,
             "week_pct": round(week * 100, 2) if week is not None else None,
+            "month_pct": round(month * 100, 2) if month is not None else None,
             "spot": round(float(spot), 2) if spot is not None else None,
+            "spark": spark,
         }
 
     data = {"as_of": now, "ttl": _MOM_TTL_SECONDS, "moves": moves}
