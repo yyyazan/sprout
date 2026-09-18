@@ -1,15 +1,16 @@
 <script>
-  // Shared activity lists — born as the mobile Log pane's rows, now used by BOTH
-  // the phone Log pane and the desktop /trades page. Each section (trades ·
-  // transactions · optional realized P&L) shows a recent slice and expands via
-  // "view all"; an active search always shows every match. Entry lives elsewhere
-  // (dashboard cash tile + trade ticket) — these lists are read-only.
+  // Shared activity lists — the phone Log pane and the desktop /trades page
+  // both render this. Each section (trades · transactions · optional realized
+  // lots) shows a recent slice and expands via "View all"; an active search
+  // always shows every match. Read-only: entry lives in the cash + trade tiles.
   import { fmt } from '$lib/format.js';
+  import TickerBadge from './TickerBadge.svelte';
 
-  // realized = null hides the FIFO section (mobile); pass the /api/realized list on desktop
-  let { trades = [], txns = [], realized = null } = $props();
+  // realized = null hides the lots section (mobile); pass /api/realized on desktop
+  let { trades = [], txns = [], realized = null, recent = 6 } = $props();
 
-  const RECENT = 6;   // collapsed slice size
+  // "8.0000" reads like a spreadsheet; keep the precision, drop the padding
+  const sh = (n) => n == null ? '' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 });
 
   // ── trades: search by ticker/action ──
   let tradeQ = $state('');
@@ -19,16 +20,16 @@
     const list = q
       ? trades.filter((t) => `${t.ticker} ${t.action}`.toLowerCase().includes(q))
       : trades;
-    return tradesAll || q ? list : list.slice(0, RECENT);
+    return tradesAll || q ? list : list.slice(0, recent);
   });
 
-  // ── transactions: date + amount only; search by date ──
+  // ── transactions: search by date ──
   let txnQ = $state('');
   let txnsAll = $state(false);
   const txnsFiltered = $derived.by(() => {
     const q = txnQ.trim().toLowerCase();
     const list = q ? txns.filter((x) => (x.date || '').toLowerCase().includes(q)) : txns;
-    return txnsAll || q ? list : list.slice(0, RECENT);
+    return txnsAll || q ? list : list.slice(0, recent);
   });
 
   // ── realized FIFO lots: search by ticker ──
@@ -39,32 +40,33 @@
     const list = q
       ? (realized ?? []).filter((r) => (r.ticker || '').toLowerCase().includes(q))
       : (realized ?? []);
-    return realAll || q ? list : list.slice(0, RECENT);
+    return realAll || q ? list : list.slice(0, recent);
   });
 </script>
 
+<!-- rows are keyed by index on purpose: two identical fills on one day are
+     legitimate and a content key would throw on the duplicate -->
 <div class="al-grid">
-  <!-- TRADES -->
   <section class="al-sec">
-    <div class="al-sec-head">
-      <span class="al-sec-title">Trades</span>
-      {#if trades.length > RECENT && !tradeQ.trim()}
-        <button class="al-viewall" onclick={() => (tradesAll = !tradesAll)}>
-          {tradesAll ? 'show less' : `view all ${trades.length}`}
+    <div class="al-head">
+      <span class="al-title">Trades</span>
+      <label class="al-search">
+        <span class="al-search-ic" aria-hidden="true">⌕</span>
+        <input type="search" bind:value={tradeQ} placeholder="Search"
+          autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Search trades" />
+      </label>
+      {#if trades.length > recent}
+        <button class="btn btn-sm btn-quiet" class:al-hide={tradeQ.trim()} onclick={() => (tradesAll = !tradesAll)}>
+          {tradesAll ? 'Show less' : `View all ${trades.length}`}
         </button>
       {/if}
     </div>
-    <div class="al-search">
-      <span class="al-search-ic" aria-hidden="true">⌕</span>
-      <input class="al-search-in" type="search" bind:value={tradeQ} placeholder="Search trades by ticker…"
-        autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Search trades" />
-    </div>
     {#if tradesFiltered.length}
-      {#each tradesFiltered as t (t.date + t.ticker + t.action + t.shares)}
-        <div class="al-row">
-          <span class="al-sym">{t.ticker}</span>
-          <span class="al-kind {t.action === 'buy' ? 'up' : 'down'}">{t.action}</span>
-          <span class="al-fig">{fmt.shares(t.shares)} sh{#if t.price != null}<span class="al-px"> @ {fmt.money2(t.price)}</span>{/if}</span>
+      {#each tradesFiltered as t, i (i)}
+        <div class="al-row al-trade">
+          <TickerBadge sym={t.ticker} />
+          <span class="al-kind {t.action === 'buy' ? 'up' : 'down'}">{t.action === 'buy' ? 'Buy' : 'Sell'}</span>
+          <span class="al-fig">{sh(t.shares)} sh{#if t.price != null}&nbsp;<span class="dim">@ {fmt.money2(t.price)}</span>{/if}</span>
           <span class="al-date">{t.date}</span>
         </div>
       {/each}
@@ -73,26 +75,26 @@
     {/if}
   </section>
 
-  <!-- TRANSACTIONS — date is the headline, amount sits rightmost -->
   <section class="al-sec">
-    <div class="al-sec-head">
-      <span class="al-sec-title">Transactions</span>
-      {#if txns.length > RECENT && !txnQ.trim()}
-        <button class="al-viewall" onclick={() => (txnsAll = !txnsAll)}>
-          {txnsAll ? 'show less' : `view all ${txns.length}`}
+    <div class="al-head">
+      <span class="al-title">Transactions</span>
+      <label class="al-search">
+        <span class="al-search-ic" aria-hidden="true">⌕</span>
+        <input type="search" bind:value={txnQ} placeholder="Search"
+          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search transactions" />
+      </label>
+      {#if txns.length > recent}
+        <button class="btn btn-sm btn-quiet" class:al-hide={txnQ.trim()} onclick={() => (txnsAll = !txnsAll)}>
+          {txnsAll ? 'Show less' : `View all ${txns.length}`}
         </button>
       {/if}
     </div>
-    <div class="al-search">
-      <span class="al-search-ic" aria-hidden="true">⌕</span>
-      <input class="al-search-in" type="search" bind:value={txnQ} placeholder="Search by date (YYYY-MM-DD)…"
-        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search transactions" />
-    </div>
     {#if txnsFiltered.length}
-      {#each txnsFiltered as x (x.date + x.amount)}
-        <div class="al-row al-row-txn">
-          <span class="al-txn-date">{x.date}</span>
-          <span class="al-txn-amt {x.amount >= 0 ? 'up' : 'down'}">{fmt.signedMoney2(x.amount)}</span>
+      {#each txnsFiltered as x, i (i)}
+        <div class="al-row al-txn">
+          <span class="al-date al-lead">{x.date}</span>
+          <span class="al-kind-q">{x.direction ?? (x.amount >= 0 ? 'Deposit' : 'Withdrawal')}</span>
+          <span class="al-fig {x.amount >= 0 ? 'up' : 'down'}">{fmt.signedMoney2(x.amount)}</span>
         </div>
       {/each}
     {:else}
@@ -100,29 +102,30 @@
     {/if}
   </section>
 
-  <!-- REALIZED P&L (FIFO) — desktop log only; each row is one closed lot -->
+  <!-- realized lots (FIFO) — desktop only; each row is one closed lot -->
   {#if realized}
     <section class="al-sec al-sec-wide">
-      <div class="al-sec-head">
-        <span class="al-sec-title">Realized P&L · FIFO</span>
-        {#if realized.length > RECENT && !realQ.trim()}
-          <button class="al-viewall" onclick={() => (realAll = !realAll)}>
-            {realAll ? 'show less' : `view all ${realized.length}`}
+      <div class="al-head">
+        <span class="al-title">Realized</span>
+        <label class="al-search">
+          <span class="al-search-ic" aria-hidden="true">⌕</span>
+          <input type="search" bind:value={realQ} placeholder="Search"
+            autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Search realized lots" />
+        </label>
+        {#if realized.length > recent}
+          <button class="btn btn-sm btn-quiet" class:al-hide={realQ.trim()} onclick={() => (realAll = !realAll)}>
+            {realAll ? 'Show less' : `View all ${realized.length}`}
           </button>
         {/if}
       </div>
-      <div class="al-search">
-        <span class="al-search-ic" aria-hidden="true">⌕</span>
-        <input class="al-search-in" type="search" bind:value={realQ} placeholder="Search lots by ticker…"
-          autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" aria-label="Search realized lots" />
-      </div>
       {#if realFiltered.length}
-        {#each realFiltered as r (r.ticker + r.buy_date + r.sell_date + r.shares)}
-          <div class="al-row">
-            <span class="al-sym">{r.ticker}</span>
-            <span class="al-lot">{fmt.shares(r.shares)} sh · {fmt.money2(r.buy_price)} → {fmt.money2(r.sell_price)}</span>
+        {#each realFiltered as r, i (i)}
+          <div class="al-row al-lot">
+            <TickerBadge sym={r.ticker} />
+            <span class="al-fig">{sh(r.shares)} sh</span>
+            <span class="al-fig dim">{fmt.money2(r.buy_price)} → {fmt.money2(r.sell_price)}</span>
             <span class="al-date">{r.buy_date} → {r.sell_date}</span>
-            <span class="al-real {r.realized_pnl >= 0 ? 'up' : 'down'}">{fmt.signedMoney2(r.realized_pnl)}</span>
+            <span class="al-fig al-pnl {r.realized_pnl >= 0 ? 'up' : 'down'}">{fmt.signedMoney2(r.realized_pnl)}</span>
           </div>
         {/each}
       {:else}
@@ -134,60 +137,60 @@
 
 <style>
   /* one column on the phone; trades | transactions side by side on desktop,
-     with the realized section spanning the full width underneath */
-  .al-grid { display: grid; grid-template-columns: 1fr; column-gap: 40px; align-items: start; }
+     with the realized lots spanning the full width underneath */
+  .al-grid { display: grid; grid-template-columns: 1fr; column-gap: 40px; row-gap: 8px; align-items: start; }
   .al-sec { min-width: 0; }
   @media (min-width: 900px) {
     .al-grid { grid-template-columns: 1fr 1fr; }
     .al-sec-wide { grid-column: 1 / -1; }
   }
 
-  .al-sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
-    padding: 20px 2px 8px; }
-  .al-sec-title { font-family: var(--sans); font-size: 9.5px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
-  .al-viewall { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink);
-    background: transparent; border: 0; padding: 0; cursor: pointer; text-decoration: underline;
-    text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent); }
+  /* section head: title, then the search and the expand control pushed right */
+  .al-head { display: flex; align-items: center; gap: 8px; padding: 14px 0 6px; }
+  /* a search hides the expand control without letting the head shift */
+  .al-hide { visibility: hidden; }
+  .al-title { flex: 1 1 auto; font-size: var(--fs-title); font-weight: 600; color: var(--ink); }
 
-  /* search bar — same language as the main mobile search */
-  .al-search { display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
-    padding: 8px 10px; border: var(--bw) solid var(--hairline); border-radius: var(--r); }
-  .al-search-ic { font-size: 14px; color: var(--muted); flex: 0 0 auto; }
-  .al-search-in { flex: 1 1 auto; min-width: 0; border: 0; outline: 0; background: transparent;
-    color: var(--text); font-family: var(--sans); font-size: 13px; font-weight: 600;
+  .al-search { flex: 0 1 180px; min-width: 0; display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border: var(--bw) solid var(--hairline); border-radius: 999px;
+    transition: border-color .12s ease; }
+  .al-search:focus-within { border-color: var(--ink); }
+  .al-search-ic { font-size: 13px; color: var(--muted); flex: 0 0 auto; }
+  .al-search input { flex: 1 1 auto; min-width: 0; width: 100%; border: 0; outline: 0; background: transparent;
+    color: var(--text); font-family: var(--sans); font-size: var(--fs-body); font-weight: 500;
     -webkit-appearance: none; appearance: none; }
-  .al-search-in::placeholder { color: var(--muted); font-weight: 500; }
-  .al-search-in::-webkit-search-cancel-button { -webkit-appearance: none; }
-  /* iOS focus-zoom guard — inputs under 16px make Safari zoom the page */
-  @media (max-width: 700px) { .al-search-in { font-size: 16px; } }
+  .al-search input::placeholder { color: var(--muted); }
+  .al-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+  /* phone: search takes its own line; inputs under 16px make Safari zoom the page */
+  @media (max-width: 700px) {
+    .al-head { flex-wrap: wrap; }
+    .al-search { flex: 1 1 100%; order: 3; }
+    .al-search input { font-size: 16px; }
+  }
 
-  .al-empty { padding: 14px 4px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .al-empty { padding: 14px 0; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
 
-  .al-row { display: flex; align-items: baseline; gap: 10px; min-height: 44px; padding: 10px 4px;
+  /* rows: hairline between repeated rows only; each row type is its own grid
+     so the columns line up down the list */
+  .al-row { display: grid; align-items: center; column-gap: 12px; min-height: 44px; padding: 8px 0;
     border-bottom: var(--bw) solid var(--hairline); box-sizing: border-box; }
-  .al-sym { flex: 0 0 auto; font-family: var(--mono); font-size: 13px; font-weight: 700; }
-  .al-kind { flex: 0 0 auto; font-family: var(--sans); font-size: 10px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .06em; }
-  .al-fig { flex: 1 1 auto; text-align: right; font-family: var(--mono); font-size: 12px; font-weight: 700;
-    font-variant-numeric: tabular-nums; }
-  .al-px { font-weight: 700; color: var(--muted); }
-  .al-date { flex: 0 0 auto; font-family: var(--mono); font-size: 11px; color: var(--muted);
-    font-variant-numeric: tabular-nums; }
+  .al-trade { grid-template-columns: auto auto 1fr auto; }
+  .al-txn { grid-template-columns: auto 1fr auto; }
+  .al-lot { grid-template-columns: auto auto auto 1fr auto; }
 
-  /* transaction row: date is the headline (left, ink), amount rightmost */
-  .al-row-txn { align-items: center; }
-  .al-txn-date { flex: 1 1 auto; font-family: var(--mono); font-size: 15px; font-weight: 700;
-    color: var(--ink); font-variant-numeric: tabular-nums; }
-  .al-txn-amt { flex: 0 0 auto; font-family: var(--mono); font-size: 14px; font-weight: 700;
-    font-variant-numeric: tabular-nums; }
+  .al-kind { font-size: var(--fs-body); font-weight: 500; }
+  .al-kind-q { font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
+  .al-fig { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; color: var(--ink);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .al-trade .al-fig { text-align: right; }
+  .al-lot .al-fig.dim { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .al-pnl { min-width: 84px; text-align: right; }
+  .dim { color: var(--muted); }
+  .al-date { font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--muted);
+    font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* transaction rows lead with the date, so it takes the body size in ink */
+  .al-lead { font-size: var(--fs-body); color: var(--ink); }
 
-  /* realized lot row: lot detail fills the middle, P&L rightmost */
-  .al-lot { flex: 1 1 auto; min-width: 0; font-family: var(--mono); font-size: 11.5px; color: var(--muted);
-    font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .al-real { flex: 0 0 auto; font-family: var(--mono); font-size: 13px; font-weight: 700;
-    font-variant-numeric: tabular-nums; }
-
-  .up { color: var(--gain); }
-  .down { color: var(--loss); }
+  .up { color: var(--gain-ink); }
+  .down { color: var(--loss-ink); }
 </style>

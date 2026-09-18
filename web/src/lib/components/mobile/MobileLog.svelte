@@ -31,7 +31,7 @@
 
 <div class="ml-tiles">
   <CashGoalCard cash={d.kpis.cash} portfolioValue={d.kpis.portfolio_value}
-    goalLabel="monthly goal" goalCurrent={d.goal.current} goalTarget={d.goal.target}
+    goalLabel="Monthly goal" goalCurrent={d.goal.current} goalTarget={d.goal.target}
     {onSaved} />
   <TradeTicket {onSaved} />
 </div>

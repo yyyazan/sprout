@@ -10,8 +10,9 @@
 <span class="tkr-badge tkr-{size}" style="background:{bg};color:{fg};">{sym}</span>
 
 <style>
-  .tkr-badge { display: inline-block; font-family: var(--mono); font-weight: 700;
-    letter-spacing: .02em; border-radius: var(--r); line-height: 1.1; white-space: nowrap; }
+  /* the one uppercase element in the system — caps means ticker, so caps get tracking */
+  .tkr-badge { display: inline-block; font-family: var(--num); font-weight: 700;
+    letter-spacing: .04em; border-radius: var(--r); line-height: 1.1; white-space: nowrap; }
   .tkr-sm { font-size: 11px; padding: 2px 7px; }
   .tkr-md { font-size: 12.5px; padding: 3px 9px; }
 </style>

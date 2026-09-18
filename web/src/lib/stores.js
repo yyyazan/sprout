@@ -36,6 +36,14 @@ export function portfolioDayMove(cards, liveMoves = {}) {
   const gain = curr - prev;
   return { gain, pct: prev > 0 ? (gain / prev) * 100 : 0 };
 }
+
+// All-time time-weighted return (%) and the gap to SPY (pp), from the dashboard
+// payload's cumulative TWR series. Null when there's no data yet.
+export function allTimeReturn(twr) {
+  const last = (xy) => { const y = xy?.y ?? []; for (let i = y.length - 1; i >= 0; i--) if (y[i] != null) return y[i] * 100; return null; };
+  const ret = last(twr?.portfolio), spy = last(twr?.spy);
+  return { ret, vsSpy: ret != null && spy != null ? ret - spy : null };
+}
 let momentumStarted = false;
 export function startMomentum() {
   if (momentumStarted) return;

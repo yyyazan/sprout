@@ -9,7 +9,7 @@
 
   const today = () => new Date().toISOString().slice(0, 10);
 
-  let { cash, portfolioValue, goalLabel = 'monthly goal', goalCurrent, goalTarget, onSaved } = $props();
+  let { cash, portfolioValue, goalLabel = 'Monthly goal', goalCurrent, goalTarget, onSaved } = $props();
 
   const cashPct = $derived(portfolioValue ? (cash / portfolioValue) * 100 : null);
   const goalPct = $derived(goalTarget ? Math.min(100, (goalCurrent / goalTarget) * 100) : 0);
@@ -59,7 +59,7 @@
   $effect(() => { if (open && amountEl) amountEl.focus(); });
 </script>
 
-<div class="glass-card cashgoal-card" class:open role="button" tabindex="0" aria-expanded={open}
+<div class="glass-card pressable cashgoal-card" class:open role="button" tabindex="0" aria-expanded={open}
   onclick={toggle}
   onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
   <!-- Coin token, heads-on (flat, app-style): a perfect-circle gold face with an ink
@@ -103,9 +103,9 @@
   </div>
 
   <div class="cg-goal">
-    <div class="cg-goal-head">
-      <span class="cg-goal-label">{goalLabel}</span>
-      <span class="cg-goal-fig">{compact(goalCurrent)} / {compact(goalTarget)} · {goalPct.toFixed(0)}%</span>
+    <div class="bal-row cg-goal-row">
+      <span class="bal-k">{goalLabel}</span>
+      <span class="bal-v">{compact(goalCurrent)} / {compact(goalTarget)}</span>
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:{goalPct}%"></div></div>
   </div>
@@ -136,9 +136,7 @@
 </div>
 
 <style>
-  .cashgoal-card { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; overflow: hidden; cursor: pointer; }
-  /* tighter than the default 22px figure — the goal block shares the 1×1 below it */
-  .cashgoal-card .kpi-value { font-size: 22px; }
+  .cashgoal-card { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; overflow: hidden; }
   /* keep the cash figure clear of the coin in the corner */
   .cg-cash { padding-right: 34px; }
 
@@ -151,9 +149,7 @@
   .cg-coin-shine { transform-box: view-box; transform: translateX(-120%); transition: transform .6s ease; }
   .cashgoal-card:hover .cg-coin-shine { transform: translateX(120%); }
 
-  .cg-goal-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-  .cg-goal-label { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--ink); opacity: .6; }
-  .cg-goal-fig { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cg-goal-row { margin-bottom: 6px; }
 
   /* Cash entry panel: a yellow bar floats up from the bottom to 60% of the tile on click,
      with a rounded top. Holds the amount-entry control + date row, vertically centred. */

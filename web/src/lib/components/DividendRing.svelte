@@ -23,7 +23,7 @@
       const head = list.slice(0, MAX - 1);
       const tail = list.slice(MAX - 1);
       list = [...head, {
-        t: 'OTHER', name: `${tail.length} more`, other: true, yieldPct: null,
+        t: 'Other', name: `${tail.length} more`, other: true, yieldPct: null,
         monthly: tail.reduce((s, d) => s + d.monthly, 0),
       }];
     }
@@ -34,14 +34,14 @@
       tag: d.t,
       hero: m0(d.monthly),
       per: '/mo',
-      sub: d.other ? d.name : `${d.yieldPct != null ? d.yieldPct.toFixed(1) : '—'}% yld`,
+      sub: d.other ? d.name : `${d.yieldPct != null ? d.yieldPct.toFixed(1) : '—'}% yield`,
     }));
   });
 
   const idle = $derived(
     div.monthlyTotal > 0
-      ? { tag: 'dividends', hero: m0(div.monthlyTotal), per: '/mo', sub: `${m0(div.annualTotal)}/yr · ${div.yieldOnValue.toFixed(1)}%` }
-      : { tag: 'dividends', hero: '$0', per: '/mo', sub: 'none yet' }
+      ? { tag: 'Dividends', hero: m0(div.monthlyTotal), per: '/mo', sub: `${div.yieldOnValue.toFixed(1)}% yield` }
+      : { tag: 'Dividends', hero: '$0', per: '/mo', sub: 'None yet' }
   );
 </script>
 

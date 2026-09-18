@@ -38,7 +38,7 @@
   --border: #faf7f0;         /* ink structural border */
   --hairline: rgba(250, 247, 240, .16);  /* faint internal rules */
   --text: #faf7f0;
-  --muted: #8f897c;
+  --muted: #a8a295;           /* ~7:1 on paper — readable at 11px */
   --hover: rgba(250, 247, 240, .07);     /* row/item hover wash */
   /* brand */
   --brand: #0fb39a;
@@ -47,6 +47,9 @@
   /* semantic */
   --gain: #00c060;
   --loss: #ff4d4d;
+  /* the same hues lifted for text sitting ON a gain/loss tint (pct pills): 5.5:1 / 4.8:1 */
+  --gain-ink: #3ddc8a;
+  --loss-ink: #ff8585;
   /* accent deck */
   --pink: #ff90e8;
   --yellow: #ffc900;
@@ -61,6 +64,14 @@
   --r: 4px;
   --sans: 'Archivo', 'Space Grotesk', 'Helvetica Neue', Arial, system-ui, sans-serif;
   --mono: 'IBM Plex Mono', 'Space Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  /* figures: the sans with tabular digits — one family, weight carries hierarchy */
+  --num: var(--sans);
+  /* card type scale — four sizes, nothing in between */
+  --fs-title: 13px;
+  --fs-hero: 24px;
+  --fs-body: 12px;
+  --fs-meta: 11px;
+  --card-pad: 20px 22px;
 }
 
 /* light theme — the original paper palette, same border-only chrome */
@@ -73,8 +84,13 @@ html[data-theme='light'] {
   --border: #1a1a1a;
   --hairline: rgba(26, 26, 26, .14);
   --text: #1a1a1a;
-  --muted: #8a8478;
+  --muted: #5a564e;           /* ~6.5:1 on paper (was 3.3:1 — failed AA) */
   --hover: rgba(26, 26, 26, .06);
+  /* darker moves for light paper — #00c060 on cream was 2:1 */
+  --gain: #067a3c;
+  --loss: #c92a2a;
+  --gain-ink: #05602f;
+  --loss-ink: #a32020;
 }
 
 html, body {
@@ -97,7 +113,7 @@ a { color: inherit; text-decoration: none; }
 .sidebar { background: var(--paper); border-right: var(--bw) solid var(--ink); display: flex; flex-direction: column; padding: 16px 12px; gap: 6px;
   position: sticky; top: 0; align-self: start; height: 100vh; box-sizing: border-box; overflow: hidden; }
 .brand { padding: 6px 10px 18px; }
-.brand-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.brand-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 .nav { display: flex; flex-direction: column; gap: 6px; }
 /* neo-brutalist nav pills: plain text → 1px outline on hover → solid ink when active */
 .nav-link { display: block; border: var(--bw) solid transparent; border-radius: 999px; color: var(--text);
@@ -106,8 +122,7 @@ a { color: inherit; text-decoration: none; }
 .nav-link:active:not(.active) { background: var(--ink); color: var(--paper); }
 .nav-link.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
 .nav-link.active .nav-label { font-weight: 700; }
-.nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; font-size: 14px; font-weight: 600; }
-.nav-icon { color: inherit; flex-shrink: 0; width: 18px; text-align: center; font-size: 15px; }
+.nav-item { display: flex; align-items: center; padding: 10px 14px; font-size: 14px; font-weight: 600; }
 
 /* ── Button system (neo-brutalist): one pill, three states ──────────────────────
    idle = plain text · hover = 1px ink outline · selected/pressed = solid ink.
@@ -127,7 +142,7 @@ a { color: inherit; text-decoration: none; }
 .btn-quiet { color: var(--muted); }
 .btn-quiet:hover { color: var(--ink); }
 .btn-sm { font-size: 11.5px; padding: 4px 11px; }
-.btn-mono { font-family: var(--mono); font-weight: 600; }
+.btn-mono { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; }
 .btn:disabled { opacity: .55; cursor: default; }
 
 /* --title-h = the canonical height for every "title" card (stock header, portfolio
@@ -136,45 +151,50 @@ a { color: inherit; text-decoration: none; }
 .content { --title-h: 152px; padding: 24px 28px; box-sizing: border-box; width: 100%; min-width: 0; max-width: 1400px; margin-inline: auto; display: flex; flex-direction: column; gap: 18px; }
 /* dashboard only: tighter, even rhythm under the garden hero */
 .content-has-hero { padding-top: 0; gap: 14px; }
-.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+/* same cut as .greeting-title so home and the other pages open at one size */
+.page-title { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.02; }
 .page-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .page-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
 /* ── Cards (hard ink border + offset shadow, zero blur) ───────────────────── */
-.glass-card { background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r); padding: 20px 22px; box-shadow: var(--sh); }
-.kpi-card { display: flex; flex-direction: column; justify-content: space-between; background: var(--fill, var(--surface)); }
-.kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--ink); opacity: .72; margin-bottom: 8px; }
-.kpi-value { font-family: var(--mono); font-size: 22px; font-weight: 700; line-height: 1.05; color: var(--text); font-variant-numeric: tabular-nums; }
+.glass-card { background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r); padding: var(--card-pad); box-shadow: var(--sh); }
+.kpi-card { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; background: var(--fill, var(--surface)); }
+/* interactive cards lift — the only hover treatment a card gets */
+.glass-card.pressable { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+.glass-card.pressable:hover { transform: translate(-2px, -2px); box-shadow: var(--sh-pop); }
+
+/* ── Card type — four sizes, two weights, two inks (spec: /design → type) ──
+   title 13/600 ink · headline 24/600 num · body 12/500 · meta 11/500 muted.
+   Caps = ticker only. No tracking. Headline is the total, rows are its breakdown. */
+.kpi-label { font-size: var(--fs-title); font-weight: 600; line-height: 1.2; color: var(--ink); margin-bottom: 6px; }
+.kpi-value { font-family: var(--num); font-size: var(--fs-hero); font-weight: 600; line-height: 1.05;
+  letter-spacing: -.01em; color: var(--ink); font-variant-numeric: tabular-nums; }
 .widget-medium .kpi-value, .widget-large .kpi-value, .widget-xl .kpi-value { font-size: 28px; }
 .kpi-value-up { color: var(--gain); }
 .kpi-value-down { color: var(--loss); }
-.kpi-subtitle { font-size: 11px; color: var(--ink); opacity: .6; margin-top: 6px; }
-/* breakdown cards (BalanceCard, PnlCard): headline total + labeled rows */
-.bal-total { font-size: 23px; margin-top: 3px; }
-/* day-change line under the portfolio value total — wraps between whole tokens
-   (amount · % pill · "today"), never inside the amount, so there's no stray dash */
-.bal-day { display: flex; flex-wrap: wrap; align-items: center; column-gap: 7px; row-gap: 3px;
-  font-family: var(--mono); font-size: 12px; font-weight: 700; margin-top: 5px;
-  font-variant-numeric: tabular-nums; }
+.kpi-subtitle { font-size: var(--fs-body); font-weight: 500; color: var(--muted); margin-top: 4px; }
+/* day-change line under a headline — wraps between whole tokens, never inside the amount */
+.bal-day { display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 3px; margin-top: 5px;
+  font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums; }
 .bal-day.up { color: var(--gain); }
 .bal-day.down { color: var(--loss); }
-.bal-day .bal-day-amt { white-space: nowrap; }
-.bal-day .bal-day-when { color: var(--muted); font-weight: 700; font-size: 10px;
-  text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; }
+.bal-day-amt { white-space: nowrap; }
+.bal-day-when { font-family: var(--sans); font-size: var(--fs-meta); color: var(--muted); white-space: nowrap; }
 
-/* Signed gain/loss percentages get a soft tinted pill site-wide (color is inherited
-   from the .up/.down already on the span; distinct from the solid TickerBadge). */
+/* Signed gain/loss percentages get a soft tinted pill site-wide. The pill owns its
+   text color (--gain-ink/--loss-ink, lifted for contrast on the tint) — the doubled
+   class outranks a component's own .up/.down rule without !important. */
 .pct-pill { display: inline-block; padding: 1px 6px; border-radius: 6px;
   font-variant-numeric: tabular-nums; line-height: 1.35; }
-.pct-pill.up { color: var(--gain); background: color-mix(in srgb, var(--gain) 15%, transparent); }
-.pct-pill.down { color: var(--loss); background: color-mix(in srgb, var(--loss) 15%, transparent); }
-.bal-rows { border-top: var(--bw) solid var(--hairline); padding-top: 7px;
-  display: flex; flex-direction: column; gap: 5px; }
-.bal-row { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
-.bal-k { font-family: var(--sans); font-size: 9.5px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .05em; color: var(--ink); opacity: .55; white-space: nowrap; }
-.bal-v { font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--text);
+.pct-pill.pct-pill.up { color: var(--gain-ink); background: color-mix(in srgb, var(--gain) 10%, transparent); }
+.pct-pill.pct-pill.down { color: var(--loss-ink); background: color-mix(in srgb, var(--loss) 10%, transparent); }
+/* breakdown rows: key left (muted), value right (ink). No hairline above — whitespace separates. */
+.bal-rows { display: flex; flex-direction: column; gap: 4px; }
+.bal-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.bal-k { font-size: var(--fs-body); font-weight: 500; color: var(--muted); white-space: nowrap; }
+.bal-v { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; color: var(--ink);
   font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bal-v .dim { color: var(--muted); }
 /* progress bar — shared by CashGoalCard's monthly-goal line */
 .progress-bar { background: var(--paper); border: var(--bw) solid var(--ink); border-radius: 999px; height: 14px; overflow: hidden; margin-top: 4px; }
 .progress-fill { background: var(--brand); height: 100%; border-right: var(--bw) solid var(--ink); transition: width .3s ease; }
@@ -253,7 +273,7 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
 .garden-canvas { display: block; width: 100% !important; height: 100% !important; }
 .greeting-title {
   font-family: var(--sans);
-  text-transform: lowercase; font-size: 40px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.02;
+  text-transform: lowercase; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.02;
   /* sits on the (always-light) garden sky, not the page — stays dark in dark mode */
   color: #1a1a1a;
 }
@@ -274,12 +294,12 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
   .page-hero { margin: 0 -16px; }
   .page-header-overlay { padding: 14px 16px 0; }
   .garden-canvas-root { height: 180px; }
-  .greeting-title { font-size: 30px; }
+  .greeting-title { font-size: 24px; }
   .widget-grid { --unit: clamp(130px, 42vw, 170px); --gap: 12px; grid-template-columns: repeat(2, var(--unit)); }
   .widget-medium, .widget-large, .widget-xl, .widget-tall { grid-column: span 2; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .nav-link { transition: none; }
+  .nav-link, .glass-card.pressable { transition: none; }
 }
 
 /* ── Mobile dashboard shell (phone PWA) ──────────────────────────────────────

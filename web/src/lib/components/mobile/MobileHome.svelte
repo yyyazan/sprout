@@ -10,11 +10,12 @@
   import AllocationRing from '../AllocationRing.svelte';
   import MarketPulse from '../MarketPulse.svelte';
   import { theme, toggleTheme } from '$lib/theme.js';
-  import { moves, portfolioDayMove } from '$lib/stores.js';
+  import { moves, portfolioDayMove, allTimeReturn } from '$lib/stores.js';
   import { SHOW_GARDEN } from '$lib/config.js';
 
   let { d, garden } = $props();
   const dayMove = $derived(d ? portfolioDayMove(d.cards, $moves) : { gain: null, pct: null });
+  const allTime = $derived(allTimeReturn(d?.twr));
 </script>
 
 <!-- full-bleed hero; the greeting overlay clears the iOS status bar (standalone
@@ -33,7 +34,7 @@
 
 <div class="mh-kpis">
   <BalanceCard total={d.kpis.portfolio_value} equities={d.kpis.equities}
-    dayGain={dayMove.gain} dayPct={dayMove.pct} />
+    dayGain={dayMove.gain} dayPct={dayMove.pct} ret={allTime.ret} vsSpy={allTime.vsSpy} />
   <PnlCard total={d.kpis.total_pnl} realized={d.kpis.realized_pnl} unrealized={d.kpis.unrealized_pnl} />
 </div>
 
@@ -68,11 +69,9 @@
   .mh-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
   .mh-kpis :global(.glass-card) { padding: 14px 16px; }
 
-  /* PortfolioChart is built for the desktop stage (fixed --title-h, 440px chart).
-     Phone overrides: self-sized header, shorter chart box. */
+  /* PortfolioChart fills its stage on desktop; on the phone give it a fixed box */
   .mh-chart { margin-bottom: 14px; }
-  .mh-chart :global(.pc-head-w) { height: auto; min-height: 0; }
-  .mh-chart :global(.pc-chart-w) { flex-basis: 300px; height: 300px; }
+  .mh-chart :global(.pc-chart-w) { flex: 0 0 300px; height: 300px; }
 
   .mh-rings { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center;
     margin-bottom: 14px; }

@@ -32,7 +32,7 @@
       pick: () => openStock({ ticker: c.ticker, name: c.company_name, holding: cardToHolding(c) }),
     }));
     if (tailPct > 0.05) {
-      segs.push({ key: '·other', color: OTHER_C, value: tailPct, tag: 'other',
+      segs.push({ key: '·other', color: OTHER_C, value: tailPct, tag: 'Other',
         hero: tailPct.toFixed(1), per: '%', sub: `${rows.length - MAX_SEGS} more` });
     }
     return segs;
@@ -42,9 +42,9 @@
   // slot is too small for a word, so 'holdings' rides the tag), and the top-3
   // combined weight as the always-meaningful concentration subtitle
   const idle = $derived.by(() => {
-    if (!rows.length) return { tag: 'allocation', hero: '—', sub: 'no positions' };
+    if (!rows.length) return { tag: 'Allocation', hero: '—', sub: 'No positions' };
     const top3 = rows.slice(0, 3).reduce((s, c) => s + (c.position_pct ?? 0), 0);
-    return { tag: rows.length === 1 ? 'holding' : 'holdings', hero: String(rows.length), sub: `top 3 · ${Math.round(top3)}%` };
+    return { tag: rows.length === 1 ? 'Holding' : 'Holdings', hero: String(rows.length), sub: `${Math.round(top3)}% in top 3` };
   });
 </script>
 

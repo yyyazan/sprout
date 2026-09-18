@@ -9,8 +9,8 @@
 
 <div class="glass-card kpi-card widget-{size}">
   <div class="bal-head">
-    <div class="kpi-label">P&amp;L</div>
-    <div class="kpi-value bal-total {(total ?? 0) >= 0 ? 'kpi-value-up' : 'kpi-value-down'}">{money(total)}</div>
+    <div class="kpi-label">Profit &amp; loss</div>
+    <div class="kpi-value {(total ?? 0) >= 0 ? 'kpi-value-up' : 'kpi-value-down'}">{money(total)}</div>
   </div>
   <div class="bal-rows">
     <div class="bal-row"><span class="bal-k">Realized</span><span class="bal-v">{money(realized)}</span></div>

@@ -24,7 +24,7 @@
 </script>
 
 <div class="glass-card earn">
-  <div class="earn-h">Upcoming earnings</div>
+  <div class="kpi-label">Upcoming earnings</div>
   {#if earnings === null}
     <div class="earn-note">loading…</div>
   {:else if earnings.length === 0}
@@ -43,17 +43,13 @@
 </div>
 
 <style>
-  .earn { display: flex; flex-direction: column; gap: 10px; padding: 13px 15px 14px; }
-  .earn-h { font-family: var(--sans); font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .12em; color: var(--muted); }
-  .earn-note { font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  /* 3×2 cells split by hairlines, same language as MarketPulse */
-  .earn-grid { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 12px; row-gap: 10px; }
+  .earn { display: flex; flex-direction: column; gap: 6px; }
+  .earn .kpi-label { margin-bottom: 0; }
+  .earn-note { font-size: var(--fs-body); color: var(--muted); }
+  .earn-grid { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 12px; row-gap: 12px; }
   .earn-cell { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
-  .earn-date { font-family: var(--mono); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
-    white-space: nowrap; }
-  .earn-when { font-family: var(--sans); font-size: 9px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--brand); white-space: nowrap; }
-  .earn-past { opacity: .55; }
-  .earn-past .earn-when { color: var(--muted); }
+  .earn-date { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums;
+    white-space: nowrap; margin-top: 2px; }
+  .earn-when { font-size: var(--fs-meta); font-weight: 500; color: var(--muted); white-space: nowrap; }
+  .earn-past { opacity: .5; }
 </style>

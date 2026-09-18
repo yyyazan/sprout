@@ -92,7 +92,7 @@
   $effect(() => { if (open && tickerEl) tickerEl.focus(); });
 </script>
 
-<div class="glass-card trade-card" class:open role="button" tabindex="0" aria-expanded={open}
+<div class="glass-card pressable trade-card" class:open role="button" tabindex="0" aria-expanded={open}
   onclick={toggle}
   onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
   <!-- corner token: ink-outlined tile with an up-arrow over a muted down-arrow —
@@ -109,18 +109,20 @@
   </svg>
 
   <div class="tt-head">
-    <div class="kpi-label">Trade</div>
+    <div class="kpi-label">Trades</div>
     <div class="kpi-value">{monthTrades.length}</div>
-    <div class="kpi-subtitle">{monthTrades.length === 1 ? 'trade' : 'trades'} this month</div>
+    <div class="kpi-subtitle">this month</div>
   </div>
 
-  <div class="tt-foot">
-    <div class="tt-foot-head">
-      <span class="tt-split"><span class="tt-buys">{buys} buys</span> / <span class="tt-sells">{sells} sells</span></span>
-      {#if last}
-        <span class="tt-last {lastIsBuy ? 'tt-up' : 'tt-down'}">last {last.ticker} {lastIsBuy ? '+' : '−'}{sharesFmt(last.shares)} · {shortDate(last.date)}</span>
-      {/if}
-    </div>
+  <div class="bal-rows">
+    <div class="bal-row"><span class="bal-k">Buys</span><span class="bal-v">{buys}</span></div>
+    <div class="bal-row"><span class="bal-k">Sells</span><span class="bal-v">{sells}</span></div>
+    {#if last}
+      <div class="bal-row">
+        <span class="bal-k">Last</span>
+        <span class="bal-v"><span class={lastIsBuy ? 'up' : 'down'}>{lastIsBuy ? '+' : '−'}{sharesFmt(last.shares)}</span> {last.ticker} <span class="dim">{shortDate(last.date)}</span></span>
+      </div>
+    {/if}
   </div>
 
   <!-- Yellow logger panel: rises from the bottom to 60% of the tile on click. Holds the
@@ -163,8 +165,7 @@
 </div>
 
 <style>
-  .trade-card { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; overflow: hidden; cursor: pointer; }
-  .trade-card .kpi-value { font-size: 22px; }
+  .trade-card { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; overflow: hidden; }
   /* keep the headline clear of the badge in the corner */
   .tt-head { padding-right: 38px; }
 
@@ -172,13 +173,8 @@
     transition: transform .2s cubic-bezier(.34, 1.56, .5, 1); }
   .trade-card:hover .tt-badge { transform: translateY(-2px); }
 
-  .tt-foot-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-  .tt-split { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; color: var(--muted); white-space: nowrap; }
-  .tt-buys { color: var(--gain); }
-  .tt-sells { color: var(--loss); }
-  .tt-last { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tt-last.tt-up { color: var(--gain); }
-  .tt-last.tt-down { color: var(--loss); }
+  .up { color: var(--gain); }
+  .down { color: var(--loss); }
 
   /* Logger panel: floats up to 60% of the tile on click, rounded top. Its bg is set
      inline — green for buy, red for sell — so the selected side reads at a glance.

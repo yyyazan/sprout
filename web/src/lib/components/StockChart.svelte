@@ -1,7 +1,7 @@
 <script>
   // Google-Finance-style chart shell: a top toolbar (chart type · compare ·
   // indicators) → the price chart with a volume histogram + previous-close
-  // reference line → GF range tabs (1D 5D 1M 6M YTD 1Y 5Y MAX). Real closes
+  // reference line → GF range tabs (1D 1W 1M 3M 6M YTD 1Y 2Y 5Y 10Y ALL). Real closes
   // when `history` is supplied, intraday from /api/stock for 1D/5D, else a
   // deterministic mock. Crosshair reads price+date; click-drag measures a span.
   //
@@ -9,7 +9,8 @@
   // a deterministic client-side mock (clearly a visual scaffold). Real volume is
   // a backend follow-up; the histogram swaps in transparently once it lands.
   import { onMount } from 'svelte';
-  import { createChart, AreaSeries, CandlestickSeries, LineSeries, HistogramSeries, ColorType, CrosshairMode, LineStyle, PriceScaleMode, createSeriesMarkers } from 'lightweight-charts';
+  import { createChart, AreaSeries, CandlestickSeries, LineSeries, HistogramSeries, LineStyle, PriceScaleMode, createSeriesMarkers } from 'lightweight-charts';
+  import { BRAND, chartPalette, baseChartOptions, themeOptions, hexA } from '$lib/chartTheme.js';
   import { priceSeries } from '$lib/mockStock.js';
   import { api } from '$lib/api.js';
   import { cachedStock, cachedIntraday } from '$lib/stockCache.js';
@@ -22,15 +23,16 @@
   // which /api/stock intraday feed (else null → daily); mock = mockStock key.
   const RANGES = [
     { k: '1D',  days: 3,    intraday: '1d', mock: '1D' },
-    { k: '5D',  days: 9,    intraday: '1w', mock: '1W' },
+    { k: '1W',  days: 9,    intraday: '1w', mock: '1W' },
     { k: '1M',  days: 33,   intraday: null, mock: '1M' },
+    { k: '3M',  days: 95,   intraday: null, mock: '3M' },
     { k: '6M',  days: 190,  intraday: null, mock: '3M' },
     { k: 'YTD', days: null, intraday: null, mock: '1Y' },
     { k: '1Y',  days: 370,  intraday: null, mock: '1Y' },
     { k: '2Y',  days: 740,  intraday: null, mock: '5Y' },
-    { k: '3Y',  days: 1100, intraday: null, mock: '5Y' },
     { k: '5Y',  days: 1850, intraday: null, mock: '5Y' },
-    { k: 'MAX', days: Infinity, intraday: null, mock: '5Y' },
+    { k: '10Y', days: 3700, intraday: null, mock: '5Y' },
+    { k: 'ALL', days: Infinity, intraday: null, mock: '5Y' },
   ];
 
   let range = $state('1D');
@@ -180,7 +182,7 @@
       seed = (seed * 1664525 + 1013904297) >>> 0;
       const noise = 0.45 + (seed / 0xffffffff) * 0.9;
       const up = bar.close >= bar.open;
-      return { time: bar.time, value: Math.round(bar.close * 1000 * noise), color: up ? hexA(GAIN, 0.42) : hexA(LOSS, 0.42) };
+      return { time: bar.time, value: Math.round(bar.close * 1000 * noise), color: up ? hexA(PAL.GAIN, 0.42) : hexA(PAL.LOSS, 0.42) };
     });
   });
 
@@ -213,12 +215,8 @@
     return isNaN(d) ? '' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
-  const BRAND = '#0fb39a', GAIN = '#00c060', LOSS = '#ff4d4d';
-  // theme-reactive chart palette (lightweight-charts can't read CSS vars)
-  const PAL = $derived($theme === 'light'
-    ? { INK: '#1a1a1a', GRID: '#e7e1d3', MUTED: '#8a8478' }
-    : { INK: '#faf7f0', GRID: '#2a2722', MUTED: '#8f897c' });
-  function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`; }
+  // shared, theme-reactive palette (lib/chartTheme.js mirrors the app.css tokens)
+  const PAL = $derived(chartPalette($theme));
 
   let host = $state();
   let chart = $state(null);
@@ -277,7 +275,7 @@
         markers.push({
           time: b.time,
           position: side === 'buy' ? 'belowBar' : 'aboveBar',
-          color: side === 'buy' ? GAIN : LOSS,
+          color: side === 'buy' ? PAL.GAIN : PAL.LOSS,
           shape: side === 'buy' ? 'arrowUp' : 'arrowDown',
         });
       }
@@ -350,18 +348,11 @@
   }
 
   onMount(() => {
+    const base = baseChartOptions(PAL);
     chart = createChart(host, {
-      autoSize: true,
-      layout: { background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' }, textColor: PAL.MUTED, fontFamily: 'Space Mono, ui-monospace, monospace', fontSize: 10, attributionLogo: false },
-      grid: { vertLines: { visible: false }, horzLines: { color: PAL.GRID } },
-      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.08, bottom: 0.26 } },
-      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
-      crosshair: {
-        mode: CrosshairMode.Magnet,
-        vertLine: { color: PAL.INK, width: 1, style: LineStyle.Solid, labelVisible: false },
-        horzLine: { color: PAL.GRID, width: 1, style: LineStyle.Dotted, labelVisible: false },
-      },
-      handleScroll: false, handleScale: false,
+      ...base,
+      rightPriceScale: { ...base.rightPriceScale, scaleMargins: { top: 0.08, bottom: 0.26 } },
+      timeScale: { ...base.timeScale, timeVisible: true, secondsVisible: false },
     });
     highlight = chart.addSeries(AreaSeries, {
       lineColor: 'rgba(0,0,0,0)', lineWidth: 1, topColor: hexA(PAL.INK, 0.08), bottomColor: hexA(PAL.INK, 0.08),
@@ -389,12 +380,7 @@
   // re-skin chrome (axes, grid, crosshair) when the theme flips
   $effect(() => {
     if (!chart) return;
-    const p = PAL;
-    chart.applyOptions({
-      layout: { textColor: p.MUTED },
-      grid: { horzLines: { color: p.GRID } },
-      crosshair: { vertLine: { color: p.INK }, horzLine: { color: p.GRID } },
-    });
+    chart.applyOptions(themeOptions(PAL));
   });
 
   // (re)build the price series on data / type / theme change
@@ -407,7 +393,7 @@
     if (series) { chart.removeSeries(series); series = null; }
     if (type === 'candles') {
       series = chart.addSeries(CandlestickSeries, {
-        upColor: GAIN, downColor: LOSS, borderUpColor: PAL.INK, borderDownColor: PAL.INK,
+        upColor: PAL.GAIN, downColor: PAL.LOSS, borderUpColor: PAL.INK, borderDownColor: PAL.INK,
         wickUpColor: PAL.INK, wickDownColor: PAL.INK, priceLineVisible: false, lastValueVisible: false,
       });
       series.setData(real ? d.candles : []);
@@ -423,7 +409,7 @@
     }
     // a raw-$ reference line is meaningless on the % compare scale
     if (real && d.prevClose != null && !compares.length) {
-      series.createPriceLine({ price: d.prevClose, color: PAL.MUTED, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'prev close' });
+      series.createPriceLine({ price: d.prevClose, color: PAL.MUTED, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Prev close' });
     }
     // my buy/sell fills (reading these re-runs the effect when trades load / toggle flips;
     // markers attach to the fresh series, so the old ones go with the removed series)
@@ -492,7 +478,7 @@
       const i1 = Math.min(a.length - 1, Math.ceil(Math.max(c0, c1)));
       const slice = i1 > i0 ? a.slice(i0, i1 + 1) : [];
       const moved = Math.abs(hover.x - drag.x);
-      const col = moved <= 8 ? hexA(PAL.INK, 0.08) : (hover.price - drag.price >= 0 ? hexA(GAIN, 0.18) : hexA(LOSS, 0.18));
+      const col = moved <= 8 ? hexA(PAL.INK, 0.08) : (hover.price - drag.price >= 0 ? hexA(PAL.GAIN, 0.18) : hexA(PAL.LOSS, 0.18));
       highlight.applyOptions({ topColor: col, bottomColor: col });
       highlight.setData(slice);
     } catch (e) {
@@ -600,7 +586,7 @@
       <div class="sc-skel" role="img" aria-label="loading chart"></div>
     {/if}
     {#if data.real && data.prevClose != null && !compares.length}
-      <div class="sc-prev">prev close <b>${f(data.prevClose)}</b></div>
+      <div class="sc-prev">Prev close <b>${f(data.prevClose)}</b></div>
     {/if}
     {#if drag}<div class="sc-anchor" style="left:{drag.x}px"></div>{/if}
     {#if hover}
@@ -611,7 +597,7 @@
         {@const fromT = drag.x <= hover.x ? drag.time : hover.time}
         {@const toT = drag.x <= hover.x ? hover.time : drag.time}
         <div class="sc-tip {moved > 8 ? (d$ >= 0 ? 'pos' : 'neg') : ''}" class:below={hover.y < 48} style="left:{hover.x}px; top:{hover.y}px">
-          <span class="sc-tip-v">{usdS(d$)} · {pctS(dp)}</span>
+          <span class="sc-tip-v">{usdS(d$)} <span class="sc-tip-p">{pctS(dp)}</span></span>
           <span class="sc-tip-d">{fmtDate(fromT)} → {fmtDate(toT)}</span>
         </div>
       {:else}
@@ -645,8 +631,8 @@
   .gf-bar { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
   .gf-tool { position: relative; }
   .gf-btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-    font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--ink);
-    padding: 5px 12px; background: transparent; border: var(--bw) solid var(--hairline);
+    font-family: var(--sans); font-size: var(--fs-body); font-weight: 600; color: var(--ink);
+    padding: 5px 12px; background: transparent; border: var(--bw) solid transparent;
     border-radius: 999px; transition: border-color .12s ease, background .12s ease, color .12s ease; }
   .gf-btn:hover { border-color: var(--ink); }
   .gf-btn.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
@@ -658,22 +644,22 @@
     background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r); box-shadow: var(--sh); }
   .gf-menu-wide { min-width: 185px; }
   .gf-item { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; text-align: left;
-    font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--ink);
+    font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--ink);
     padding: 7px 9px; border: 0; background: transparent; border-radius: 6px; }
   .gf-item:hover:not(:disabled) { background: var(--hover); }
-  .gf-item.sel { font-weight: 700; }
+  .gf-item.sel { font-weight: 600; }
   .gf-check { flex: 0 0 14px; font-size: 12px; color: var(--brand); }
-  .gf-sym { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .gf-sym { margin-left: auto; font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
   /* compare menu: search box on top, results / quick picks under it */
   .gf-menu-cmp { min-width: 230px; }
   .gf-cmp-input { box-sizing: border-box; width: 100%; margin-bottom: 4px; padding: 7px 9px;
     border: var(--bw) solid var(--hairline); border-radius: 6px; outline: none; background: transparent;
-    font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--ink); }
+    font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--ink); }
   .gf-cmp-input:focus { border-color: var(--ink); }
-  .gf-cmp-input::placeholder { color: var(--muted); font-weight: 500; }
+  .gf-cmp-input::placeholder { color: var(--muted); }
   .gf-cmp-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .gf-cmp-note { padding: 7px 9px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  .gf-count { font-family: var(--mono); font-size: 10px; font-weight: 700; line-height: 1;
+  .gf-cmp-note { padding: 7px 9px; font-size: var(--fs-body); color: var(--muted); }
+  .gf-count { font-family: var(--num); font-size: var(--fs-meta); font-weight: 600; line-height: 1;
     padding: 2px 6px; border-radius: 999px; background: var(--paper); color: var(--ink);
     border: 1px solid currentColor; }
   /* iOS focus-zoom guard for the in-menu search */
@@ -682,7 +668,7 @@
   /* active-compare chips under the toolbar */
   .gf-cmps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 0 0 auto; }
   .gf-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-    font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--ink);
+    font-family: var(--num); font-size: var(--fs-meta); font-weight: 600; color: var(--ink);
     padding: 3px 9px; background: transparent; border: var(--bw) solid var(--hairline); border-radius: 999px; }
   .gf-chip:hover { border-color: var(--ink); }
   .gf-chip-self { cursor: default; color: var(--muted); }
@@ -704,18 +690,19 @@
     animation: sc-skel 1.4s ease-in-out infinite; }
   @keyframes sc-skel { 0%, 100% { opacity: .35; } 50% { opacity: .85; } }
   @media (prefers-reduced-motion: reduce) { .sc-skel { animation: none; opacity: .5; } }
-  .sc-prev { position: absolute; top: 6px; right: 8px; z-index: 3; pointer-events: none;
-    font-family: var(--mono); font-size: 10px; color: var(--muted); }
-  .sc-prev b { color: var(--ink); font-weight: 700; }
+  .sc-prev { position: absolute; top: 6px; right: 58px; z-index: 3; pointer-events: none;
+    font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .sc-prev b { color: var(--ink); font-weight: 600; }
   .sc-anchor { position: absolute; top: 0; bottom: 0; width: 0; z-index: 4; pointer-events: none; border-left: 1px dashed var(--muted); }
   .sc-tip { position: absolute; z-index: 5; pointer-events: none; white-space: nowrap;
     transform: translate(-50%, calc(-100% - 12px));
     display: flex; flex-direction: column; align-items: center; line-height: 1.2;
-    font-family: var(--mono); font-variant-numeric: tabular-nums;
-    padding: 3px 7px; background: var(--ink); color: var(--paper) !important; border-radius: 4px; }
-  .sc-tip-v { font-size: 11px; font-weight: 700; }
-  .sc-tip-d { font-size: 9px; font-weight: 400; }
-  .sc-tip-trade { margin-top: 3px; font-size: 10px; font-weight: 700; text-transform: capitalize; }
+    font-family: var(--num); font-variant-numeric: tabular-nums;
+    padding: 4px 8px; background: var(--ink); color: var(--paper) !important; border-radius: 4px; }
+  .sc-tip-v { font-size: var(--fs-body); font-weight: 600; }
+  .sc-tip-d { font-size: var(--fs-meta); font-weight: 500; opacity: .8; }
+  .sc-tip-p { opacity: .8; font-weight: 500; }
+  .sc-tip-trade { margin-top: 3px; font-size: var(--fs-meta); font-weight: 600; text-transform: capitalize; }
   .sc-tip-trade.up { color: var(--gain) !important; }
   .sc-tip-trade.down { color: var(--loss) !important; }
   .sc-tip.pos { background: var(--gain); color: #fff !important; }
@@ -723,12 +710,17 @@
   .sc-tip.below { transform: translate(-50%, 12px); }
 
   /* GF range tabs */
-  .gf-ranges { display: flex; align-items: center; gap: 2px; flex: 0 0 auto;
-    border-top: 1.5px solid color-mix(in srgb, var(--ink) 11%, transparent); padding-top: 8px; }
+  .gf-ranges { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; padding-top: 4px;
+    /* 11 pills won't fit a phone — scroll the row sideways, no scrollbar */
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .gf-ranges::-webkit-scrollbar { display: none; }
+  .gf-ranges .gf-range { flex: 0 0 auto; }
+  @media (max-width: 700px) { .gf-range { padding-inline: 9px; } }
   /* range pills — system states: text → outline on hover → solid ink when on */
-  .gf-range { font-family: var(--mono); font-size: 11px; font-weight: 600; cursor: pointer; color: var(--muted);
+  .gf-range { font-family: var(--num); font-size: 11.5px; font-weight: 600; cursor: pointer; color: var(--muted);
+    font-variant-numeric: tabular-nums;
     padding: 4px 11px; border: var(--bw) solid transparent; background: transparent; border-radius: 999px;
-    letter-spacing: .02em; transition: border-color .12s ease, background .12s ease, color .12s ease; }
+    transition: border-color .12s ease, background .12s ease, color .12s ease; }
   .gf-range:hover { color: var(--ink); border-color: var(--ink); }
   .gf-range.on { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 </style>

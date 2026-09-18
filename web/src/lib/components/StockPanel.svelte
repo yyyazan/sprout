@@ -9,13 +9,20 @@
   import { onMount } from 'svelte';
   import StockChart from './StockChart.svelte';
   import RingGauge from './RingGauge.svelte';
+  import TickerBadge from './TickerBadge.svelte';
   import { mockStock, fmtCap, fmtVol } from '$lib/mockStock.js';
   import { api } from '$lib/api.js';
+  import { tickerColor } from '$lib/tickerColor.js';
   import { watchlist, loadWatchlist, toggleWatch, holdings, openStock, cardToHolding } from '$lib/stores.js';
 
-  let { ticker, name = null, holding = null, onClose, glyph = '✕' } = $props();
+  // showClose=false when a host provides its own way back (the dashboard stage's
+  // portfolio strip); the modal keeps the ✕.
+  let { ticker, name = null, holding = null, onClose, glyph = '✕', showClose = true } = $props();
 
   const owned = $derived(!!holding);
+  // the ticker's brand color marks the header so a stock never reads as the
+  // (neutral) portfolio card — the sanctioned ticker-identity exception
+  const accent = $derived(tickerColor(ticker || ''));
 
   // watch state for non-held tickers — shared store keeps the sidebar in sync
   const watched = $derived(($watchlist ?? []).some((w) => w.ticker === (ticker || '').toUpperCase()));
@@ -99,9 +106,9 @@
     const a = analyst, p = stock.price;
     if (!a || a.targetMean == null || !p) return null;
     const rows = [
-      { label: 'highest', v: a.targetHigh },
-      { label: 'average', v: a.targetMean },
-      { label: 'lowest', v: a.targetLow },
+      { label: 'Highest', v: a.targetHigh },
+      { label: 'Average', v: a.targetMean },
+      { label: 'Lowest', v: a.targetLow },
     ].filter((r) => r.v != null);
     if (!rows.length) return null;
     const max = Math.max(...rows.map((r) => r.v), p) * 1.06;
@@ -174,13 +181,15 @@
 
 <div class="spg">
   <!-- header widget — 4 × 0.5: crumb · back (top right) · identity · quote · position/watch -->
-  <section class="w w-head">
+  <section class="w w-head" style="--accent:{accent}">
     <div class="hw-top">
-      <span class="hw-crumb">{ticker}{#if stock.sector && stock.sector !== '—'} · {stock.sector}{/if}</span>
-      <button class="btn btn-sm btn-quiet hw-back" onclick={() => onClose?.()}>
-        <span aria-hidden="true">{glyph === '←' ? '←' : '✕'}</span>
-        {glyph === '←' ? 'portfolio' : 'close'}
-      </button>
+      <span class="hw-crumb"><TickerBadge sym={ticker} size="md" />{#if stock.sector && stock.sector !== '—'}<span class="hw-sector">{stock.sector}</span>{/if}</span>
+      {#if showClose}
+        <button class="btn btn-sm btn-quiet hw-back" onclick={() => onClose?.()}>
+          <span aria-hidden="true">{glyph === '←' ? '←' : '✕'}</span>
+          {glyph === '←' ? 'portfolio' : 'close'}
+        </button>
+      {/if}
     </div>
     <div class="hw-main">
       <div class="hw-id">
@@ -188,7 +197,7 @@
         <div class="hw-quote">
           <span class="hw-px">${f(stock.price)}</span>
           <span class="hw-day {stock.dayPct >= 0 ? 'up' : 'down'}">
-            {stock.dayPct >= 0 ? '▲' : '▼'} <span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span>{#if dayAbs != null} ({usdS(dayAbs)}){/if} today
+            {#if dayAbs != null}<span>{usdS(dayAbs)}</span>{/if}<span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span>
           </span>
         </div>
       </div>
@@ -197,17 +206,16 @@
           <span class="pos-ret {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">
             <b class="pct-pill {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">{pctS(stock.plPct)}</b><small>{usdS(stock.plAbs)}</small>
           </span>
-          <span class="pos-kv"><span>p&amp;l</span><b class={totalPnl >= 0 ? 'up' : 'down'}>{usdS(totalPnl)}</b></span>
-          <span class="pos-kv"><span>sh</span><b>{f(stock.shares)}</b></span>
-          <span class="pos-kv"><span>avg</span><b>${f(stock.avgCost)}</b></span>
-          <span class="pos-kv"><span>val</span><b>${f(stock.mktValue)}</b></span>
-          <span class="pos-kv"><span>wt</span><b>{stock.weight != null ? stock.weight + '%' : '—'}</b></span>
+          <span class="pos-kv"><span>Shares</span><b>{f(stock.shares)}</b></span>
+          <span class="pos-kv"><span>Avg</span><b>${f(stock.avgCost)}</b></span>
+          <span class="pos-kv"><span>Value</span><b>${f(stock.mktValue)}</b></span>
+          <span class="pos-kv"><span>Weight</span><b>{stock.weight != null ? stock.weight + '%' : '—'}</b></span>
         </div>
       {:else if prevHeld}
         <!-- fully sold out of this ticker: no live position, but a realized P&L -->
         <div class="hw-prev">
           <span class="pos-ret {totalPnl >= 0 ? 'up' : 'down'}">
-            <b>{usdS(totalPnl)}</b><small>total p&amp;l · previously held</small>
+            <b>{usdS(totalPnl)}</b><small>previously held</small>
           </span>
           <button class="btn btn-line hw-watch" class:on={watched} disabled={watchBusy} onclick={onWatch}>
             {watched ? '✓ Watching' : '+ Watch'}
@@ -230,25 +238,25 @@
 
   <!-- key stats widget — 4 × 1, three columns -->
   <section class="w w-stats">
-    <div class="w-h">key stats</div>
+    <div class="w-h">Key stats</div>
     <div class="ks-cols">
       <div class="ks-col">
-        <div class="g-row"><span>open</span><b>{money(stock.open)}</b></div>
-        <div class="g-row"><span>high</span><b>{money(stock.dayHigh)}</b></div>
-        <div class="g-row"><span>low</span><b>{money(stock.dayLow)}</b></div>
-        <div class="g-row"><span>prev close</span><b>{money(stock.prevClose)}</b></div>
+        <div class="g-row"><span>Open</span><b>{money(stock.open)}</b></div>
+        <div class="g-row"><span>High</span><b>{money(stock.dayHigh)}</b></div>
+        <div class="g-row"><span>Low</span><b>{money(stock.dayLow)}</b></div>
+        <div class="g-row"><span>Prev close</span><b>{money(stock.prevClose)}</b></div>
       </div>
       <div class="ks-col">
-        <div class="g-row"><span>volume</span><b>{stock.volume != null ? fmtVol(stock.volume) : '—'}</b></div>
-        <div class="g-row"><span>avg volume</span><b>{stock.avgVolume != null ? fmtVol(stock.avgVolume) : '—'}</b></div>
-        <div class="g-row"><span>mkt cap</span><b>{stock.marketCap != null ? fmtCap(stock.marketCap) : '—'}</b></div>
-        <div class="g-row"><span>p/e ratio</span><b>{stock.pe ?? '—'}</b></div>
+        <div class="g-row"><span>Volume</span><b>{stock.volume != null ? fmtVol(stock.volume) : '—'}</b></div>
+        <div class="g-row"><span>Avg volume</span><b>{stock.avgVolume != null ? fmtVol(stock.avgVolume) : '—'}</b></div>
+        <div class="g-row"><span>Market cap</span><b>{stock.marketCap != null ? fmtCap(stock.marketCap) : '—'}</b></div>
+        <div class="g-row"><span>P/E ratio</span><b>{stock.pe ?? '—'}</b></div>
       </div>
       <div class="ks-col">
-        <div class="g-row"><span>eps</span><b>{sUsd(stock.eps)}</b></div>
-        <div class="g-row"><span>div yield</span><b>{stock.divYield ? stock.divYield + '%' : '—'}</b></div>
-        <div class="g-row"><span>beta</span><b>{stock.beta ?? '—'}</b></div>
-        <div class="g-row"><span>earnings</span><b>{fmtEarn(remote?.earningsDate)}</b></div>
+        <div class="g-row"><span>EPS</span><b>{sUsd(stock.eps)}</b></div>
+        <div class="g-row"><span>Dividend yield</span><b>{stock.divYield ? stock.divYield + '%' : '—'}</b></div>
+        <div class="g-row"><span>Beta</span><b>{stock.beta ?? '—'}</b></div>
+        <div class="g-row"><span>Earnings</span><b>{fmtEarn(remote?.earningsDate)}</b></div>
       </div>
     </div>
   </section>
@@ -260,18 +268,18 @@
       <section class="w-bare w-ratings">
         <RingGauge heroSize={15}
           segments={[
-            { key: 'buy', color: 'var(--gain)', value: ratingSegs.buy, tag: 'buy', hero: String(ratingSegs.buy), sub: 'analysts' },
-            { key: 'hold', color: 'var(--yellow)', value: ratingSegs.hold, tag: 'hold', hero: String(ratingSegs.hold), sub: 'analysts' },
-            { key: 'sell', color: 'var(--loss)', value: ratingSegs.sell, tag: 'sell', hero: String(ratingSegs.sell), sub: 'analysts' },
+            { key: 'buy', color: 'var(--gain)', value: ratingSegs.buy, tag: 'Buy', hero: String(ratingSegs.buy), sub: 'analysts' },
+            { key: 'hold', color: 'var(--yellow)', value: ratingSegs.hold, tag: 'Hold', hero: String(ratingSegs.hold), sub: 'analysts' },
+            { key: 'sell', color: 'var(--loss)', value: ratingSegs.sell, tag: 'Sell', hero: String(ratingSegs.sell), sub: 'analysts' },
           ]}
-          idle={{ tag: 'ratings', hero: verdict ?? '—', sub: analyst.count ? `${analyst.count} analysts · 3 mo` : null,
+          idle={{ tag: 'Ratings', hero: verdict ?? '—', sub: analyst.count ? `${analyst.count} analysts` : null,
             heroColor: verdictTone === 'up' ? 'var(--gain)' : verdictTone === 'down' ? 'var(--loss)' : 'var(--ink)' }} />
       </section>
     {/if}
     {#if forecast}
       <section class="w-bare w-forecast">
         <div class="fc-grid">
-          <span class="fc-h">12-mo forecast</span>
+          <span class="fc-h">12-month forecast</span>
           {#each forecast.rows as r (r.label)}
             <span class="fc-label">{r.label}</span>
             <div class="fc-track">
@@ -282,7 +290,7 @@
           <span class="fc-label"></span>
           <div class="fc-track fc-cur-track">
             <div class="fc-cur" style="left:{forecast.curX}%">
-              <span class="fc-cur-pill">current ${f(stock.price)}</span>
+              <span class="fc-cur-pill">Now ${f(stock.price)}</span>
             </div>
           </div>
         </div>
@@ -294,7 +302,7 @@
        (green = positive · yellow = neutral · red = negative, keyword heuristic) -->
   {#if remote?.news?.length}
     <section class="w w-news">
-      <div class="w-h">news<span class="w-h-sub">{ticker}</span></div>
+      <div class="w-h">News</div>
       <div class="nw-list">
         {#each remote.news as n (n.url ?? n.title)}
           {@const s = sentimentOf(n.title)}
@@ -302,7 +310,7 @@
             <span class="nw-dot nw-{s}" title="{SENT_LABEL[s]} sentiment"></span>
             <span class="nw-body">
               <span class="nw-title">{n.title}</span>
-              <span class="nw-meta">{n.source}{#if n.at} · {ago(n.at)} ago{/if}</span>
+              <span class="nw-meta"><span class="nw-src">{n.source}</span>{#if n.at}<span>{ago(n.at)} ago</span>{/if}</span>
             </span>
           </a>
         {/each}
@@ -316,7 +324,7 @@
       {@const sp = sparkPath(r.spark, r.prevClose)}
       {@const up = (r.dayPct ?? 0) >= 0}
       <button class="w rel-card" onclick={() => openRelated(r)}>
-        <span class="rel-tkr">{r.ticker}</span>
+        <span class="rel-tkr"><TickerBadge sym={r.ticker} /></span>
         <span class="rel-name">{r.name}</span>
         <span class="rel-px">{money(r.price)}</span>
         <span class="rel-day pct-pill {up ? 'up' : 'down'}">{r.dayPct != null ? pctS(r.dayPct) : '—'}</span>
@@ -331,7 +339,7 @@
     {/each}
   {/if}
 
-  {#if stock._mock}<div class="sp-mock">demo data</div>{/if}
+  {#if stock._mock}<div class="sp-mock">Demo data</div>{/if}
 </div>
 
 <style>
@@ -340,10 +348,8 @@
     align-content: start; }
   .w { min-width: 0; box-sizing: border-box; background: var(--surface);
     border: var(--bw) solid var(--ink); border-radius: var(--r); box-shadow: var(--sh); }
-  .w-h { font-family: var(--sans); font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .12em; color: var(--muted); display: flex; align-items: baseline; gap: 8px; }
-  .w-h-sub { margin-left: auto; font-family: var(--mono); font-size: 9px; font-weight: 700;
-    text-transform: none; letter-spacing: .04em; color: var(--muted); }
+  /* widget title = the card title spec (13/600 ink, sentence case) */
+  .w-h { font-size: var(--fs-title); font-weight: 600; line-height: 1.2; color: var(--ink); }
 
   /* header widget — 4 × 0.5; back rides the system .btn top right, watch is a
      .btn-line pill in the quote row */
@@ -352,45 +358,46 @@
      position row would sit. min-height (not height) so a wrapped position row is
      never clipped; --title-h is sized to fit the holdings content. */
   .w-head { grid-column: 1 / -1; min-height: var(--title-h, 152px); display: flex; flex-direction: column;
-    justify-content: space-between; gap: 10px; padding: 12px 16px 14px; }
+    justify-content: space-between; gap: 10px; padding: 12px 16px 14px;
+    /* identity: the ticker's brand color as a top bar (set via --accent inline) */
+    border-top: 4px solid var(--accent, var(--ink)); }
   .hw-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .hw-back span { font-size: 15px; line-height: 1; }
-  .hw-crumb { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .hw-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
+  .hw-sector { white-space: nowrap; }
   .hw-watch { align-self: flex-end; }
   /* previously-held: realized P&L stacked above the watch pill, right-aligned */
   .hw-prev { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   .hw-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .hw-name { margin: 0 0 5px; font-family: var(--sans); font-size: 20px; font-weight: 700;
-    letter-spacing: -.01em; line-height: 1.1; }
-  .hw-quote { display: flex; align-items: baseline; gap: 11px; flex-wrap: wrap; }
-  .hw-px { font-family: var(--mono); font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
-  .hw-day { font-family: var(--mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .hw-name { margin: 0 0 5px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; }
+  .hw-quote { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .hw-px { font-family: var(--num); font-size: 28px; font-weight: 600; letter-spacing: -.01em;
+    font-variant-numeric: tabular-nums; line-height: 1; }
+  .hw-day { display: inline-flex; align-items: center; gap: 6px; font-family: var(--num); font-size: 13px;
+    font-weight: 500; font-variant-numeric: tabular-nums; }
   /* position row: abbreviated labels (sh/avg/val/wt) + a modest gap trim let the
      five stats fit on ONE line at the narrow stage width, so the holdings header
      stays compact (~150) instead of wrapping to a tall two-line block. Figures
      keep their full size for legibility. */
   .hw-pos { display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; }
   .pos-ret { display: inline-flex; align-items: baseline; gap: 7px; }
-  .pos-ret b { font-family: var(--mono); font-size: 17px; font-weight: 700; line-height: 1; }
-  .pos-ret small { font-family: var(--mono); font-size: 11px; font-weight: 700; opacity: .85; }
-  .pos-kv { display: inline-flex; align-items: baseline; gap: 6px; }
-  .pos-kv span { font-family: var(--sans); font-size: 9.5px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--muted); }
-  .pos-kv b { font-family: var(--mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .pos-ret b { font-family: var(--num); font-size: 15px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .pos-ret small { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .pos-kv { display: inline-flex; align-items: baseline; gap: 5px; }
+  .pos-kv span { font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
+  .pos-kv b { font-family: var(--num); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
 
   /* chart widget — 4 × 2 */
   .w-chart { grid-column: 1 / -1; height: 440px; padding: 14px 16px; }
 
   /* key stats widget — 4 × 1, three columns */
   .w-stats { grid-column: 1 / -1; padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
-  .ks-cols { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 32px; flex: 1; }
-  .ks-col { min-width: 0; }
-  .g-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 6.5px 0;
-    border-bottom: var(--bw) solid var(--hairline); }
-  .ks-col .g-row:last-child { border-bottom: 0; }
-  .g-row span { font-family: var(--sans); font-size: 10px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: .02em; color: var(--muted); white-space: nowrap; }
-  .g-row b { font-family: var(--mono); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  .ks-cols { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 24px; flex: 1; margin-top: 2px; }
+  .ks-col { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .ks-col + .ks-col { border-left: var(--bw) solid var(--hairline); padding-left: 24px; }
+  .g-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .g-row span { font-size: var(--fs-body); font-weight: 500; color: var(--muted); white-space: nowrap; }
+  .g-row b { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* analyst outlook — two BORDERLESS cells (span 2 each); ring and forecast
@@ -400,23 +407,23 @@
     justify-content: center; padding: 6px 8px; }
   .w-ratings :global(.rgx) { height: auto; }
 
-  .fc-h { grid-column: 1 / -1; font-family: var(--sans); font-size: 10px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 2px; }
-  .fc-grid { position: relative; width: min(100%, 360px); display: grid; grid-template-columns: 56px 1fr;
+  .fc-h { grid-column: 1 / -1; font-size: var(--fs-title); font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+  .fc-grid { position: relative; width: min(100%, 360px); display: grid; grid-template-columns: 60px 1fr;
     row-gap: 8px; align-items: center; }
-  .fc-label { font-family: var(--sans); font-size: 10px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .04em; color: var(--muted); }
+  .fc-label { font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
   .fc-track { position: relative; min-width: 0; height: 18px; display: flex; align-items: center; gap: 8px; }
   .fc-bar { box-sizing: border-box; height: 100%; min-width: 12px; flex: 0 0 auto;
     background: var(--ink); border-radius: 3px; }
-  .fc-fig { font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--ink); white-space: nowrap; }
-  .fc-fig small { font-size: 10px; }
+  .fc-fig { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; color: var(--ink); white-space: nowrap;
+    font-variant-numeric: tabular-nums; }
+  .fc-fig small { font-size: var(--fs-meta); }
   .fc-cur-track { height: 22px; }
   .fc-cur { position: absolute; top: 2px; transform: translateX(-50%); }
   /* dashed marker line rises from the pill up through the three bars */
   .fc-cur::before { content: ''; position: absolute; left: 50%; bottom: 100%; height: 82px; width: 0;
     border-left: 1.5px dashed color-mix(in srgb, var(--ink) 40%, transparent); pointer-events: none; }
-  .fc-cur-pill { position: relative; font-family: var(--mono); font-size: 10px; font-weight: 700; white-space: nowrap;
+  .fc-cur-pill { position: relative; font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
     color: var(--ink); background: var(--paper); border: var(--bw) solid var(--ink); border-radius: 999px; padding: 2px 8px; }
 
   /* news widget — 4×1; headline rows split by hairlines, sentiment dot leads.
@@ -432,13 +439,14 @@
   .nw-neu { background: var(--yellow); }
   .nw-neg { background: var(--loss); }
   .nw-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-  .nw-title { font-family: var(--sans); font-size: 12.5px; font-weight: 600; line-height: 1.4; color: var(--ink);
+  .nw-title { font-size: 13px; font-weight: 500; line-height: 1.4; color: var(--ink);
     text-decoration: underline; text-underline-offset: 2.5px;
     text-decoration-color: color-mix(in srgb, var(--ink) 30%, transparent);
     transition: text-decoration-color .15s ease;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .nw-row:hover .nw-title { text-decoration-color: var(--ink); }
-  .nw-meta { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .nw-meta { display: flex; justify-content: space-between; gap: 8px; font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
+  .nw-src { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* related stock cards — 1 × 1 each */
   .rel-card { grid-column: span 1; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
@@ -446,15 +454,16 @@
     transition: transform .12s ease, box-shadow .12s ease; }
   .rel-card:hover { transform: translate(-2px, -2px); box-shadow: var(--sh-pop); }
   .rel-card:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 var(--ink); }
-  .rel-tkr { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
-  .rel-name { width: 100%; font-family: var(--sans); font-size: 13px; font-weight: 700; line-height: 1.2;
+  .rel-tkr { margin-bottom: 4px; }
+  .rel-name { width: 100%; font-size: 13px; font-weight: 600; line-height: 1.2;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .rel-px { font-family: var(--mono); font-size: 12.5px; font-weight: 700; color: var(--ink); margin-top: 3px; }
-  .rel-day { font-family: var(--mono); font-size: 13.5px; font-weight: 700; }
+  .rel-px { font-family: var(--num); font-size: 13px; font-weight: 500; color: var(--ink); margin-top: 3px;
+    font-variant-numeric: tabular-nums; }
+  .rel-day { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; }
   .rel-spark { display: block; width: calc(100% + 26px); margin: 7px -13px 0; height: 36px; }
 
   .sp-mock { position: absolute; bottom: -18px; right: 2px; pointer-events: none;
-    font-family: var(--mono); font-size: 8px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); opacity: .5; }
+    font-size: 10px; font-weight: 500; color: var(--muted); opacity: .6; }
 
   .up { color: var(--gain); } .down { color: var(--loss); }
 
@@ -463,7 +472,8 @@
     .w-head, .w-chart, .w-stats, .w-bare { grid-column: 1 / -1; }
     .rel-card { grid-column: span 1; }
     .w-chart { height: 340px; }
-    .ks-cols { grid-template-columns: 1fr; column-gap: 0; }
+    .ks-cols { grid-template-columns: 1fr; column-gap: 0; row-gap: 12px; }
+    .ks-col + .ks-col { border-left: 0; padding-left: 0; }
   }
 
   /* phone (mobile stock sheet): tighter rhythm, shorter chart, self-sized header */

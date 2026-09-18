@@ -145,7 +145,10 @@ def run(
     fc = cash_mod.free_cash(trades_adj, txn, recon_offset)
 
     # ── 9. Calendars + benchmark price series ──────────────────────────────
-    bench_history = {b: prices_mod.history_from(b, trades_raw["date"].min()) for b in benchmarks}
+    # a week of lead so a weekend deposit has a prior close to buy the benchmark at;
+    # trim_to_first_meaningful_day drops the empty leading days again
+    first_flow = ts_mod.first_flow_date(trades_raw, txn) - pd.Timedelta(days=7)
+    bench_history = {b: prices_mod.history_from(b, first_flow) for b in benchmarks}
     trading_days = bench_history[benchmarks[0]].index
     daily = ts_mod.daily_calendar(trades_raw, txn, trading_days)
     bench_prices = {b: bench_history[b].reindex(trading_days, method="ffill") for b in benchmarks}

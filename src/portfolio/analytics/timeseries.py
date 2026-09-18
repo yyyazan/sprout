@@ -21,11 +21,21 @@ def daily_calendar(
 ) -> pd.DatetimeIndex:
     """Full daily calendar covering every trade, transaction, and trading day.
 
-    Extends past the last market close if a deposit or trade lands on a weekend.
+    Starts at the first cash flow (a deposit usually lands before the first buy —
+    starting at the first trade silently drops it from the cash series) and
+    extends past the last market close if a deposit or trade lands on a weekend.
     """
-    start = trades["date"].min()
+    start = first_flow_date(trades, txn)
     end = max(trading_days.max(), txn["Date"].max(), trades["date"].max())
     return pd.date_range(start=start, end=end, freq="D")
+
+
+def first_flow_date(trades: pd.DataFrame, txn: pd.DataFrame) -> pd.Timestamp:
+    """Earliest trade or transaction date — where every daily series must begin."""
+    dates = [trades["date"].min()]
+    if len(txn):
+        dates.append(txn["Date"].min())
+    return min(dates)
 
 
 def portfolio_equity(
@@ -43,7 +53,7 @@ def portfolio_equity(
         trade_by_day = trades_adj[trades_adj["ticker"] == ticker].groupby("date")["adj_shares"].sum()
         cumul = trade_by_day.reindex(daily, fill_value=0.0).cumsum().clip(lower=0)
         shares_ts = cumul.reindex(trading_days, method="ffill")
-        prices_ts = prices.reindex(trading_days, method="ffill")
+        prices_ts = prices.dropna().reindex(trading_days, method="ffill")
         equity = equity.add((shares_ts * prices_ts).fillna(0), fill_value=0.0)
     return equity
 

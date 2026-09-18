@@ -6,13 +6,19 @@
   import StockPanel from './StockPanel.svelte';
   import TickerBadge from './TickerBadge.svelte';
   import { api } from '$lib/api.js';
-  import { detail, searchOpen, holdings, closeStock, closeSearch, openSearchResult } from '$lib/stores.js';
+  import { detail, searchOpen, holdings, closeStock, closeSearch, openSearch, openSearchResult } from '$lib/stores.js';
 
   let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null } = $props();
 
   // search wins over an open stock view (⌘K should always summon the palette);
   // closing search falls back to the stock still in $detail, then the chart
   const mode = $derived($searchOpen ? 'search' : $detail ? 'stock' : 'portfolio');
+  const atHome = $derived(mode === 'portfolio');
+
+  // ── persistent search strip ──
+  // Always the first thing in the stage, whatever's beneath it: an idle button
+  // that opens search, or (in search mode) the live query input itself — same
+  // shape and place either way, a Google-Finance-style top search bar.
 
   // ── inline search (same behavior as the ⌘K palette, no scrim) ──
   let q = $state('');
@@ -64,7 +70,29 @@
 </script>
 
 <!-- stock mode renders the widget grid bare on the page paper; search keeps a card shell -->
-<section class="stage" class:stage-card={mode === 'search'} class:stage-portfolio={mode === 'portfolio'}>
+<section class="stage" class:stage-portfolio={atHome}>
+  <!-- persistent search strip: idle button (opens search) or the live query input -->
+  {#if mode === 'search'}
+    <div class="strip strip-active">
+      <span class="strip-icon" aria-hidden="true">⌕</span>
+      <input
+        bind:this={input}
+        bind:value={q}
+        onkeydown={onKey}
+        type="text"
+        placeholder="Search"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+      {#if loading}<span class="strip-spin" aria-hidden="true"></span>{/if}
+      <button class="strip-esc" onclick={() => closeSearch()}>esc</button>
+    </div>
+  {:else}
+    <button class="strip strip-idle" onclick={() => openSearch()}>
+      <span class="strip-icon" aria-hidden="true">⌕</span>
+      <span class="strip-ph">Search</span>
+      <kbd class="strip-kbd">⌘K</kbd>
+    </button>
+  {/if}
+
   {#if mode === 'stock'}
     {#key $detail.ticker}
       <div class="stage-in stage-widgets">
@@ -72,19 +100,7 @@
       </div>
     {/key}
   {:else if mode === 'search'}
-    <div class="stage-in stage-search">
-      <div class="ss-bar">
-        <span class="ss-icon" aria-hidden="true">⌕</span>
-        <input
-          bind:this={input}
-          bind:value={q}
-          onkeydown={onKey}
-          type="text"
-          placeholder="Search any stock — ticker or company…"
-          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
-        {#if loading}<span class="ss-spin" aria-hidden="true"></span>{/if}
-        <button class="ss-esc" onclick={() => closeSearch()}>esc</button>
-      </div>
+    <div class="stage-in stage-search stage-card">
       {#if q.trim() && !loading && results.length === 0}
         <div class="ss-empty">No matches for “{q.trim()}”.</div>
       {:else if list.length}
@@ -96,7 +112,7 @@
                       onmouseenter={() => (active = i)} onclick={() => pick(r)}>
                 <span class="ss-sym"><TickerBadge sym={r.symbol} size="md" /></span>
                 <span class="ss-name">{r.name}</span>
-                <span class="ss-meta">{r.type}{#if r.exchange} · {r.exchange}{/if}</span>
+                <span class="ss-meta"><span>{r.type}</span>{#if r.exchange}<span>{r.exchange}</span>{/if}</span>
               </button>
             </li>
           {/each}
@@ -113,11 +129,39 @@
 </section>
 
 <style>
-  .stage { min-height: 0; height: 100%; display: flex; flex-direction: column; }
+  .stage { min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 16px; }
   /* portfolio chart: a fixed-height widget so a tall sibling (e.g. market news
      loading into the rail) can't stretch the shared grid row and grow the graph.
      stock + search modes keep height:100% (page-scrolling grid / bounded card). */
   .stage-portfolio { height: var(--stage-h, 520px); }
+
+  /* ── persistent search strip ── */
+  /* same box, same place, whatever mode the stage is in — idle button or live
+     input, so opening/closing search never shifts anything else on the page */
+  .strip { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; min-width: 0;
+    padding: 12px 16px; box-sizing: border-box; width: 100%; text-align: left;
+    background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r);
+    color: var(--ink); font: inherit; }
+  .strip-idle { cursor: pointer; transition: box-shadow .12s ease, transform .12s ease; }
+  .strip-idle:hover { box-shadow: var(--sh-pop); transform: translate(-1px, -1px); }
+  .strip-idle:active { transform: none; box-shadow: none; }
+  .strip-icon { font-size: 16px; color: var(--muted); flex: 0 0 auto; }
+  .strip-ph { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .strip-idle:hover .strip-ph { color: var(--ink); }
+  .strip-kbd, .strip-esc { flex: 0 0 auto; font-family: var(--num); font-size: var(--fs-meta); font-weight: 500;
+    line-height: 1; color: var(--muted); border: var(--bw) solid var(--muted); border-radius: 4px; padding: 3px 6px;
+    background: transparent; }
+  .strip-esc { cursor: pointer; }
+  .strip-esc:hover { color: var(--ink); border-color: var(--ink); }
+  .strip-active input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+    color: var(--text); font-size: 14px; font-weight: 500; }
+  .strip-active input::placeholder { color: var(--muted); }
+  .strip-spin { flex: 0 0 auto; width: 13px; height: 13px;
+    border: 2px solid color-mix(in srgb, var(--ink) 25%, transparent);
+    border-top-color: var(--brand); border-radius: 50%; animation: strip-rot .6s linear infinite; }
+  @keyframes strip-rot { to { transform: rotate(360deg); } }
+
   /* search brings a card shell; stock mode is a bare widget grid; the chart card is its own chrome */
   .stage-card { background: var(--surface); border: var(--bw) solid var(--ink);
     border-radius: calc(var(--r) + 2px); box-shadow: var(--sh); overflow: hidden; }
@@ -128,27 +172,16 @@
   .stage-widgets { display: block; min-height: 0; }
   .stage-chart { min-height: 0; }
 
-  /* ── inline search ── */
+  /* ── inline search results (the query input itself lives in .strip-active) ── */
   .stage-search { overflow: hidden; }
-  .ss-bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: var(--bw) solid var(--ink); }
-  .ss-icon { font-size: 18px; color: var(--muted); }
-  .ss-bar input { flex: 1; border: 0; outline: 0; background: transparent; color: var(--text);
-    font-family: var(--sans); font-size: 17px; font-weight: 600; min-width: 0; }
-  .ss-bar input::placeholder { color: var(--muted); font-weight: 500; }
-  .ss-esc { font-family: var(--mono); font-size: 10px; color: var(--muted); border: 1.5px solid var(--muted);
-    border-radius: 4px; padding: 1px 5px; background: transparent; cursor: pointer; }
-  .ss-spin { width: 13px; height: 13px; border: 2px solid color-mix(in srgb, var(--ink) 25%, transparent);
-    border-top-color: var(--brand); border-radius: 50%; animation: ss-rot .6s linear infinite; }
-  @keyframes ss-rot { to { transform: rotate(360deg); } }
   .ss-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
   .ss-item { width: 100%; display: flex; align-items: baseline; gap: 12px; padding: 10px 12px; cursor: pointer;
     border: 0; border-radius: var(--r); background: transparent; color: var(--ink); text-align: left; font: inherit; }
   .ss-item.active { background: var(--hover); }
-  .ss-sym { flex: 0 0 auto; font-family: var(--mono); font-weight: 700; font-size: 14px; min-width: 64px; }
-  .ss-name { flex: 1; min-width: 0; font-family: var(--sans); font-size: 13px; color: var(--text);
+  .ss-sym { flex: 0 0 auto; min-width: 64px; }
+  .ss-name { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ss-meta { flex: 0 0 auto; font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
-  .ss-empty { padding: 18px 18px 20px; font-family: var(--mono); font-size: 13px; color: var(--muted); }
-  .ss-section { padding: 12px 18px 2px; font-family: var(--sans); font-size: 9.5px; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+  .ss-meta { flex: 0 0 auto; display: inline-flex; gap: 10px; font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
+  .ss-empty { padding: 18px 18px 20px; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .ss-section { padding: 14px 18px 4px; font-size: var(--fs-body); font-weight: 600; color: var(--ink); }
 </style>

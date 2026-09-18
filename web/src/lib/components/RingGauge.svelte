@@ -105,14 +105,13 @@
 
   .rgx-core { position: absolute; inset: 0; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 2px; text-align: center; pointer-events: none; }
-  .rgx-tag { display: flex; align-items: center; gap: 5px; font-family: var(--sans); font-size: 9px;
-    font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--muted);
-    max-width: 92px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rgx-tag { display: flex; align-items: center; gap: 5px; font-size: var(--fs-meta); font-weight: 500;
+    color: var(--muted); max-width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .rgx-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; }
-  .rgx-hero { font-family: var(--mono); font-size: var(--rg-hero); font-weight: 700; line-height: 1.05;
+  .rgx-hero { font-family: var(--num); font-size: var(--rg-hero); font-weight: 600; line-height: 1.05;
     color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; max-width: 96px; }
-  .rgx-per { font-size: 12px; font-weight: 700; color: var(--muted); margin-left: 1px; }
-  .rgx-sub { font-family: var(--mono); font-size: 9.5px; font-weight: 700; color: var(--muted);
+  .rgx-per { font-size: var(--fs-body); font-weight: 500; color: var(--muted); margin-left: 1px; }
+  .rgx-sub { font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--muted);
     font-variant-numeric: tabular-nums; white-space: nowrap; margin-top: 2px; }
 
   @media (prefers-reduced-motion: reduce) {

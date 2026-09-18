@@ -6,8 +6,9 @@
   // return-to-date. A Value|Return toggle flips the plotted line between $ and
   // time-weighted %; adding benchmarks rebases everything to the window start.
   import { onMount } from 'svelte';
-  import { createChart, AreaSeries, LineSeries, ColorType, CrosshairMode, LineStyle, PriceScaleMode } from 'lightweight-charts';
+  import { createChart, AreaSeries, LineSeries, LineStyle, PriceScaleMode } from 'lightweight-charts';
   import { theme } from '$lib/theme.js';
+  import { BRAND, chartPalette, baseChartOptions, themeOptions } from '$lib/chartTheme.js';
   import { api } from '$lib/api.js';
   import { cachedStock } from '$lib/stockCache.js';
 
@@ -20,20 +21,21 @@
   let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null } = $props();
 
   const RANGES = [
-    { k: '1W', days: 7 },
-    { k: '1M', days: 31 },
-    { k: '3M', days: 92 },
-    { k: '1Y', days: 366 },
-    { k: '2Y', days: 731 },
-    { k: '3Y', days: 1096 },
+    { k: '1D',  days: 1 },
+    { k: '1W',  days: 7 },
+    { k: '1M',  days: 31 },
+    { k: '3M',  days: 92 },
+    { k: '6M',  days: 183 },
+    { k: 'YTD', days: null },
+    { k: '1Y',  days: 366 },
+    { k: '2Y',  days: 731 },
+    { k: '5Y',  days: 1827 },
+    { k: '10Y', days: 3653 },
     { k: 'ALL', days: Infinity },
   ];
 
-  const BRAND = '#0fb39a';
-  // theme-reactive chart palette (lightweight-charts can't read CSS vars)
-  const PAL = $derived($theme === 'light'
-    ? { INK: '#1a1a1a', GRID: '#e7e1d3', MUTED: '#8a8478', SPY: '#b3ab9c' }
-    : { INK: '#faf7f0', GRID: '#2a2722', MUTED: '#8f897c', SPY: '#7d776b' });
+  // shared, theme-reactive palette (lib/chartTheme.js mirrors the app.css tokens)
+  const PAL = $derived(chartPalette($theme));
 
   let range = $state('ALL');
   let mode = $state('return');    // 'value' | 'return' — Return is the default metric
@@ -140,6 +142,7 @@
     d.setUTCDate(d.getUTCDate() - days);
     return d.toISOString().slice(0, 10);
   }
+  function ytdCutoff(iso) { return iso.slice(0, 4) + '-01-01'; }
 
   // The visible window for the chosen range — a fixed bar-WIDTH (W) that can be
   // shifted back through history by `panBars` (two-finger horizontal scroll), so
@@ -151,7 +154,7 @@
     let W;
     if (!cfg || cfg.days === Infinity) W = all.length;
     else {
-      const cutoff = isoMinusDays(all[all.length - 1].t, cfg.days);
+      const cutoff = cfg.k === 'YTD' ? ytdCutoff(all[all.length - 1].t) : isoMinusDays(all[all.length - 1].t, cfg.days);
       W = all.filter((r) => r.t >= cutoff).length;
     }
     W = Math.max(2, Math.min(W, all.length));
@@ -178,45 +181,20 @@
     };
   });
 
-  const RANGE_LABELS = { '1W': 'Past week', '1M': 'Past month', '3M': 'Past 3 months', '1Y': 'Past year', '2Y': 'Past 2 years', '3Y': 'Past 3 years', 'ALL': 'All-time' };
+  const RANGE_LABELS = {
+    '1D': 'today', '1W': 'past week', '1M': 'past month', '3M': 'past 3 months', '6M': 'past 6 months',
+    'YTD': 'year to date', '1Y': 'past year', '2Y': 'past 2 years', '5Y': 'past 5 years', '10Y': 'past 10 years',
+    'ALL': 'all-time',
+  };
 
-  // REST-state headline = performance over the visible window. The $ is deposit-
-  // stripped (window value change minus net deposits in the window) so it reads as
-  // earnings, not balance growth; the % is the window's time-weighted return, and
-  // `vs` is the gap to SPY in percentage points.
+  // REST-state readout = the visible window's time-weighted return and the gap
+  // to SPY in percentage points.
   const lastRow = $derived(view.length ? view[view.length - 1] : null);
   const period = $derived.by(() => {
     if (!baseRow || !lastRow) return null;
-    const deposits = baseRow.ni != null && lastRow.ni != null ? lastRow.ni - baseRow.ni : 0;
-    const dollar = (lastRow.pv - baseRow.pv) - deposits;
     const youPct = twRet(lastRow, baseRow, 'pret');
     const spyPct = twRet(lastRow, baseRow, 'sret');
-    return { dollar, youPct, spyPct, vs: youPct != null && spyPct != null ? youPct - spyPct : null };
-  });
-
-  // Quality/risk stats over the visible window, from the time-weighted growth
-  // index (so deposits don't distort them). These live nowhere else on the
-  // dashboard — they're the chart widget's own contribution.
-  const stats = $derived.by(() => {
-    const v = view;
-    if (v.length < 3 || !baseRow) return null;
-    // growth index rebased to the window start (fall back to raw value if TWR is absent)
-    const b = baseRow.pret;
-    const idx = v.map((r) => (r.pret != null && b != null ? (1 + r.pret) / (1 + b) : r.pv / baseRow.pv));
-    // daily returns for volatility
-    const rets = [];
-    for (let i = 1; i < idx.length; i++) if (idx[i - 1]) rets.push(idx[i] / idx[i - 1] - 1);
-    const mean = rets.reduce((s, x) => s + x, 0) / (rets.length || 1);
-    const variance = rets.reduce((s, x) => s + (x - mean) ** 2, 0) / (rets.length || 1);
-    const vol = Math.sqrt(variance) * Math.sqrt(252) * 100;
-    // max drawdown (peak-to-trough on the growth index)
-    let peak = idx[0], mdd = 0;
-    for (const g of idx) { if (g > peak) peak = g; const dd = g / peak - 1; if (dd < mdd) mdd = dd; }
-    // annualized return (only meaningful past ~a month; below that it's noise)
-    const days = (new Date(lastRow.t + 'T00:00:00Z') - new Date(baseRow.t + 'T00:00:00Z')) / 86400000;
-    const total = idx[idx.length - 1] - 1;
-    const annualized = days >= 28 ? (Math.pow(1 + total, 365 / days) - 1) * 100 : null;
-    return { vol, mdd: mdd * 100, annualized };
+    return { youPct, vs: youPct != null && spyPct != null ? youPct - spyPct : null };
   });
 
   const fmtUsd = (n) => '$' + Math.round(n).toLocaleString('en-US');
@@ -247,22 +225,10 @@
   }
 
   onMount(() => {
+    const base = baseChartOptions(PAL);
     chart = createChart(host, {
-      autoSize: true,
-      layout: {
-        background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' },
-        textColor: PAL.MUTED, fontFamily: 'Space Mono, ui-monospace, monospace',
-        fontSize: 11, attributionLogo: false,
-      },
-      grid: { vertLines: { visible: false }, horzLines: { color: PAL.GRID } },
-      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
-      timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
-      crosshair: {
-        mode: CrosshairMode.Magnet,
-        vertLine: { color: PAL.INK, width: 1, style: LineStyle.Solid, labelVisible: false },
-        horzLine: { color: PAL.GRID, width: 1, style: LineStyle.Dotted, labelVisible: false },
-      },
-      handleScroll: false, handleScale: false,
+      ...base,
+      rightPriceScale: { ...base.rightPriceScale, scaleMargins: { top: 0.12, bottom: 0.08 } },
     });
 
     chart.subscribeCrosshairMove((p) => {
@@ -281,12 +247,7 @@
   // re-skin chrome (axes, grid, crosshair) when the theme flips
   $effect(() => {
     if (!chart) return;
-    const p = PAL;
-    chart.applyOptions({
-      layout: { textColor: p.MUTED },
-      grid: { horzLines: { color: p.GRID } },
-      crosshair: { vertLine: { color: p.INK }, horzLine: { color: p.GRID } },
-    });
+    chart.applyOptions(themeOptions(PAL));
   });
 
   // Rebuild series whenever the window, mode, benchmarks, or theme changes.
@@ -403,50 +364,9 @@
   function onPtrEnd(e) { if (e.pointerType === 'touch') endScrub(); }
 </script>
 
-<!-- two widgets matching the stock view's grid language: full-width performance header + chart -->
+<!-- one chart widget; the window readout rides the toolbar (the persistent
+     portfolio strip above the stage carries value + today's move) -->
 <div class="pcg">
-  <section class="pc-w pc-head-w">
-    {#if hoverRow && read}
-      <!-- HOVER: the scrubbed point — return-to-date leads, gap-to-SPY + value below -->
-      <div class="pc-head-top">
-        <div class="pc-label">{fmtDate(read.t)}</div>
-        <div class="pc-value {(read.youPct ?? 0) >= 0 ? 'up' : 'down'}">{fmtPct(read.youPct)}</div>
-      </div>
-      <div class="pc-sub">
-        {#if !comparing && read.spyPct != null}
-          {@const gap = read.youPct - read.spyPct}
-          <span class={gap >= 0 ? 'up' : 'down'}>{(gap >= 0 ? '+' : '') + gap.toFixed(1)}pp vs SPY</span>
-          <span class="pc-dot-sep">·</span>
-        {/if}
-        <span class="pc-muted">value {fmtUsd(read.pv)}</span>
-      </div>
-    {:else if period}
-      <!-- AT REST: window time-weighted return + a strip of quality/risk stats -->
-      <div class="pc-head-top">
-        <div class="pc-label">{RANGE_LABELS[range] ?? 'Performance'}</div>
-        <div class="pc-value {(period.youPct ?? 0) >= 0 ? 'up' : 'down'}">{fmtPct(period.youPct)}</div>
-      </div>
-      <div class="pc-stats">
-        <div class="pc-stat">
-          <span class="pc-stat-k">vs SPY</span>
-          <span class="pc-stat-v {(period.vs ?? 0) >= 0 ? 'up' : 'down'}">{period.vs != null ? (period.vs >= 0 ? '+' : '') + period.vs.toFixed(1) + 'pp' : '—'}</span>
-        </div>
-        <div class="pc-stat">
-          <span class="pc-stat-k">Max drawdown</span>
-          <span class="pc-stat-v">{stats ? stats.mdd.toFixed(0) + '%' : '—'}</span>
-        </div>
-        <div class="pc-stat">
-          <span class="pc-stat-k">Volatility</span>
-          <span class="pc-stat-v">{stats ? stats.vol.toFixed(0) + '%' : '—'}</span>
-        </div>
-        <div class="pc-stat">
-          <span class="pc-stat-k">Annualized</span>
-          <span class="pc-stat-v {(stats?.annualized ?? 0) >= 0 ? 'up' : 'down'}">{stats?.annualized != null ? (stats.annualized >= 0 ? '+' : '') + stats.annualized.toFixed(0) + '%' : '—'}</span>
-        </div>
-      </div>
-    {/if}
-  </section>
-
   <section class="pc-w pc-chart-w">
     <!-- toolbar mirrors the stock chart's gf-bar so both views line up -->
     <div class="pc-bar">
@@ -489,6 +409,25 @@
         {/if}
       </div>
 
+      <!-- readout: at rest the window's TWR + gap to SPY; scrubbing swaps in the hovered day -->
+      <div class="pc-read">
+        {#if hoverRow && read}
+          <span class="pc-read-k">{fmtDate(read.t)}</span>
+          <span class="pc-read-v {(read.youPct ?? 0) >= 0 ? 'up' : 'down'}">{fmtPct(read.youPct)}</span>
+          {#if !comparing && read.spyPct != null}
+            {@const gap = read.youPct - read.spyPct}
+            <span class="pc-read-s {gap >= 0 ? 'up' : 'down'}">{(gap >= 0 ? '+' : '') + gap.toFixed(1)}% SPY</span>
+          {/if}
+          <span class="pc-read-s pc-muted">{fmtUsd(read.pv)}</span>
+        {:else if period}
+          <span class="pc-read-v {(period.youPct ?? 0) >= 0 ? 'up' : 'down'}">{fmtPct(period.youPct)}</span>
+          <span class="pc-read-k">{RANGE_LABELS[range] ?? ''}</span>
+          {#if !comparing && period.vs != null}
+            <span class="pc-read-s {period.vs >= 0 ? 'up' : 'down'}">{(period.vs >= 0 ? '+' : '') + period.vs.toFixed(1)}% SPY</span>
+          {/if}
+        {/if}
+      </div>
+
       {#if !comparing}
         <div class="pc-toggle" role="group" aria-label="metric">
           <button class:on={mode === 'value'} onclick={() => (mode = 'value')}>Value</button>
@@ -523,45 +462,30 @@
 </div>
 
 <style>
-  /* two stacked widgets, same grid language as the stock view */
-  .pcg { display: flex; flex-direction: column; gap: 16px; height: 100%; min-height: 0; }
+  /* one chart widget that fills whatever height its host gives it (the desktop
+     stage's --stage-h; the phone pins .pc-chart-w to a fixed box) */
+  .pcg { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .pc-w { background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r);
     box-sizing: border-box; }
-  /* full-width performance header + chart box, both pinned to the stock view's
-     dimensions (--title-h header · 440 chart) so the graph sits in the same
-     place when you toggle modes */
-  .pc-head-w { flex: 0 0 auto; height: var(--title-h, 152px); display: flex; flex-direction: column;
-    justify-content: space-between; gap: 10px; padding: 14px 16px; box-sizing: border-box; }
-  .pc-chart-w { flex: 0 0 440px; min-height: 0; display: flex; flex-direction: column; gap: 10px;
+  .pc-chart-w { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px;
     padding: 14px 16px; }
-  .pc-head-top { min-width: 0; }
-  .pc-label { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700;
-    color: var(--ink); opacity: .55; margin-bottom: 4px; white-space: nowrap; }
-  .pc-value { font-family: var(--mono); font-size: 30px; font-weight: 700; line-height: 1;
-    font-variant-numeric: tabular-nums; }
   .pc-muted { color: var(--muted); font-weight: 400; }
-
-  /* hover sub-line: gap-to-SPY + the day's value */
-  .pc-sub { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
-    font-family: var(--mono); font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .pc-dot-sep { color: var(--muted); }
-
-  /* at-rest stat strip — hairline-split cells, same language as MarketPulse */
-  .pc-stats { display: grid; grid-template-columns: repeat(4, 1fr); }
-  .pc-stat { min-width: 0; display: flex; flex-direction: column; gap: 3px;
-    padding-left: 14px; border-left: var(--bw) solid var(--hairline); }
-  .pc-stat:first-child { padding-left: 0; border-left: 0; }
-  .pc-stat-k { font-family: var(--sans); font-size: 9px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pc-stat-v { font-family: var(--mono); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums;
-    line-height: 1; white-space: nowrap; }
 
   /* toolbar — mirrors StockChart's .gf-bar so the two charts align pixel-for-pixel */
   .pc-bar { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+  /* window readout — TWR % leads, range label + gap-to-SPY trail; swaps to the
+     hovered day while scrubbing. Takes the toolbar's middle so nothing jumps. */
+  .pc-read { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 8px;
+    padding-left: 6px; font-family: var(--num); font-variant-numeric: tabular-nums;
+    white-space: nowrap; overflow: hidden; }
+  .pc-read-v { font-size: 18px; font-weight: 600; line-height: 1; letter-spacing: -.01em; }
+  .pc-read-k { font-family: var(--sans); font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
+  .pc-read-s { font-size: var(--fs-body); font-weight: 500; }
   .pc-tool { position: relative; }
+  /* toolbar button = the system pill: text → outline on hover → ink while its menu is open */
   .pc-btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-    font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--ink);
-    padding: 5px 12px; background: transparent; border: var(--bw) solid var(--hairline);
+    font-family: var(--sans); font-size: var(--fs-body); font-weight: 600; color: var(--ink);
+    padding: 5px 12px; background: transparent; border: var(--bw) solid transparent;
     border-radius: 999px; transition: border-color .12s ease, background .12s ease, color .12s ease; }
   .pc-btn:hover { border-color: var(--ink); }
   .pc-btn.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
@@ -572,23 +496,23 @@
     display: flex; flex-direction: column; padding: 5px; gap: 1px;
     background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r); box-shadow: var(--sh); }
   .pc-item { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; text-align: left;
-    font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--ink);
+    font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--ink);
     padding: 7px 9px; border: 0; background: transparent; border-radius: 6px; }
   .pc-item:hover { background: var(--hover); }
-  .pc-item.sel { font-weight: 700; }
+  .pc-item.sel { font-weight: 600; }
   .pc-check { flex: 0 0 14px; font-size: 12px; color: var(--brand); }
-  .pc-sym { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .pc-sym { margin-left: auto; font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
 
   /* benchmark compare menu: search box + results / quick picks */
   .pc-menu-cmp { min-width: 230px; }
   .pc-cmp-input { box-sizing: border-box; width: 100%; margin-bottom: 4px; padding: 7px 9px;
     border: var(--bw) solid var(--hairline); border-radius: 6px; outline: none; background: transparent;
-    font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--ink); }
+    font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--ink); }
   .pc-cmp-input:focus { border-color: var(--ink); }
-  .pc-cmp-input::placeholder { color: var(--muted); font-weight: 500; }
+  .pc-cmp-input::placeholder { color: var(--muted); }
   .pc-cmp-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .pc-cmp-note { padding: 7px 9px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
-  .pc-count { font-family: var(--mono); font-size: 10px; font-weight: 700; line-height: 1;
+  .pc-cmp-note { padding: 7px 9px; font-size: var(--fs-body); color: var(--muted); }
+  .pc-count { font-family: var(--num); font-size: var(--fs-meta); font-weight: 600; line-height: 1;
     padding: 2px 6px; border-radius: 999px; background: var(--paper); color: var(--ink); border: 1px solid currentColor; }
   /* iOS focus-zoom guard for the in-menu search */
   @media (max-width: 700px) { .pc-cmp-input { font-size: 16px; } }
@@ -596,7 +520,7 @@
   /* active-benchmark chips under the toolbar */
   .pc-cmps { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .pc-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
-    font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--ink);
+    font-family: var(--num); font-size: var(--fs-meta); font-weight: 600; color: var(--ink);
     padding: 3px 9px; background: transparent; border: var(--bw) solid var(--hairline); border-radius: 999px; }
   .pc-chip:hover { border-color: var(--ink); }
   .pc-chip-self { cursor: default; color: var(--muted); }
@@ -605,7 +529,7 @@
 
   /* metric toggle — system pills (text → outline hover → solid ink when on) */
   .pc-toggle { display: inline-flex; flex: 0 0 auto; gap: 2px; margin-left: auto; }
-  .pc-toggle button { font-family: var(--mono); font-size: 11px; font-weight: 600; cursor: pointer;
+  .pc-toggle button { font-family: var(--sans); font-size: var(--fs-body); font-weight: 600; cursor: pointer;
     padding: 5px 12px; background: transparent; color: var(--muted);
     border: var(--bw) solid transparent; border-radius: 999px;
     transition: border-color .12s ease, background .12s ease, color .12s ease; }
@@ -616,20 +540,26 @@
      long-press scrub belong to the chart */
   .pc-canvas { flex: 1; min-height: 0; touch-action: pan-y; }
 
-  /* GF-style range tabs — identical states to StockChart's .gf-range */
-  .pc-ranges { display: flex; align-items: center; gap: 2px;
-    border-top: var(--bw) solid var(--hairline); padding-top: 8px; }
-  .pc-ranges button { font-family: var(--mono); font-size: 11px; font-weight: 600; cursor: pointer; color: var(--muted);
+  /* range tabs — identical states to StockChart's .gf-range. No rule above them; the gap separates. */
+  .pc-ranges { display: flex; align-items: center; gap: 2px; padding-top: 4px;
+    /* 11 pills won't fit a phone — scroll the row sideways, no scrollbar */
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .pc-ranges::-webkit-scrollbar { display: none; }
+  .pc-ranges button { flex: 0 0 auto; }
+  .pc-ranges button { font-family: var(--num); font-size: 11.5px; font-weight: 600; cursor: pointer; color: var(--muted);
+    font-variant-numeric: tabular-nums;
     padding: 4px 11px; background: transparent; border: var(--bw) solid transparent; border-radius: 999px;
-    letter-spacing: .02em; transition: border-color .12s ease, background .12s ease, color .12s ease; }
+    transition: border-color .12s ease, background .12s ease, color .12s ease; }
   .pc-ranges button:hover { color: var(--ink); border-color: var(--ink); }
   .pc-ranges button.on { color: var(--paper); background: var(--ink); border-color: var(--ink); }
 
   .up { color: var(--gain); }
   .down { color: var(--loss); }
 
-  /* mirror StockPanel's <900 shrink so the two charts stay matched on small screens */
-  @media (max-width: 900px) {
-    .pc-chart-w { flex-basis: 340px; }
+  /* phone: the readout drops under the toolbar on its own line so nothing clips */
+  @media (max-width: 700px) {
+    .pc-bar { flex-wrap: wrap; row-gap: 8px; }
+    .pc-read { flex-basis: 100%; order: 1; padding-left: 2px; }
+    .pc-ranges button { padding-inline: 9px; }
   }
 </style>

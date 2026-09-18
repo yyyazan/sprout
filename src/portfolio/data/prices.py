@@ -81,6 +81,8 @@ def history(ticker: str) -> pd.Series:
         return hit
 
     cached = store.read_history(ticker)
+    if cached is not None:
+        cached = cached.dropna()
     if cached is not None and not cached.empty and store.is_fresh(ticker, "history"):
         _l1_set(_HISTORY_CACHE, ticker, cached)
         return cached
@@ -96,7 +98,8 @@ def history(ticker: str) -> pd.Series:
         return result
 
     hist.index = _strip_tz(hist.index)
-    series = hist["Close"]
+    # mid-session yfinance emits today's bar with a NaN close — never let it into the calendar
+    series = hist["Close"].dropna()
     store.write_history(ticker, series)
     _l1_set(_HISTORY_CACHE, ticker, series)
     return series
