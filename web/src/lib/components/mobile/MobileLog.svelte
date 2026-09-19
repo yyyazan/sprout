@@ -13,12 +13,15 @@
   let { d, refresh } = $props();
 
   // Trades come from the shared store (TradeTicket reads the same one, so the
-  // pane doesn't fetch /api/trades a second time); transactions stay local.
+  // pane doesn't fetch /api/trades a second time); transactions and realized
+  // lots stay local.
   const trades = $derived($tradesStore ?? []);
   let txns = $state([]);
+  let realized = $state([]);
   function loadActivity(force = false) {
     loadTrades(force);
     api.transactions().then((x) => (txns = x ?? [])).catch(() => { /* stays as-is */ });
+    api.realized().then((r) => (realized = r ?? [])).catch(() => { /* stays as-is */ });
   }
   onMount(loadActivity);
 
@@ -36,7 +39,7 @@
   <TradeTicket {onSaved} />
 </div>
 
-<ActivityLog {trades} {txns} />
+<ActivityLog {trades} {txns} {realized} onChanged={onSaved} />
 
 <style>
   .ml-tiles { --card-pad: 14px 16px; display: flex; flex-direction: column; gap: 12px;

@@ -37,6 +37,17 @@ async function post(path, body) {
   return r.json();
 }
 
+async function patch(path, body) {
+  const r = await fetch(`/api${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  check401(r, path);
+  if (!r.ok && r.status >= 500) throw new Error(`PATCH ${path} → ${r.status}`);
+  return r.json();
+}
+
 export const api = {
   dashboard: () => get('/dashboard'),
   momentum: () => get('/momentum'),
@@ -56,6 +67,10 @@ export const api = {
   realized: () => get('/realized'),
   addTrade: (body) => post('/trades', body),
   addTransaction: (body) => post('/transactions', body),
+  editTrade: (id, body) => patch('/trades/' + id, body),
+  deleteTrade: (id) => del('/trades/' + id),
+  editTransaction: (id, body) => patch('/transactions/' + id, body),
+  deleteTransaction: (id) => del('/transactions/' + id),
   login: (password) => post('/auth/login', { password }),
   me: () => get('/auth/me'),
   logout: () => post('/auth/logout', {})

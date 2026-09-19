@@ -199,7 +199,12 @@ def garden_payload(s: PortfolioSnapshot, period: str) -> dict:
 
 
 def realized_payload(s: PortfolioSnapshot) -> list[dict]:
-    df = s.realized.copy()
+    # Most-recently-closed lot first — fifo_realized groups its rows by ticker
+    # (chronological only within each ticker), which reads as random order
+    # once multiple tickers are mixed together in one list. An empty frame has
+    # no columns to sort by (nothing realized yet), so skip in that case.
+    df = s.realized.sort_values("sell_date", ascending=False) if not s.realized.empty else s.realized
+    df = df.copy()
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
             df[col] = pd.DatetimeIndex(df[col]).strftime("%Y-%m-%d")

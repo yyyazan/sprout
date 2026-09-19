@@ -40,7 +40,7 @@
   {:else}
     <div class="log">
       <div class="log-main">
-        <ActivityLog {trades} {txns} {realized} recent={8} />
+        <ActivityLog {trades} {txns} {realized} recent={8} onChanged={() => load(true)} />
       </div>
       <aside class="log-rail">
         {#if d}

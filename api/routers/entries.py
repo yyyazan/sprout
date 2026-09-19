@@ -26,14 +26,15 @@ def trades(user_id: int = Depends(current_user_id)):
     df = loader.load_trades_db(user_id, conn).sort_values("date", ascending=False)
     return [
         {
+            "id": int(i),
             "ticker": str(t),
             "action": str(a),
             "shares": _py(sh),
             "price": _py(px),
             "date": pd_ts.strftime("%Y-%m-%d"),
         }
-        for t, a, sh, px, pd_ts in zip(
-            df["ticker"], df["action"], df["shares"], df["price"], df["date"]
+        for i, t, a, sh, px, pd_ts in zip(
+            df["id"], df["ticker"], df["action"], df["shares"], df["price"], df["date"]
         )
     ]
 
@@ -44,11 +45,12 @@ def transactions(user_id: int = Depends(current_user_id)):
     df = loader.load_transactions_db(user_id, conn).sort_values("Date", ascending=False)
     return [
         {
+            "id": int(i),
             "date": d.strftime("%Y-%m-%d"),
             "amount": _py(amt),
             "direction": _direction(float(amt)),
         }
-        for d, amt in zip(df["Date"], df["Amount (USD)"])
+        for i, d, amt in zip(df["id"], df["Date"], df["Amount (USD)"])
     ]
 
 
@@ -107,5 +109,68 @@ def add_transaction(body: TxnIn, user_id: int = Depends(current_user_id)):
     writer.insert_transaction_db(
         user_id, conn, txn_date=clean["txn_date"], amount=clean["amount"]
     )
+    state.invalidate(user_id)
+    return {"ok": True, "error": None}
+
+
+@router.patch("/trades/{trade_id}")
+def edit_trade(trade_id: int, body: TradeIn, user_id: int = Depends(current_user_id)):
+    snap = state.get_snapshot(user_id)
+    errors, clean = validate_trade(
+        body.ticker, body.action, body.shares, body.trade_date, body.price, snapshot=snap
+    )
+    if errors:
+        return {"ok": False, "errors": errors}
+    price = clean["price"]
+    if price is None:
+        price = prices.price_on_date(clean["ticker"], pd.Timestamp(clean["trade_date"]))
+    conn = db_mod.connect()
+    found = writer.update_trade_db(
+        user_id,
+        conn,
+        trade_id,
+        ticker=clean["ticker"],
+        action=clean["action"],
+        shares=clean["shares"],
+        trade_date=clean["trade_date"],
+        price=price,
+    )
+    if not found:
+        return {"ok": False, "errors": {"ticker": "Trade not found."}}
+    state.invalidate(user_id)
+    return {"ok": True, "errors": {}}
+
+
+@router.delete("/trades/{trade_id}")
+def delete_trade(trade_id: int, user_id: int = Depends(current_user_id)):
+    conn = db_mod.connect()
+    found = writer.delete_trade_db(user_id, conn, trade_id)
+    if not found:
+        return {"ok": False, "error": "Trade not found."}
+    state.invalidate(user_id)
+    return {"ok": True, "error": None}
+
+
+@router.patch("/transactions/{txn_id}")
+def edit_transaction(txn_id: int, body: TxnIn, user_id: int = Depends(current_user_id)):
+    error, clean = validate_txn(body.txn_date, body.txn_type, body.amount)
+    if error:
+        return {"ok": False, "error": error}
+    conn = db_mod.connect()
+    found = writer.update_transaction_db(
+        user_id, conn, txn_id, txn_date=clean["txn_date"], amount=clean["amount"]
+    )
+    if not found:
+        return {"ok": False, "error": "Transaction not found."}
+    state.invalidate(user_id)
+    return {"ok": True, "error": None}
+
+
+@router.delete("/transactions/{txn_id}")
+def delete_transaction(txn_id: int, user_id: int = Depends(current_user_id)):
+    conn = db_mod.connect()
+    found = writer.delete_transaction_db(user_id, conn, txn_id)
+    if not found:
+        return {"ok": False, "error": "Transaction not found."}
     state.invalidate(user_id)
     return {"ok": True, "error": None}

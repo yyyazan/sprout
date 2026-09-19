@@ -118,3 +118,70 @@ def insert_transaction_db(
     )
     conn.commit()
     return int(cur.lastrowid)
+
+
+def update_trade_db(
+    user_id: int,
+    conn: sqlite3.Connection,
+    trade_id: int,
+    *,
+    ticker: str,
+    action: str,
+    shares: float,
+    trade_date: date,
+    price: float | None,
+) -> bool:
+    """Overwrite a trade in place. Returns False if no row matched (wrong id/owner)."""
+    cur = conn.execute(
+        "UPDATE trades SET ticker = ?, action = ?, shares = ?, price = ?, trade_date = ? "
+        "WHERE id = ? AND user_id = ?",
+        (
+            ticker.upper(),
+            str(action).lower(),
+            float(shares),
+            float(price) if price is not None else None,
+            pd.Timestamp(trade_date).strftime("%Y-%m-%d"),
+            trade_id,
+            user_id,
+        ),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_trade_db(user_id: int, conn: sqlite3.Connection, trade_id: int) -> bool:
+    cur = conn.execute(
+        "DELETE FROM trades WHERE id = ? AND user_id = ?", (trade_id, user_id)
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def update_transaction_db(
+    user_id: int,
+    conn: sqlite3.Connection,
+    txn_id: int,
+    *,
+    txn_date: date,
+    amount: float,
+) -> bool:
+    """Overwrite a cash flow in place. Returns False if no row matched (wrong id/owner)."""
+    cur = conn.execute(
+        "UPDATE transactions SET txn_date = ?, amount_usd = ? WHERE id = ? AND user_id = ?",
+        (
+            pd.Timestamp(txn_date).strftime("%Y-%m-%d"),
+            float(amount),
+            txn_id,
+            user_id,
+        ),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_transaction_db(user_id: int, conn: sqlite3.Connection, txn_id: int) -> bool:
+    cur = conn.execute(
+        "DELETE FROM transactions WHERE id = ? AND user_id = ?", (txn_id, user_id)
+    )
+    conn.commit()
+    return cur.rowcount > 0
