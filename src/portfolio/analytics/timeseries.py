@@ -26,16 +26,22 @@ def daily_calendar(
     extends past the last market close if a deposit or trade lands on a weekend.
     """
     start = first_flow_date(trades, txn)
-    end = max(trading_days.max(), txn["Date"].max(), trades["date"].max())
-    return pd.date_range(start=start, end=end, freq="D")
+    if start is None:  # no activity yet — span the benchmark window instead
+        start = trading_days.min()
+    ends = [d for d in (trading_days.max(), txn["Date"].max(), trades["date"].max()) if pd.notna(d)]
+    return pd.date_range(start=start, end=max(ends), freq="D")
 
 
-def first_flow_date(trades: pd.DataFrame, txn: pd.DataFrame) -> pd.Timestamp:
-    """Earliest trade or transaction date — where every daily series must begin."""
-    dates = [trades["date"].min()]
-    if len(txn):
-        dates.append(txn["Date"].min())
-    return min(dates)
+def first_flow_date(trades: pd.DataFrame, txn: pd.DataFrame) -> pd.Timestamp | None:
+    """Earliest trade or transaction date — where every daily series must begin.
+
+    None when the user has neither, which the pipeline treats as an empty
+    portfolio. An empty frame's ``.min()`` is NaT, and every NaT comparison is
+    False, so a plain ``min()`` would silently return the NaT and blow up
+    date_range even when the other source has real dates — drop them first.
+    """
+    dates = [d for d in (trades["date"].min(), txn["Date"].min()) if pd.notna(d)]
+    return min(dates) if dates else None
 
 
 def portfolio_equity(

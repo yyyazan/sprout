@@ -137,6 +137,13 @@
     return out;
   });
 
+  // A brand-new account still gets a full calendar of points, just all zeros —
+  // so "nothing to show" is an all-zero curve, not an empty array. The canvas
+  // stays mounted (the chart is created from it in onMount, so unmounting would
+  // leave it uncreated once the first trade lands); the toolbar and ranges hide
+  // and an overlay covers the flat axes.
+  const empty = $derived(rows.length === 0 || rows.every((r) => !r.pv));
+
   function isoMinusDays(iso, days) {
     const d = new Date(iso + 'T00:00:00Z');
     d.setUTCDate(d.getUTCDate() - days);
@@ -368,8 +375,14 @@
      portfolio strip above the stage carries value + today's move) -->
 <div class="pcg">
   <section class="pc-w pc-chart-w">
+    {#if empty}
+      <div class="pc-empty">
+        <div class="pc-empty-t">No activity yet</div>
+        <div class="pc-empty-s">Log a deposit or your first trade to start the curve.</div>
+      </div>
+    {/if}
     <!-- toolbar mirrors the stock chart's gf-bar so both views line up -->
-    <div class="pc-bar">
+    <div class="pc-bar" class:pc-hide={empty}>
       <div class="pc-tool">
         <button class="pc-btn" class:active={openMenu === 'compare' || comparing} onclick={() => toggleMenu('compare')}>
           <span class="pc-ic" aria-hidden="true">⇄</span>Compare{#if comparing}<span class="pc-count">{benchmarks.length}</span>{/if}<span class="pc-cv" aria-hidden="true">▾</span>
@@ -453,7 +466,7 @@
     <div class="pc-canvas" bind:this={host}
       onpointerdown={onPtrDown} onpointermove={onPtrMove}
       onpointerup={onPtrEnd} onpointercancel={onPtrEnd}></div>
-    <div class="pc-ranges" role="group" aria-label="range">
+    <div class="pc-ranges" class:pc-hide={empty} role="group" aria-label="range">
       {#each RANGES as r}
         <button class:on={range === r.k} onclick={() => { range = r.k; panBars = 0; }}>{r.k}</button>
       {/each}
@@ -467,7 +480,15 @@
   .pcg { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .pc-w { background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r);
     box-sizing: border-box; }
-  .pc-chart-w { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px;
+
+  /* empty account: cover the bare axes, hide controls that have nothing to act on */
+  .pc-hide { visibility: hidden; }
+  .pc-empty { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px; padding: 16px;
+    background: var(--surface); border-radius: var(--r); text-align: center; }
+  .pc-empty-t { font-family: var(--sans); font-size: var(--fs-title); font-weight: 600; color: var(--ink); }
+  .pc-empty-s { font-family: var(--sans); font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
+  .pc-chart-w { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px;
     padding: 14px 16px; }
   .pc-muted { color: var(--muted); font-weight: 400; }
 

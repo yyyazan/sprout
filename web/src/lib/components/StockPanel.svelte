@@ -257,7 +257,7 @@
     </div>
   </section>
 
-  <!-- analyst outlook — two BORDERLESS widgets side by side, centred like the
+  <!-- analyst outlook — two BARE widgets side by side, centred like the
        dashboard's ring row: ratings on the shared RingGauge · forecast bars -->
   {#if analyst && (ratingSegs || forecast)}
     {#if ratingSegs}
@@ -273,22 +273,23 @@
       </section>
     {/if}
     {#if forecast}
-      <section class="w-bare w-forecast">
+      <section class="w-forecast">
+        <div class="fc-head">
+          <span class="w-h">12-month forecast</span>
+          <span class="fc-now"><span class="fc-now-k">Now</span> <span class="fc-now-v">${f(stock.price)}</span></span>
+        </div>
         <div class="fc-grid">
-          <span class="fc-h">12-month forecast</span>
           {#each forecast.rows as r (r.label)}
             <span class="fc-label">{r.label}</span>
             <div class="fc-track">
               <div class="fc-bar" style="width:{r.w}%"></div>
-              <span class="fc-fig">${f(r.v)} <small class={r.pct >= 0 ? 'up' : 'down'}>({pctS(r.pct)})</small></span>
+              <span class="fc-fig">${f(r.v)}</span>
+              <span class="fc-pct pct-pill {r.pct >= 0 ? 'up' : 'down'}">{pctS(r.pct)}</span>
             </div>
           {/each}
-          <span class="fc-label"></span>
-          <div class="fc-track fc-cur-track">
-            <div class="fc-cur" style="left:{forecast.curX}%">
-              <span class="fc-cur-pill">Now ${f(stock.price)}</span>
-            </div>
-          </div>
+          <!-- dashed guide threading through the bars at today's price, same
+               quiet reference-line language as the related-card sparklines -->
+          <div class="fc-cur" style="left:{forecast.curX}%"></div>
         </div>
       </section>
     {/if}
@@ -394,31 +395,39 @@
   .g-row b { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  /* analyst outlook — two BORDERLESS cells (span 2 each); ring and forecast
-     each sit dead-centre in their cell (no legend — the ring's segments +
-     hover core carry the buy/hold/sell read) */
+  /* analyst outlook — ratings ring is a BARE cell, centred like the dashboard's
+     ring row (its segments + hover core carry the read, no card needed around
+     a graphic). Forecast is bare too now, so the pair reads as one outlook
+     row instead of a boxed list next to a naked ring. */
   .w-bare { grid-column: span 2; min-height: 188px; display: flex; align-items: center;
     justify-content: center; padding: 6px 8px; }
   .w-ratings :global(.rgx) { height: auto; }
 
-  .fc-h { grid-column: 1 / -1; font-size: var(--fs-title); font-weight: 600; color: var(--ink); margin-bottom: 4px; }
-  .fc-grid { position: relative; width: min(100%, 360px); display: grid; grid-template-columns: 60px 1fr;
-    row-gap: 8px; align-items: center; }
+  .w-forecast { grid-column: span 2; align-self: start; padding: 12px 16px 14px; }
+  .fc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .fc-now { display: flex; align-items: baseline; gap: 5px; }
+  .fc-now-k { font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
+  .fc-now-v { font-family: var(--num); font-size: var(--fs-body); font-weight: 700; color: var(--ink);
+    font-variant-numeric: tabular-nums; }
+
+  .fc-grid { position: relative; display: grid; grid-template-columns: 56px 1fr; column-gap: 8px; row-gap: 7px; align-items: center; }
   .fc-label { font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
-  .fc-track { position: relative; min-width: 0; height: 18px; display: flex; align-items: center; gap: 8px; }
-  .fc-bar { box-sizing: border-box; height: 100%; min-width: 12px; flex: 0 0 auto;
+  .fc-track { min-width: 0; height: 16px; display: flex; align-items: center; gap: 8px; }
+  .fc-bar { box-sizing: border-box; height: 100%; min-width: 10px; flex: 0 0 auto;
     background: var(--ink); border-radius: 3px; }
   .fc-fig { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; color: var(--ink); white-space: nowrap;
     font-variant-numeric: tabular-nums; }
-  .fc-fig small { font-size: var(--fs-meta); }
-  .fc-cur-track { height: 22px; }
-  .fc-cur { position: absolute; top: 2px; transform: translateX(-50%); }
-  /* dashed marker line rises from the pill up through the three bars */
-  .fc-cur::before { content: ''; position: absolute; left: 50%; bottom: 100%; height: 82px; width: 0;
-    border-left: 1.5px dashed color-mix(in srgb, var(--ink) 40%, transparent); pointer-events: none; }
-  .fc-cur-pill { position: relative; font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-    color: var(--ink); background: var(--paper); border: var(--bw) solid var(--ink); border-radius: 999px; padding: 2px 8px; }
+  /* same price-line language as the sidebar rows and related-stock cards: a
+     .pct-pill, not bespoke colored parentheses */
+  .fc-pct { font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; }
+
+  /* dashed guide threading through the three bars at today's price — same
+     quiet var(--muted) reference-line the related-card sparklines use.
+     Grid-placed to span exactly the bar rows (no fixed-height hack), then
+     absolutely positioned within that grid area so `left` resolves against
+     the track column's own width, matching .fc-bar's %-of-track math. */
+  .fc-cur { position: absolute; grid-column: 2; grid-row: 1 / -1; top: 0; bottom: 0; width: 0;
+    pointer-events: none; border-left: 1px dashed var(--muted); }
 
   /* news widget — 4×1; headline rows split by hairlines, sentiment dot leads.
      Link styling matches MarketPulse: always underlined, ink on hover. */
@@ -463,7 +472,7 @@
 
   @media (max-width: 900px) {
     .spg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .w-head, .w-chart, .w-stats, .w-bare { grid-column: 1 / -1; }
+    .w-head, .w-chart, .w-stats, .w-bare, .w-forecast { grid-column: 1 / -1; }
     .rel-card { grid-column: span 1; }
     .w-chart { height: 340px; }
     .ks-cols { grid-template-columns: 1fr; column-gap: 0; row-gap: 12px; }

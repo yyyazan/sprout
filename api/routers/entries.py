@@ -1,7 +1,7 @@
 """Ledger: trade/transaction/realized reads + the two write endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 import pandas as pd
@@ -9,6 +9,7 @@ import pandas as pd
 from portfolio.data import db as db_mod, loader, prices, writer
 
 from api import state
+from api.auth import current_user_id
 from api.serialize import _py, realized_payload
 from api.validation import validate_trade, validate_txn
 
@@ -20,7 +21,7 @@ def _direction(amount: float) -> str:
 
 
 @router.get("/trades")
-def trades(user_id: int = db_mod.DEFAULT_USER_ID):
+def trades(user_id: int = Depends(current_user_id)):
     conn = db_mod.connect()
     df = loader.load_trades_db(user_id, conn).sort_values("date", ascending=False)
     return [
@@ -38,7 +39,7 @@ def trades(user_id: int = db_mod.DEFAULT_USER_ID):
 
 
 @router.get("/transactions")
-def transactions(user_id: int = db_mod.DEFAULT_USER_ID):
+def transactions(user_id: int = Depends(current_user_id)):
     conn = db_mod.connect()
     df = loader.load_transactions_db(user_id, conn).sort_values("Date", ascending=False)
     return [
@@ -52,7 +53,7 @@ def transactions(user_id: int = db_mod.DEFAULT_USER_ID):
 
 
 @router.get("/realized")
-def realized(user_id: int = db_mod.DEFAULT_USER_ID):
+def realized(user_id: int = Depends(current_user_id)):
     return realized_payload(state.get_snapshot(user_id))
 
 
@@ -71,7 +72,7 @@ class TxnIn(BaseModel):
 
 
 @router.post("/trades")
-def add_trade(body: TradeIn, user_id: int = db_mod.DEFAULT_USER_ID):
+def add_trade(body: TradeIn, user_id: int = Depends(current_user_id)):
     snap = state.get_snapshot(user_id)
     errors, clean = validate_trade(
         body.ticker, body.action, body.shares, body.trade_date, body.price, snapshot=snap
@@ -98,7 +99,7 @@ def add_trade(body: TradeIn, user_id: int = db_mod.DEFAULT_USER_ID):
 
 
 @router.post("/transactions")
-def add_transaction(body: TxnIn, user_id: int = db_mod.DEFAULT_USER_ID):
+def add_transaction(body: TxnIn, user_id: int = Depends(current_user_id)):
     error, clean = validate_txn(body.txn_date, body.txn_type, body.amount)
     if error:
         return {"ok": False, "error": error}

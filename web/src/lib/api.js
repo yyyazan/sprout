@@ -56,5 +56,7 @@ export const api = {
   realized: () => get('/realized'),
   addTrade: (body) => post('/trades', body),
   addTransaction: (body) => post('/transactions', body),
-  login: (password) => post('/auth/login', { password })
+  login: (password) => post('/auth/login', { password }),
+  me: () => get('/auth/me'),
+  logout: () => post('/auth/logout', {})
 };

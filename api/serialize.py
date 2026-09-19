@@ -55,7 +55,7 @@ def _allocation(market_value: pd.Series, cash: float) -> dict:
     return {"labels": labels, "values": values}
 
 
-def dashboard_payload(s: PortfolioSnapshot, period: str) -> dict:
+def dashboard_payload(s: PortfolioSnapshot, period: str, name: str | None = None) -> dict:
     # Headline total from LIVE spot prices (same source as the positions and
     # allocation below) rather than the last point of the daily-close equity
     # curve — otherwise the big number lags the per-holding cards intraday.
@@ -68,7 +68,7 @@ def dashboard_payload(s: PortfolioSnapshot, period: str) -> dict:
     total_pnl = unrealized_pnl + realized_pnl
 
     return {
-        "greeting": greeting_for(period),
+        "greeting": greeting_for(period, name),
         "period": period,
         "kpis": {
             "cash": _py(s.free_cash),

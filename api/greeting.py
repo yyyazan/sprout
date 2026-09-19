@@ -28,5 +28,7 @@ def time_of_day(hour: int | None = None) -> str:
     return "night"
 
 
-def greeting_for(period: str) -> str:
-    return _GREETINGS.get(period, "Welcome")
+def greeting_for(period: str, name: str | None = None) -> str:
+    greeting = _GREETINGS.get(period, "Welcome")
+    first = (name or "").strip().split(" ")[0]
+    return f"{greeting}, {first}" if first else greeting

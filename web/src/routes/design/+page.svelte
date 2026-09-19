@@ -104,7 +104,7 @@
       <li><b>One pill.</b> Text idle → 1px ink outline hover → solid ink when selected/pressed. No other button shapes.</li>
       <li><b>Ink inversion is the selected state.</b> Active nav, picked range, pressed row — nothing else signals selection.</li>
       <li><b>Color is data.</b> Gain/loss for moves, jade for the portfolio, the accent deck for rings. Chrome is never colored.</li>
-      <li><b>Strict grid.</b> 4 columns, 16px gaps. Bare (border-less) widgets allowed for rings and centred figures.</li>
+      <li><b>Strict grid.</b> 4 columns, 16px gaps. Bare (border-less) widgets allowed for rings, centred figures, and a data list paired with a bare widget (12-month forecast beside the ratings ring).</li>
       <li><b>Motion stays restrained.</b> 0.12s transitions, staggered ring fade-ins. No sweeps, no glows, no parallax.</li>
     </ol>
   </section>
@@ -252,13 +252,20 @@
       <EarningsCard />
       <MarketPulse />
     </div>
-    <p class="dm-note">TradeTicket and CashGoalCard write real rows (/api/trades, /api/transactions).</p>
+    <p class="dm-note">TradeTicket and CashGoalCard write real rows (/api/trades, /api/transactions).
+      Their rising entry panels are paper/ink now, not a solid yellow/green/red sheet — border-only
+      chrome like every other widget, a top hairline for the seam. Deposit/Withdraw and Buy/Sell
+      are the one deliberate spot color is semantic instead of chrome (gain = deposit/buy, loss =
+      withdraw/sell), carried by the toggle pill alone; save is a plain .btn. Amount/ticker/shares/
+      date/price are each their own --r-radius field — no more fused segmented bar, no fixed hex,
+      no mono.</p>
   </section>
 
   <!-- ── stock view, live ── -->
   <section class="dm-live" id="stock">
     <div class="dm-label">Stock view</div>
     <StockPanel ticker={demoTicker} name={demoCard?.company_name ?? demoTicker} holding={demoHolding} showClose={false} />
+    <p class="dm-note">12-month forecast is bare now (was bordered) — it sat next to the bare ratings ring, so one boxed + one naked read as mismatched. Same outlook row, no more split chrome.</p>
   </section>
 
   <!-- ── activity log, live ── -->
@@ -322,7 +329,7 @@
       </div>
       <div class="dm-demo-w dm-bare">
         <div class="w-h">Bare widget</div>
-        <p class="dm-usage">No border — rings, centred hero figures.</p>
+        <p class="dm-usage">No border — rings, centred hero figures, or a data list paired with one.</p>
       </div>
     </div>
   </section>

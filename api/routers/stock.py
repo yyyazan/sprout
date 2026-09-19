@@ -13,11 +13,11 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import yfinance as yf
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
-from portfolio.data import db as db_mod
 from portfolio.data import prices as prices_mod
 from api import state
+from api.auth import current_user_id
 from api.serialize import _py
 
 router = APIRouter(prefix="/api", tags=["stock"])
@@ -232,7 +232,7 @@ _earnings_cache: tuple[float, dict] | None = None
 
 
 @router.get("/earnings")
-def earnings(user_id: int = db_mod.DEFAULT_USER_ID):
+def earnings(user_id: int = Depends(current_user_id)):
     """Upcoming earnings across the portfolio's holdings — the dashboard's
     earnings widget. Soonest scheduled dates first (today counts as upcoming);
     holdings whose next date isn't published yet fall back to their most
@@ -262,7 +262,7 @@ def earnings(user_id: int = db_mod.DEFAULT_USER_ID):
 
 
 @router.get("/stock/{ticker}")
-def stock(ticker: str):
+def stock(ticker: str, user_id: int = Depends(current_user_id)):
     ticker = ticker.upper()
     info = _info(ticker)
 
@@ -292,7 +292,7 @@ def stock(ticker: str):
     # Realized P&L for this ticker (lifetime, from closed lots) so the deep view
     # can show TOTAL P&L = realized + the open position's unrealized — for anything
     # held or previously held. 0.0 when we've never sold it.
-    rs = state.get_snapshot().realized_summary
+    rs = state.get_snapshot(user_id).realized_summary
     realized = float(rs.get(ticker, 0.0)) if len(rs) else 0.0
 
     return {

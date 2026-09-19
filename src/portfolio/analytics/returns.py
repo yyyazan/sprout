@@ -27,9 +27,13 @@ def twr(
     cf_per_td = cf_cumul_td.diff()
     cf_per_td.iloc[0] = cf_cumul_td.iloc[0]
 
-    v = total_value_ts
-    v_prev = v.shift(1)
-    ratio = ((v - cf_per_td) / v_prev).where(v_prev > 0, 1.0).fillna(1.0)
+    # Blank the non-positive denominators BEFORE dividing, not after. A young
+    # portfolio's value series can be object dtype (and starts with real 0.0s
+    # on the days before the first fill), which puts pandas on a Python-level
+    # division that raises ZeroDivisionError instead of yielding inf/NaN.
+    v = pd.to_numeric(total_value_ts, errors="coerce")
+    v_prev = v.shift(1).where(lambda prev: prev > 0)
+    ratio = ((v - cf_per_td) / v_prev).fillna(1.0)
     return ratio.cumprod() - 1
 
 

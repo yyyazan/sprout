@@ -147,7 +147,13 @@ def run(
     # ── 9. Calendars + benchmark price series ──────────────────────────────
     # a week of lead so a weekend deposit has a prior close to buy the benchmark at;
     # trim_to_first_meaningful_day drops the empty leading days again
-    first_flow = ts_mod.first_flow_date(trades_raw, txn) - pd.Timedelta(days=7)
+    # A user with no trades and no transactions has no flow date at all. Give the
+    # series a short synthetic window so a brand-new account runs the same path as
+    # everyone else and yields a well-formed zeroed snapshot instead of crashing.
+    flow_start = ts_mod.first_flow_date(trades_raw, txn)
+    if flow_start is None:
+        flow_start = pd.Timestamp.today().normalize() - pd.Timedelta(days=30)
+    first_flow = flow_start - pd.Timedelta(days=7)
     bench_history = {b: prices_mod.history_from(b, first_flow) for b in benchmarks}
     trading_days = bench_history[benchmarks[0]].index
     daily = ts_mod.daily_calendar(trades_raw, txn, trading_days)

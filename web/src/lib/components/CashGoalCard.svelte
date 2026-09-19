@@ -115,28 +115,38 @@
     <div class="progress-bar"><div class="progress-fill" style="width:{goalPct}%"></div></div>
   </div>
 
-  <!-- Yellow entry panel: floats up from the bottom to 60% of the tile when open. Holds the
-       transaction entry (sign · amount · save) and a date row. Clicks/keys inside it are
-       stopped so interacting doesn't toggle the tile closed; inert when closed for a11y. -->
+  <!-- Rising entry panel: grows from 0 to its own natural content height when open
+       (a CSS-grid 0fr→1fr track, not a fixed/percentage height — percentage heights
+       on an absolutely-positioned child don't resolve against an auto-height card,
+       which is what left a residual sliver showing even when "closed"). The sign
+       toggle sits left; amount + date stack in a single column to its right (a 1×2
+       field grid); save is a circle on the far right. Clicks/keys inside are stopped
+       so interacting doesn't toggle the tile closed; inert when closed for a11y. -->
   <div class="cg-rise" inert={!open}
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}>
-    <div class="cg-entry" class:invalid={saveError}>
-      <button type="button" class="cg-seg cg-sign" onclick={flipSign}
-        aria-label={sign === '+' ? 'Deposit — tap to switch to withdrawal' : 'Withdrawal — tap to switch to deposit'}>{sign === '+' ? '+' : '−'}</button>
-      <div class="cg-amount">
-        <span class="cg-dollar" aria-hidden="true">$</span>
-        <input class="cg-amount-input" type="number" step="any" min="0" inputmode="decimal"
-          placeholder="0.00" bind:value={amount} bind:this={amountEl}
-          oninput={() => { saveError = null; }}
-          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } }}
-          aria-label="Amount in dollars" />
+   <div class="cg-clip">
+    <div class="cg-rise-inner">
+    <div class="cg-body">
+      <button type="button" class="cg-sign" class:pos={sign === '+'} class:neg={sign === '-'} onclick={flipSign}
+        aria-label={sign === '+' ? 'Deposit — tap to switch to withdraw' : 'Withdraw — tap to switch to deposit'}>{sign === '+' ? 'Deposit' : 'Withdraw'}</button>
+      <div class="cg-grid">
+        <div class="cg-amount" class:invalid={saveError}>
+          <span class="cg-dollar" aria-hidden="true">$</span>
+          <input class="cg-amount-input" type="number" step="any" min="0" inputmode="decimal"
+            placeholder="0.00" bind:value={amount} bind:this={amountEl}
+            oninput={() => { saveError = null; }}
+            onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } }}
+            aria-label="Amount in dollars" />
+        </div>
+        <input class="cg-date-input" type="date" bind:value={date} max={today()} aria-label="Transaction date" />
       </div>
-      <button type="button" class="cg-seg cg-save" onclick={save} disabled={saving}
+      <button type="button" class="cg-save" onclick={save} disabled={saving}
         aria-label="Save transaction">✓</button>
     </div>
-    <input class="cg-date-input" type="date" bind:value={date} max={today()} aria-label="Transaction date" />
     {#if saveError}<div class="cg-save-err" role="alert">{saveError}</div>{/if}
+    </div>
+   </div>
   </div>
 </div>
 
@@ -170,51 +180,78 @@
 
   .cg-goal-row { margin-bottom: 6px; }
 
-  /* Cash entry panel: a yellow bar floats up from the bottom to 60% of the tile on click,
-     with a rounded top. Holds the amount-entry control + date row, vertically centred. */
+  /* Cash entry panel: grows from the bottom to its own content height on click.
+     A single-row CSS grid (0fr → 1fr) rather than a fixed/percentage height —
+     .cashgoal-card is itself auto-height (sized by its content), and a percentage
+     height on an absolutely-positioned child doesn't resolve against an auto-height
+     containing block, which is what left a residual sliver showing even "closed". */
   .cg-rise {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 0;
-    background: #FFC900;
-    border-radius: 16px 16px 0 0;
-    z-index: 2; overflow: hidden; cursor: default;
-    display: flex; flex-direction: column; justify-content: center; gap: 7px;
-    padding: 0 12px;
-    transition: height .45s cubic-bezier(.22, 1, .36, 1);
+    position: absolute; left: 0; right: 0; bottom: 0;
+    display: grid; grid-template-rows: 0fr;
+    z-index: 2; cursor: default;
+    transition: grid-template-rows .45s cubic-bezier(.22, 1, .36, 1);
   }
-  .cashgoal-card.open .cg-rise { height: 60%; }
+  .cashgoal-card.open .cg-rise { grid-template-rows: 1fr; }
+  /* the grid ITEM: bare — no padding/border of its own, so it has nothing to
+     hold the 0fr track open (grid track auto-sizing floors at an item's padding
+     + border regardless of min-height:0, which only zeros its content minimum —
+     that residual floor was the sliver that never fully collapsed). */
+  .cg-clip { min-height: 0; overflow: hidden; }
+  /* the actual visual sheet — same paper/ink chrome as every other widget, no
+     loud fill; a top hairline is the only seam. */
+  .cg-rise-inner {
+    background: var(--surface);
+    border-top: var(--bw) solid var(--ink);
+    border-radius: calc(var(--r) * 2) calc(var(--r) * 2) 0 0;
+    display: flex; flex-direction: column; justify-content: center; gap: 6px;
+    padding: 10px 12px;
+  }
+  /* the card's hover-lift (translate + --sh-pop) was fighting the panel's own
+     height transition on click — it's an active edit surface once open, not a
+     hover-preview target, so drop the lift for as long as it's open. */
+  .cashgoal-card.open, .cashgoal-card.open:hover { transform: none; box-shadow: var(--sh); }
 
-  /* Amount entry: one conjoined ink/white bar — [ +/− ] [ $ number ] [ ✓ ].
-     Radius + shadow match the bottom allocation ribbon (.alloc-ribbon). */
-  /* The panel sits on a fixed light (yellow) bg, so its controls use fixed ink/white
-     colors (NOT theme vars) — otherwise dark-mode --ink turns the input text and
-     borders white-on-white. Keeps --bw/--sh from the design system. */
-  .cg-entry { flex: 0 0 auto; display: flex; align-items: stretch; height: 30px;
-    background: #fff; border: var(--bw) solid #1a1a1a; border-radius: var(--r); overflow: hidden; box-shadow: var(--sh); }
-  /* type error on insert → the white amount area turns pale red */
-  .cg-entry.invalid, .cg-entry.invalid .cg-amount { background: #ffd9d9; }
-  .cg-seg { flex: 0 0 30px; width: 30px; padding: 0; border: 0; background: #1a1a1a; color: #fff;
-    font-family: var(--sans); font-size: 17px; font-weight: 800; line-height: 1; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; }
-  .cg-sign { border-right: var(--bw) solid #1a1a1a; }
-  .cg-save { border-left: var(--bw) solid #1a1a1a; font-size: 15px; }
-  .cg-seg:active { background: #000; }
+  /* Body: sign toggle (left, natural pill size) · a 1×2 field grid (amount over
+     date, same width) · save (right, a plain circle) — both sit vertically
+     centred against the taller grid, not stretched to match it. */
+  .cg-body { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
+  .cg-sign { flex: 0 0 auto; padding: 7px 14px; box-sizing: border-box; border: 1.5px solid var(--hairline);
+    border-radius: 999px; background: transparent; font-family: var(--sans); font-size: 11.5px;
+    font-weight: 600; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background .12s ease, border-color .12s ease, color .12s ease; }
+  .cg-sign.pos { border-color: var(--gain); color: var(--gain); }
+  .cg-sign.neg { border-color: var(--loss); color: var(--loss); }
+  .cg-sign.pos:active { background: color-mix(in srgb, var(--gain) 16%, transparent); }
+  .cg-sign.neg:active { background: color-mix(in srgb, var(--loss) 16%, transparent); }
+  .cg-save { flex: 0 0 30px; width: 30px; height: 30px; padding: 0; box-sizing: border-box;
+    border-radius: 999px; background: transparent; font-size: 13px; cursor: pointer;
+    border: 1.5px solid var(--hairline); color: var(--ink);
+    display: flex; align-items: center; justify-content: center;
+    transition: background .12s ease, border-color .12s ease, color .12s ease; }
+  .cg-save:hover { border-color: var(--ink); }
+  .cg-save:active { background: var(--ink); color: var(--paper); }
   .cg-save:disabled { opacity: .4; cursor: default; }
-  .cg-amount { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 3px; padding: 0 10px; background: #fff; }
-  .cg-dollar { flex: 0 0 auto; color: #1a1a1a; opacity: .35; font-family: var(--mono); font-size: 14px; font-weight: 700; }
+
+  /* 1×2 grid: amount over date, sharing one column width — the mismatch (a
+     flexible amount box next to a fixed, oversized date box) was the asymmetry. */
+  .cg-grid { flex: 1 1 auto; min-width: 0; display: grid; grid-template-rows: 28px 28px; gap: 6px; }
+  .cg-amount { box-sizing: border-box; min-width: 0; display: flex; align-items: center; gap: 3px; padding: 0 10px;
+    background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r); }
+  /* type error on insert → the field turns pale red */
+  .cg-amount.invalid { background: color-mix(in srgb, var(--loss) 12%, var(--surface)); border-color: var(--loss); }
+  .cg-dollar { flex: 0 0 auto; color: var(--muted); font-family: var(--num); font-size: var(--fs-body); font-weight: 600; }
   .cg-amount-input { flex: 1 1 auto; min-width: 0; width: 100%; padding: 0; border: 0; outline: none; background: transparent;
-    font-family: var(--mono); font-size: 14px; font-weight: 700; color: #1a1a1a; font-variant-numeric: tabular-nums;
+    font-family: var(--num); font-size: var(--fs-body); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums;
     -moz-appearance: textfield; appearance: textfield; }
-  .cg-amount-input::placeholder { color: #1a1a1a; opacity: .3; }
+  .cg-amount-input::placeholder { color: var(--muted); }
   .cg-amount-input::-webkit-outer-spin-button, .cg-amount-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-  /* Date row: native date input (calendar icon + typed entry), same behaviour as the log tab.
-     Radius + shadow match the bottom allocation ribbon (.alloc-ribbon). */
-  .cg-date-input { flex: 0 0 auto; box-sizing: border-box; height: 28px; width: 100%;
-    padding: 0 12px; border: var(--bw) solid #1a1a1a; border-radius: var(--r); background: #fff; box-shadow: var(--sh);
-    font-family: var(--mono); font-size: 12px; font-weight: 700; color: #1a1a1a; cursor: pointer; }
+  .cg-date-input { box-sizing: border-box; min-width: 0; width: 100%;
+    padding: 0 10px; border: var(--bw) solid var(--ink); border-radius: var(--r); background: var(--surface);
+    font-family: var(--num); font-size: var(--fs-meta); font-weight: 600; color: var(--ink); cursor: pointer; }
   .cg-date-input::-webkit-calendar-picker-indicator { cursor: pointer; opacity: .85; }
 
-  .cg-save-err { flex: 0 0 auto; color: var(--loss, #a3261d); font-family: var(--mono); font-size: 10px; font-weight: 700; text-align: center; }
+  .cg-save-err { flex: 0 0 auto; color: var(--loss); font-family: var(--num); font-size: var(--fs-meta); font-weight: 600; text-align: center; }
 
   @media (prefers-reduced-motion: reduce) {
     .cg-coin { transition: none; }

@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS users (
     user_id      INTEGER PRIMARY KEY AUTOINCREMENT,
     email        TEXT UNIQUE,
     display_name TEXT,
+    google_sub   TEXT,
+    picture      TEXT,
     created_at   TEXT NOT NULL
 );
 
@@ -150,10 +152,27 @@ def _migrate_trades_price(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE trades ADD COLUMN price REAL")
 
 
+def _migrate_users_oauth(conn: sqlite3.Connection) -> None:
+    """Add the Google identity columns to users tables created before OAuth.
+
+    `google_sub` is Google's stable subject id — the real account key, since an
+    email address can be reassigned. Its uniqueness is an index rather than a
+    column constraint because ALTER TABLE can't add a UNIQUE column; NULLs are
+    exempt from SQLite UNIQUE, so pre-OAuth rows coexist fine.
+    """
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+    if "google_sub" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
+    if "picture" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN picture TEXT")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub)")
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
     _migrate_price_cache_meta(conn)
     _migrate_trades_price(conn)
+    _migrate_users_oauth(conn)
     conn.commit()
 
 
@@ -175,6 +194,76 @@ def seed_defaults(conn: sqlite3.Connection) -> None:
             (DEFAULT_USER_ID, DEFAULT_RECONCILIATION_OFFSET, _now(), "seeded at 0 — not yet reconciled"),
         )
     conn.commit()
+
+
+def user_row(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT user_id, email, display_name, google_sub, picture FROM users WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+
+def find_or_create_user(
+    conn: sqlite3.Connection,
+    *,
+    google_sub: str,
+    email: str,
+    display_name: str | None = None,
+    picture: str | None = None,
+    owner_email: str | None = None,
+) -> int:
+    """Resolve a Google identity to a user_id, creating the account if needed.
+
+    Match order is google_sub, then email, then the owner claim, then insert.
+
+    The owner claim exists because ``user_id = 1`` predates OAuth: it was seeded
+    with a NULL email and owns all of the original single-user portfolio. The
+    first sign-in by ``owner_email`` must bind to THAT row rather than mint a new
+    user, or the entire trade history is orphaned.
+    """
+    row = conn.execute(
+        "SELECT user_id FROM users WHERE google_sub = ?", (google_sub,)
+    ).fetchone()
+    if row is not None:
+        conn.execute(
+            "UPDATE users SET email = ?, display_name = ?, picture = ? WHERE user_id = ?",
+            (email, display_name, picture, row["user_id"]),
+        )
+        conn.commit()
+        return int(row["user_id"])
+
+    row = conn.execute("SELECT user_id FROM users WHERE email = ?", (email,)).fetchone()
+    if row is None and owner_email and email.lower() == owner_email.lower():
+        legacy = conn.execute(
+            "SELECT user_id FROM users WHERE user_id = ? AND google_sub IS NULL",
+            (DEFAULT_USER_ID,),
+        ).fetchone()
+        row = legacy
+
+    if row is not None:
+        conn.execute(
+            "UPDATE users SET google_sub = ?, email = ?, display_name = ?, picture = ? "
+            "WHERE user_id = ?",
+            (google_sub, email, display_name, picture, row["user_id"]),
+        )
+        conn.commit()
+        return int(row["user_id"])
+
+    cur = conn.execute(
+        "INSERT INTO users (email, display_name, google_sub, picture, created_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (email, display_name, google_sub, picture, _now()),
+    )
+    user_id = int(cur.lastrowid)
+    # Every user needs a reconciliation row or their cash silently reads as
+    # unreconciled — seed_defaults() only ever covered user 1.
+    conn.execute(
+        "INSERT OR IGNORE INTO cash_reconciliation (user_id, offset_usd, reconciled_at, note) "
+        "VALUES (?, ?, ?, ?)",
+        (user_id, 0.0, _now(), "new account — not yet reconciled"),
+    )
+    conn.commit()
+    return user_id
 
 
 def reconciliation_offset(conn: sqlite3.Connection, user_id: int = DEFAULT_USER_ID) -> float:

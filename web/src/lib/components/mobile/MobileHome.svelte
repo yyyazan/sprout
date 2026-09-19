@@ -13,11 +13,13 @@
   import TickerBadge from '../TickerBadge.svelte';
   import Sparkline from '../Sparkline.svelte';
   import MobileSearch from './MobileSearch.svelte';
+  import ProfileMenu from '../ProfileMenu.svelte';
   import { theme, toggleTheme } from '$lib/theme.js';
   import { moves, holdings, portfolioDayMove, allTimeReturn, openStock, cardToHolding } from '$lib/stores.js';
   import { SHOW_GARDEN } from '$lib/config.js';
 
   let { d, garden, onSeeAll } = $props();
+  let menuOpen = $state(false);
   const dayMove = $derived(d ? portfolioDayMove(d.cards, $moves) : { gain: null, pct: null });
   const allTime = $derived(allTimeReturn(d?.twr));
 
@@ -51,11 +53,15 @@
       <button class="mh-tool" onclick={toggleTheme} aria-label="Toggle light/dark theme">
         {$theme === 'dark' ? '☀' : '☾'}
       </button>
-      <button class="mh-tool" type="button" aria-label="Profile">
-        <svg class="mh-person" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-          <circle cx="12" cy="8.5" r="3.6" /><path d="M5 20 c0 -4 3.2 -6.2 7 -6.2 s7 2.2 7 6.2" />
-        </svg>
-      </button>
+      <div class="mh-profile">
+        <button class="mh-tool" type="button" aria-label="Account" aria-haspopup="menu"
+          aria-expanded={menuOpen} onclick={() => (menuOpen = !menuOpen)}>
+          <svg class="mh-person" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="8.5" r="3.6" /><path d="M5 20 c0 -4 3.2 -6.2 7 -6.2 s7 2.2 7 6.2" />
+          </svg>
+        </button>
+        <ProfileMenu open={menuOpen} onClose={() => (menuOpen = false)} />
+      </div>
     </div>
   </div>
 </div>
@@ -124,6 +130,7 @@
     padding: calc(18px + env(safe-area-inset-top)) 16px 0; }
   /* overlay is pointer-transparent so the garden stays scrollable; the tools opt back in */
   .mh-tools { display: flex; gap: 8px; pointer-events: auto; }
+  .mh-profile { position: relative; display: flex; }
   .mh-tool { width: 30px; height: 30px; display: grid; place-items: center; cursor: pointer;
     font: inherit; font-size: 14px; line-height: 1; color: #1a1a1a; background: transparent;
     border: var(--bw) solid rgba(26, 26, 26, .4); border-radius: 999px; padding: 0; }

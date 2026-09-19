@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import re
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from portfolio.data import db as db_mod, prices as prices_mod
 from portfolio.analytics.cards import _spot_move  # reuse holdings' exact day/week-move math
+from api.auth import current_user_id
 from api.serialize import _py
 
 router = APIRouter(prefix="/api", tags=["watchlist"])
@@ -45,7 +46,7 @@ def _payload(conn, user_id: int) -> list[dict]:
 
 
 @router.get("/watchlist")
-def watchlist(user_id: int = db_mod.DEFAULT_USER_ID):
+def watchlist(user_id: int = Depends(current_user_id)):
     return _payload(db_mod.connect(), user_id)
 
 
@@ -54,7 +55,7 @@ class WatchIn(BaseModel):
 
 
 @router.post("/watchlist")
-def add(body: WatchIn, user_id: int = db_mod.DEFAULT_USER_ID):
+def add(body: WatchIn, user_id: int = Depends(current_user_id)):
     ticker = (body.ticker or "").strip().upper()
     if not _TICKER_RE.match(ticker):
         return {"ok": False, "error": "Invalid ticker.", "watchlist": None}
@@ -64,7 +65,7 @@ def add(body: WatchIn, user_id: int = db_mod.DEFAULT_USER_ID):
 
 
 @router.delete("/watchlist/{ticker}")
-def remove(ticker: str, user_id: int = db_mod.DEFAULT_USER_ID):
+def remove(ticker: str, user_id: int = Depends(current_user_id)):
     conn = db_mod.connect()
     db_mod.watchlist_remove(conn, ticker.strip().upper(), user_id)
     return {"ok": True, "error": None, "watchlist": _payload(conn, user_id)}

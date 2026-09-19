@@ -5,12 +5,20 @@
   let { total, realized, unrealized, size = 'mini' } = $props();
   const money = (v) =>
     v == null ? '—' : (v >= 0 ? '+$' : '−$') + Math.round(Math.abs(v)).toLocaleString('en-US');
+
+  // An account with nothing in it hasn't gained anything — tinting a flat $0
+  // green would read as a (tiny) win rather than "no history yet".
+  const flat = $derived(!total && !realized && !unrealized);
 </script>
 
 <div class="glass-card kpi-card widget-{size}">
   <div class="bal-head">
     <div class="kpi-label">Profit &amp; loss</div>
-    <div class="kpi-value {(total ?? 0) >= 0 ? 'kpi-value-up' : 'kpi-value-down'}">{money(total)}</div>
+    {#if flat}
+      <div class="kpi-value">—</div>
+    {:else}
+      <div class="kpi-value {(total ?? 0) >= 0 ? 'kpi-value-up' : 'kpi-value-down'}">{money(total)}</div>
+    {/if}
   </div>
   <div class="bal-rows">
     <div class="bal-row"><span class="bal-k">Realized</span><span class="bal-v">{money(realized)}</span></div>

@@ -71,6 +71,11 @@ def cash_timeseries(
         if r["date"] in trade_cash_daily.index:
             trade_cash_daily.loc[r["date"]] += -r["adj_shares"] * price
 
-    txn_daily = txn.groupby("Date")["Amount (USD)"].sum().reindex(calendar, fill_value=0.0)
+    # astype(float): grouping an empty txn frame yields an object-dtype Series that
+    # survives the reindex, and an object cash series puts every downstream
+    # arithmetic op on pandas' Python-level path (where 0-division raises).
+    txn_daily = (
+        txn.groupby("Date")["Amount (USD)"].sum().reindex(calendar, fill_value=0.0).astype(float)
+    )
     # Level shift after the cumulative sum — applied once, not distributed across rows.
     return (txn_daily + trade_cash_daily).cumsum() + reconciliation_offset

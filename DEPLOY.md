@@ -37,7 +37,13 @@ check is that all of these exist.
 |---|---|---|
 | `PORTFOLIO_DB` | `/data/portfolio.db` | Points the app at the volume. **Without it, the app uses an ephemeral path, ignores the volume, and 500s.** |
 | `PORTFOLIO_PRICES` | `/data/prices` | yfinance price cache on the volume (regenerable, but persisting it = fast boots). |
-| `SPROUT_PASSWORD` | any strong passphrase | Password gate for all `/api` data (api/auth.py). **Unset = the whole portfolio is public.** Login sets a 90-day cookie; rotating the password logs every device out. |
+| `SPROUT_PASSWORD` | any strong passphrase | Owner fallback sign-in, and the session-signing key when `SPROUT_SECRET` is unset (api/auth.py). **With no password AND no Google client, the whole portfolio is public.** Rotating it logs every device out. |
+| `GOOGLE_CLIENT_ID` | _(Google Cloud console)_ | Enables "Continue with Google". Unset = the sign-in screen offers only the password. |
+| `GOOGLE_CLIENT_SECRET` | _(Google Cloud console)_ | OAuth code exchange. |
+| `SPROUT_PUBLIC_URL` | `https://<your-app>.up.railway.app` | Builds the OAuth `redirect_uri`. **Load-bearing:** Railway terminates TLS upstream so the app sees plain `http`; without this the callback URL won't match what Google has registered and every sign-in fails. No trailing slash. |
+| `SPROUT_OWNER_EMAIL` | `yazan@bu.edu` | The account that the password fallback signs into, and the one email allowed to claim the pre-OAuth `user_id = 1` (which owns all existing trade history). |
+| `SPROUT_ALLOWED_EMAILS` | `a@gmail.com,b@gmail.com` | Comma-separated invite list. **Anyone not on it (or on `SPROUT_OWNER_EMAIL`) is refused and no account is created.** Without it, any Google account could provision a portfolio here. |
+| `SPROUT_SECRET` | _(optional, random 32+ chars)_ | Session cookie signing key. Falls back to `SPROUT_PASSWORD`. Set it if you want to rotate the password without logging everyone out. |
 | `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` | Cloudflare R2 S3 endpoint (account-level, **no bucket name in it**). |
 | `R2_ACCESS_KEY_ID` | _(from R2 API token)_ | Backup auth. |
 | `R2_SECRET_ACCESS_KEY` | _(from R2 API token)_ | Backup auth (shown only once at token creation). |
@@ -71,6 +77,46 @@ git push          # → Railway rebuilds (nixpacks) and restarts
 
 The **volume persists across redeploys** — `/data/portfolio.db` is safe. You do
 not re-seed on a normal deploy.
+
+---
+
+## Setting up Google sign-in (one time)
+
+1. Google Cloud console → **APIs & Services → Credentials → Create credentials →
+   OAuth client ID**, type **Web application**.
+2. **Authorized redirect URIs** — add both, exactly (no trailing slash):
+   ```
+   https://<your-app>.up.railway.app/api/auth/google/callback
+   http://localhost:8000/api/auth/google/callback
+   ```
+   These must match byte-for-byte or Google returns `redirect_uri_mismatch`.
+   Authorized *JavaScript origins* are not needed — this is a server-side flow.
+3. On the OAuth **consent screen**, External + Testing is fine for a handful of
+   users; add each person under **Test users**.
+4. Set the `GOOGLE_*`, `SPROUT_PUBLIC_URL`, `SPROUT_OWNER_EMAIL` and
+   `SPROUT_ALLOWED_EMAILS` variables above, then deploy.
+
+### First sign-in after enabling OAuth — order matters
+
+`user_id = 1` predates OAuth and owns **all existing trade history**, with no
+email on it. The first sign-in by `SPROUT_OWNER_EMAIL` claims that row; anyone
+else signing in first just gets a fresh empty account (they cannot take it).
+
+1. **Back up the volume DB first** (see Backups below) — this deploy migrates
+   the `users` table.
+2. Sign in as `SPROUT_OWNER_EMAIL` **before inviting anyone**, and confirm the
+   portfolio still shows its full history.
+3. Verify the claim landed on the original row, not a new one:
+   ```bash
+   railway ssh "sqlite3 /data/portfolio.db 'SELECT user_id,email,google_sub FROM users'"
+   ```
+   The owner must be `user_id = 1`. If they came back as `2`, stop and restore
+   from backup rather than re-pointing rows by hand.
+4. Then add friends to `SPROUT_ALLOWED_EMAILS`. Each gets an empty portfolio on
+   first sign-in; all data is scoped by `user_id` and never shared.
+
+Note the session cookie format changed with OAuth, so **the first deploy signs
+every existing device out once**. That is expected.
 
 ---
 

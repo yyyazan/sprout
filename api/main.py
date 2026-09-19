@@ -44,6 +44,8 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
 
+    auth.startup_check()
+
     # Warm the default user's snapshot at boot (hits yfinance / Parquet cache).
     try:
         state.get_snapshot()

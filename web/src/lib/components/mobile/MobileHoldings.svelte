@@ -6,7 +6,7 @@
   import TickerBadge from '../TickerBadge.svelte';
 
   const WINS = [['day', 'D'], ['wk', 'W'], ['mo', 'M']];
-  let win = $state('day');
+  let win = $state('mo');
 
   const rows = $derived(
     [...($holdings ?? [])].sort((a, b) => (b.market_value ?? 0) - (a.market_value ?? 0))

@@ -5,6 +5,9 @@
   import { theme, toggleTheme } from '$lib/theme.js';
   import TickerBadge from './TickerBadge.svelte';
   import Sparkline from './Sparkline.svelte';
+  import ProfileMenu from './ProfileMenu.svelte';
+
+  let menuOpen = $state(false);
 
   const NAV = [
     { label: 'Home', path: '/' },
@@ -16,7 +19,7 @@
   onMount(() => { loadHoldings(); startMomentum(); loadWatchlist(); });
 
   const WINS = [['day', 'D'], ['wk', 'W'], ['mo', 'M']];
-  let win = $state('day');   // which move window the pills encode; the sparkline is always the past month
+  let win = $state('mo');   // which move window the pills encode; the sparkline is always the past month
 
   // Rail rows: every holding, heaviest position first (stable order so live
   // updates don't make rows jump around).
@@ -54,11 +57,15 @@
   <div class="brand brand-row">
     <span class="brand-title">sprout</span>
     <div class="brand-actions">
-      <button class="btn-icon profile" type="button" aria-label="Profile">
-        <svg class="person" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-          <circle cx="12" cy="8.5" r="3.6" /><path d="M5 20 c0 -4 3.2 -6.2 7 -6.2 s7 2.2 7 6.2" />
-        </svg>
-      </button>
+      <div class="profile-wrap">
+        <button class="btn-icon profile" type="button" aria-label="Account" aria-haspopup="menu"
+          aria-expanded={menuOpen} onclick={() => (menuOpen = !menuOpen)}>
+          <svg class="person" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="8.5" r="3.6" /><path d="M5 20 c0 -4 3.2 -6.2 7 -6.2 s7 2.2 7 6.2" />
+          </svg>
+        </button>
+        <ProfileMenu open={menuOpen} onClose={() => (menuOpen = false)} />
+      </div>
       <button class="btn-icon theme-btn" onclick={toggleTheme} aria-label="Toggle light/dark theme" title="{$theme === 'dark' ? 'Light' : 'Dark'} mode">
         {$theme === 'dark' ? '☀' : '☾'}
       </button>
@@ -141,6 +148,7 @@
 
   /* foot — pinned under the rail; just the quiet design link now. */
   .foot { flex: 0 0 auto; margin-top: 10px; }
+  .profile-wrap { position: relative; display: flex; }
   .profile { color: var(--muted); border: var(--bw) solid var(--hairline);
     transition: color .12s ease, border-color .12s ease; }
   .profile:hover { color: var(--ink); border-color: var(--ink); }

@@ -35,7 +35,7 @@
     { k: 'ALL', days: Infinity, intraday: null, mock: '5Y' },
   ];
 
-  let range = $state('1D');
+  let range = $state('1M');
   let panBars = $state(0);            // bars the fixed-width window is shifted back
   let chartType = $state('area');     // 'area' | 'candles' | 'line'
   let showVolume = $state(true);
