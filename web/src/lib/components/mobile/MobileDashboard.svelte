@@ -43,11 +43,15 @@
   // swipe left/right anywhere in a pane to move a tab over — same three-stop
   // order as the dock. Decided on touchend from the net delta so an ordinary
   // vertical scroll (even a diagonal one) never gets mistaken for a swipe.
-  // A touch that starts on a graph or any other interactive control is left
-  // alone entirely: charts scrub/zoom horizontally themselves, and buttons,
-  // links, and inputs need their own untouched taps.
+  // Only a touch that starts on something with its OWN horizontal drag is
+  // left alone: the lightweight-charts canvas (hold-and-drag scrub) and the
+  // garden's (drag-to-orbit on touch, see interaction.js) — both are <canvas>.
+  // Ordinary buttons/links/badges are click-only, so they stay swipeable —
+  // holdings rows span most of the Holdings pane, and excluding buttons
+  // outright made swipe nearly dead there. Text inputs keep their own
+  // selection-drag untouched too.
   const SWIPE_MIN = 60;
-  const NO_SWIPE = 'canvas, svg, button, a, input, textarea, select, [role="button"], [contenteditable="true"]';
+  const NO_SWIPE = 'canvas, input, textarea, [contenteditable="true"]';
   let touchX = 0, touchY = 0, touching = false;
   function onTouchStart(e) {
     if (e.touches.length !== 1 || $detail || e.target.closest?.(NO_SWIPE)) { touching = false; return; }
