@@ -124,24 +124,28 @@ export default function createPlants() {
           (a, b) => (+b.position_pct || 0) - (+a.position_pct || 0)
         );
         const scaleFor = allocScaler(sorted);
-        if (sorted.length > PLANT_SLOTS.length) {
+        // A host may supply its own arrangement (the sign-in screen composes
+        // around a centred card); the dashboard bed uses the tuned defaults.
+        const slots = ctx.state.slots || PLANT_SLOTS;
+        if (sorted.length > slots.length) {
           console.warn(
-            `[garden] ${sorted.length} holdings but only ${PLANT_SLOTS.length} slots — ` +
+            `[garden] ${sorted.length} holdings but only ${slots.length} slots — ` +
               "wrapping (overlaps possible). Add more PLANT_SLOTS."
           );
         }
 
         for (let i = 0; i < sorted.length; i++) {
-          const slot = PLANT_SLOTS[i % PLANT_SLOTS.length];
+          const slot = slots[i % slots.length];
           const holder = new THREE.Group();
           holder.add(loadPlant(sorted[i], chunks));
-          holder.position.set(slot.x, 0, slot.z);
+          // slot.y lets a host raise or sink a plant (bare scenes have no ground)
+          holder.position.set(slot.x, slot.y || 0, slot.z);
           holder.rotation.y = slot.rot || 0;
           holder.scale.setScalar(scaleFor(sorted[i]));
           holder.name = "plant";
           holder.userData.position = sorted[i]; // for hover/click later
           holder.userData.slotIndex = i; // editor reads this for "Copy PLANT_SLOTS"
-          holder.userData.baseY = 0;
+          holder.userData.baseY = slot.y || 0;
           ctx.scene.add(holder);
           ctx.plants.push(holder);
         }

@@ -38,14 +38,27 @@ export function initGarden(data, options = {}) {
   if (_activeTeardown) _activeTeardown();
 
   const debug = !!options.debug;
+  // interactive:false → a purely ambient scene (idle sway only): no hover
+  // glow, no click-to-open, no touch drag-to-orbit. Used where there's no
+  // portfolio behind the plants, e.g. the sign-in screen.
+  const interactive = options.interactive !== false;
+  // bare:true → just the pots and plants on a transparent canvas: no sky dome,
+  // no ground bed, no sun/moon. The host's own background shows through, so
+  // the scene follows the page theme instead of the fixed cream PAGE_BG.
+  const bare = !!options.bare;
   const ctx = createContext(root, data);
   ctx.debug = debug;
+  ctx.interactive = interactive;
+  if (bare) {
+    ctx.scene.background = null;
+    ctx.renderer.setClearColor(0x000000, 0);
+  }
 
   // Layer registry — order is scene-build order. Append to grow the scene.
   const layers = [
-    createSky(),
+    ...(bare ? [] : [createSky()]),
     createLights(),
-    createGround(),
+    ...(bare ? [] : [createGround()]),
     createPlants(),
     // Camera control depends on context: inspect (OrbitControls) for the debug
     // page, idle-sway orbit for the dashboard band.
@@ -56,7 +69,7 @@ export function initGarden(data, options = {}) {
   // layer (hover glow + tooltip + click-to-open + wind sway) on the live heroes.
   const wantEditor = debug || editorEnabled();
   if (wantEditor) layers.push(createEditor());
-  else
+  else if (interactive)
     layers.push(
       createPick({ onHover: options.onHover, onPick: options.onPick })
     );

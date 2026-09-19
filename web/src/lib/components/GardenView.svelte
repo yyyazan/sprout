@@ -1,9 +1,13 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
+  import { untrack } from 'svelte';
   import { openStock, cardToHolding } from '$lib/stores.js';
   // debug → full-viewport inspect mode (OrbitControls + grid/axes + editor),
   // used by the /garden page. Omitted on the dashboard band (idle-sway orbit).
-  let { positions, period, debug = false } = $props();
+  // interactive=false → ambient only (no hover/click/drag); fill → take the
+  // host's full height instead of the dashboard band height; bare → plants
+  // only on a transparent canvas (no sky/ground), so the host's bg shows;
+  // slots → a custom [{x,z,rot}] arrangement in place of the bed's PLANT_SLOTS.
+  let { positions, period, debug = false, interactive = true, fill = false, bare = false, slots = null } = $props();
 
   // Hover/tap state, fed by the pick layer's onHover callback. Shape:
   // { card, x, y, above } | null. Cleared (null) on leave / tap-away / teardown.
@@ -15,20 +19,27 @@
     openStock({ ticker: card.ticker, name: card.company_name, holding: cardToHolding(card) });
   }
 
-  // initGarden returns its own teardown fn; we hold it for onDestroy so SPA
-  // navigation doesn't leak the rAF loop / orphan the canvas. Dynamic import
-  // keeps three.js out of the initial bundle and ensures browser-only execution.
-  let teardown;
-
-  onMount(async () => {
-    const { initGarden } = await import('$lib/three/garden/index.js');
-    teardown = initGarden({ positions, period }, { debug, onHover, onPick });
+  // One effect owns the garden's lifetime: it builds after mount, rebuilds when
+  // the host swaps `slots` (the sign-in screen does this at its breakpoint), and
+  // tears down on unmount. Only `slots` is tracked — positions/period are read
+  // untracked so the dashboard's periodic data refresh never rebuilds the scene.
+  // Dynamic import keeps three.js out of the initial bundle and browser-only.
+  $effect(() => {
+    const s = slots;
+    let cancelled = false;
+    let teardown;
+    import('$lib/three/garden/index.js').then(({ initGarden }) => {
+      if (cancelled) return;
+      teardown = initGarden(
+        untrack(() => ({ positions, period, slots: s })),
+        untrack(() => ({ debug, interactive, bare, onHover, onPick }))
+      );
+    });
+    return () => { cancelled = true; teardown?.(); };
   });
-
-  onDestroy(() => teardown?.());
 </script>
 
-<div class="garden-canvas-root" class:garden-canvas-root--fill={debug} id="garden-root">
+<div class="garden-canvas-root" class:garden-canvas-root--fill={debug || fill} id="garden-root">
   {#if hover}
     {@const c = hover.card}
     {@const d = c.day_pct == null ? null : +c.day_pct}

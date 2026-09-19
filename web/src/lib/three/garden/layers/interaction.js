@@ -29,7 +29,7 @@ export default function createInteraction() {
       // Drag left/right to spin around the bed; drag up to tilt toward the sky,
       // drag down for a more top-down tending view. Elevation is clamped so you
       // never flip under the ground or fully overhead.
-      if (isTouch) {
+      if (isTouch && ctx.interactive !== false) {
         canvas.style.cursor = "grab";
         const last = { x: 0, y: 0 };
 

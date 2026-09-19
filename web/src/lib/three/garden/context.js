@@ -29,9 +29,16 @@ function placeCamera(camera, target, orbit) {
 // HORIZONTAL fov constant and derive vertical from the live aspect — framing the
 // garden by width stays consistent everywhere; taller viewports just show more
 // ground/sky. tan(h/2) = tan(v/2) · aspect  ⟹  v = 2·atan(tan(h/2) / aspect).
+// Past this the derived vertical fov turns into a fisheye (a full-screen phone
+// at 0.46 aspect would get 125°). Only tall viewports hit it — the band (22°),
+// desktop (67°) and 2:1 mobile hero (48°) are untouched — and on those the
+// scene crops at the sides like a cover-fit image instead of warping.
+const MAX_V_FOV = 75;
+
 function vFovForAspect(hFovDeg, aspect) {
   const h = THREE.MathUtils.degToRad(hFovDeg);
-  return THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(h / 2) / aspect));
+  const v = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(h / 2) / aspect));
+  return Math.min(v, MAX_V_FOV);
 }
 
 export function createContext(root, data) {
@@ -96,6 +103,7 @@ export function createContext(root, data) {
     state: {
       period,
       positions,
+      slots: (data && data.slots) || null, // optional override of PLANT_SLOTS
       orbit,
       target,
       lit: lightingFor(period), // light + sun/moon palette, computed once
