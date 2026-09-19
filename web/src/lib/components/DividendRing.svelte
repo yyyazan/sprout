@@ -3,8 +3,11 @@
   // are this month's payers sized by contribution; hover a payer → the core
   // swaps to that stock.
   //
-  // DATA IS MOCKED (mockDividends → divYieldOf): real positions × a deterministic
-  // mock yield. SWAP POINT: a real /api/dividends keeps the same {items,...} shape.
+  // `data` is the real per-holding breakdown (portfolio.analytics.dividends,
+  // served as dashboard_payload().dividends) — both live call sites pass it.
+  // The mock fallback only fires on /design (no live dashboard fetch there)
+  // or a first paint before `data` resolves; it keeps the same {items,...}
+  // shape so the ring never has to special-case which source it's reading.
   import RingGauge from './RingGauge.svelte';
   import { mockDividends } from '$lib/mockStock.js';
 

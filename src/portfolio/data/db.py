@@ -275,6 +275,30 @@ def reconciliation_offset(conn: sqlite3.Connection, user_id: int = DEFAULT_USER_
     return float(row["offset_usd"]) if row is not None else 0.0
 
 
+def reconciliation_row(conn: sqlite3.Connection, user_id: int = DEFAULT_USER_ID) -> sqlite3.Row | None:
+    """Full reconciliation record (offset, note, when last set) for the settings UI."""
+    return conn.execute(
+        "SELECT offset_usd, reconciled_at, note FROM cash_reconciliation WHERE user_id = ?",
+        (user_id,),
+    ).fetchone()
+
+
+def update_reconciliation(
+    conn: sqlite3.Connection, user_id: int, offset_usd: float, note: str | None
+) -> None:
+    """Set the user's cash offset — the one write path for what was previously
+    a hand-edit-the-DB-only value. ON CONFLICT covers both the normal case
+    (every account gets a seeded row) and a pre-existing DB missing one."""
+    conn.execute(
+        "INSERT INTO cash_reconciliation (user_id, offset_usd, reconciled_at, note) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(user_id) DO UPDATE SET offset_usd = excluded.offset_usd, "
+        "reconciled_at = excluded.reconciled_at, note = excluded.note",
+        (user_id, float(offset_usd), _now(), note),
+    )
+    conn.commit()
+
+
 # ── watchlist ────────────────────────────────────────────────────────────────
 
 

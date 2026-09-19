@@ -73,5 +73,7 @@ export const api = {
   deleteTransaction: (id) => del('/transactions/' + id),
   login: (password) => post('/auth/login', { password }),
   me: () => get('/auth/me'),
-  logout: () => post('/auth/logout', {})
+  logout: () => post('/auth/logout', {}),
+  reconciliation: () => get('/account/reconciliation'),
+  setReconciliation: (body) => patch('/account/reconciliation', body)
 };

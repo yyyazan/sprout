@@ -39,7 +39,7 @@
 <div class="glass-card table-card">
   <div class="chart-title" style="margin-bottom:10px">Positions</div>
   <div class="data-table-wrap">
-    <table class="data-table">
+    <table class="data-table pt-table">
       <thead>
         <tr>
           {#each COLUMNS as col}
@@ -69,3 +69,27 @@
     </table>
   </div>
 </div>
+
+<style>
+  /* Ticker stays put while the other 8 columns scroll under it — without
+     this, scrolling right on a phone to read Unrealized $/Return % loses
+     which row you're even looking at. Needs an opaque background (matching
+     the card) since a sticky cell sits visually on top of whatever scrolls
+     beneath it. */
+  .pt-table :global(th:first-child),
+  .pt-table :global(td:first-child) {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    /* a visible seam where the frozen column ends — without it, whatever
+       scrolls underneath (e.g. a header's text) looks like a paint glitch
+       rather than content intentionally sliding behind a pinned column */
+    box-shadow: 2px 0 0 var(--ink);
+  }
+  .pt-table :global(td:first-child) { background: var(--surface); }
+
+  @media (max-width: 700px) {
+    .pt-table :global(th),
+    .pt-table :global(td) { padding: 8px 10px; }
+  }
+</style>
