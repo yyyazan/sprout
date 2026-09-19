@@ -4,7 +4,6 @@
   // sheet session so the iOS back-swipe dismisses the sheet instead of leaving
   // the app; opening a related stock swaps content without stacking entries.
   import StockPanel from '../StockPanel.svelte';
-  import TickerBadge from '../TickerBadge.svelte';
   import { detail, closeStock } from '$lib/stores.js';
   import { pushState } from '$app/navigation';
 
@@ -43,7 +42,6 @@
 
 <div class="m-sheet" role="dialog" aria-modal="true" aria-label="{$detail?.ticker} stock view">
   <div class="m-sheet-bar">
-    <TickerBadge sym={$detail?.ticker} size="md" />
     <button class="btn btn-sm btn-line" onclick={close}>Close</button>
   </div>
   <div class="m-sheet-body">
@@ -62,7 +60,7 @@
   @keyframes m-sheet-in { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
 
   .m-sheet-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center;
-    justify-content: space-between; gap: 12px; background: var(--bg); margin: 0 -14px 10px;
+    justify-content: flex-end; gap: 12px; background: var(--bg); margin: 0 -14px 10px;
     padding: calc(16px + env(safe-area-inset-top)) 14px 10px;
     border-bottom: var(--bw) solid var(--hairline); }
 

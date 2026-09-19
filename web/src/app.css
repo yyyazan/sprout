@@ -350,27 +350,25 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
 @media (max-width: 700px) {
   html, body { -webkit-tap-highlight-color: transparent; }
   /* 100dvh tracks Safari's collapsing URL bar; equals 100vh in standalone.
-     Bottom padding clears the dock (56px, flush to the edge, safe-area inset
-     padded inside it) with a little air above it. The shell clips sideways
-     overflow so <html> never needs an overflow rule (that demotes the
-     viewport scroller in Safari and the page loses its native feel). */
-  .m-shell { min-height: 100dvh; box-sizing: border-box;
-    padding: 0 14px calc(70px + env(safe-area-inset-bottom));
-    display: flex; flex-direction: column; overflow-x: clip; }
-  .m-pane { min-width: 0; }
-  .m-pane.hidden { display: none; }
-  /* a tab switch replays one of these on the pane that just became visible
-     (see MobileDashboard's effect) — display:none can't be transitioned, so
-     this is a manual "slide the new content in" instead of the instant swap
-     iOS gives a bare display flip. Direction matches travel: moving right
-     through the tabs (home → log) enters from the right, and back the
-     other way enters from the left. */
-  @keyframes m-pane-in-from-right { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
-  @keyframes m-pane-in-from-left  { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
-  .m-pane.enter-right { animation: m-pane-in-from-right .24s cubic-bezier(.22, .61, .36, 1); }
-  .m-pane.enter-left  { animation: m-pane-in-from-left .24s cubic-bezier(.22, .61, .36, 1); }
+     The shell is now the fixed swipeable viewport (not a document-scrolling
+     column): .m-track lays the three panes side by side and .m-pane is where
+     the real (independent, per-tab) scrolling happens — see MobileDashboard
+     for why a live-tracking drag needs that. Bottom padding on each pane
+     clears the dock (56px, flush to the edge, safe-area inset padded inside
+     it) with a little air above it. */
+  .m-shell { position: fixed; inset: 0; overflow: hidden; }
+  .m-track { display: flex; width: 300%; height: 100%; will-change: transform;
+    transition: transform .28s cubic-bezier(.22, .61, .36, 1);
+    /* vertical panning stays native (momentum + rubber-band); horizontal is
+       ours to read via touchmove, which touch-action: pan-y still allows */
+    touch-action: pan-y; }
+  .m-track.dragging { transition: none; }
+  .m-pane { flex: 0 0 calc(100% / 3); width: calc(100% / 3); min-width: 0;
+    height: 100%; box-sizing: border-box; overflow-y: auto; overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 14px calc(70px + env(safe-area-inset-bottom)); }
   @media (prefers-reduced-motion: reduce) {
-    .m-pane.enter-right, .m-pane.enter-left { animation: none; }
+    .m-track { transition: none; }
   }
   /* iOS focus-zoom guard: any text input rendered in the mobile tree ≥16px.
      !important so this a11y floor beats the component-scoped sizes (13–14px),

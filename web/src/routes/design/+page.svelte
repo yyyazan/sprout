@@ -170,7 +170,7 @@
       <TickerBadge sym="NVDA" size="md" />
       <TickerBadge sym="TSLA" size="big" />
     </div>
-    <p class="dm-note">sm / md / big — big carries a darker, saturated brick of the same hue behind it, offset like --sh-pop, at twice md's size.</p>
+    <p class="dm-note">sm / md / big — big carries a darker, saturated brick of the same hue straight down behind it, at twice md's size.</p>
   </section>
 
   <!-- ── buttons ── -->
