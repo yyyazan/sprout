@@ -131,7 +131,8 @@
     display: flex; height: 56px; padding-bottom: env(safe-area-inset-bottom);
     background: var(--surface); border-top: var(--bw) solid var(--hairline);
     /* the dock owns its gestures — no page scroll / back-swipe from here */
-    touch-action: none; -webkit-user-select: none; user-select: none; }
+    touch-action: none; -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none; user-select: none; }
 
   /* the tight pill: sized to the icon alone, not the column. A quiet ink
      wash, not a solid block — the same --hover-strength language the rest of
@@ -154,10 +155,17 @@
     100% { transform: scaleX(1); opacity: 1; }
   }
 
+  /* iOS standalone (home-screen PWA) draws its own default tap/focus fill
+     behind a plain <button> — bigger than and unaligned with our own pill —
+     where the Safari tab doesn't. -webkit-appearance strips the native
+     control chrome that fill rides on; the rest belts-and-suspenders it. */
   .m-tab { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 3px;
-    padding: 0; border: 0; background: transparent; cursor: pointer;
-    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    padding: 0; margin: 0; border: 0; background: transparent; cursor: pointer;
+    -webkit-appearance: none; appearance: none; outline: none;
+    -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
+    -webkit-user-select: none; user-select: none; }
+  .m-tab:focus, .m-tab:focus-visible, .m-tab:active { outline: none; background: transparent; }
 
   .m-tab-ico { width: 52px; height: 30px; display: flex; align-items: center; justify-content: center;
     color: var(--muted); transition: color .18s ease; }

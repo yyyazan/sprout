@@ -14,20 +14,43 @@
 
   let { d, garden, refresh } = $props();
 
+  const TAB_ORDER = ['home', 'holdings', 'log'];
   let tab = $state('home');
   onMount(() => { startMomentum(); loadWatchlist(); });
 
-  // fresh tab, fresh scroll — panes share the page scroll position otherwise
-  $effect(() => { tab; window.scrollTo(0, 0); });
+  // pane wrappers, keyed like TAB_ORDER — used only to replay the enter
+  // animation below; the mounted panes inside are never touched.
+  let paneEls = {};
+  let prevIdx = 0;
+
+  // fresh tab, fresh scroll — panes share the page scroll position otherwise.
+  // iOS can't transition a display:none → display:block flip, so a plain tab
+  // switch just jumps; this replays a small directional slide-in on whichever
+  // pane just became visible instead. Toggling the class on the wrapper (not
+  // the pane component) means the garden/charts inside are never re-mounted.
+  $effect(() => {
+    const i = TAB_ORDER.indexOf(tab);
+    const dir = i === prevIdx ? null : i > prevIdx ? 'right' : 'left';
+    prevIdx = i;
+    window.scrollTo(0, 0);
+    const el = paneEls[tab];
+    if (!dir || !el) return;
+    el.classList.remove('enter-left', 'enter-right');
+    void el.offsetWidth; // force a reflow so the animation replays
+    el.classList.add(dir === 'right' ? 'enter-right' : 'enter-left');
+  });
 
   // swipe left/right anywhere in a pane to move a tab over — same three-stop
   // order as the dock. Decided on touchend from the net delta so an ordinary
   // vertical scroll (even a diagonal one) never gets mistaken for a swipe.
-  const TAB_ORDER = ['home', 'holdings', 'log'];
+  // A touch that starts on a graph or any other interactive control is left
+  // alone entirely: charts scrub/zoom horizontally themselves, and buttons,
+  // links, and inputs need their own untouched taps.
   const SWIPE_MIN = 60;
+  const NO_SWIPE = 'canvas, svg, button, a, input, textarea, select, [role="button"], [contenteditable="true"]';
   let touchX = 0, touchY = 0, touching = false;
   function onTouchStart(e) {
-    if (e.touches.length !== 1 || $detail) return;
+    if (e.touches.length !== 1 || $detail || e.target.closest?.(NO_SWIPE)) { touching = false; return; }
     touching = true;
     touchX = e.touches[0].clientX;
     touchY = e.touches[0].clientY;
@@ -45,9 +68,9 @@
 </script>
 
 <div class="m-shell" ontouchstart={onTouchStart} ontouchend={onTouchEnd}>
-  <div class="m-pane" class:hidden={tab !== 'home'}><MobileHome {d} {garden} onSeeAll={() => (tab = 'holdings')} /></div>
-  <div class="m-pane" class:hidden={tab !== 'holdings'}><MobileHoldings /></div>
-  <div class="m-pane" class:hidden={tab !== 'log'}><MobileLog {d} {refresh} /></div>
+  <div class="m-pane" class:hidden={tab !== 'home'} bind:this={paneEls.home}><MobileHome {d} {garden} onSeeAll={() => (tab = 'holdings')} /></div>
+  <div class="m-pane" class:hidden={tab !== 'holdings'} bind:this={paneEls.holdings}><MobileHoldings /></div>
+  <div class="m-pane" class:hidden={tab !== 'log'} bind:this={paneEls.log}><MobileLog {d} {refresh} /></div>
 </div>
 
 <MobileTabBar bind:tab />

@@ -359,6 +359,19 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
     display: flex; flex-direction: column; overflow-x: clip; }
   .m-pane { min-width: 0; }
   .m-pane.hidden { display: none; }
+  /* a tab switch replays one of these on the pane that just became visible
+     (see MobileDashboard's effect) — display:none can't be transitioned, so
+     this is a manual "slide the new content in" instead of the instant swap
+     iOS gives a bare display flip. Direction matches travel: moving right
+     through the tabs (home → log) enters from the right, and back the
+     other way enters from the left. */
+  @keyframes m-pane-in-from-right { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+  @keyframes m-pane-in-from-left  { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+  .m-pane.enter-right { animation: m-pane-in-from-right .24s cubic-bezier(.22, .61, .36, 1); }
+  .m-pane.enter-left  { animation: m-pane-in-from-left .24s cubic-bezier(.22, .61, .36, 1); }
+  @media (prefers-reduced-motion: reduce) {
+    .m-pane.enter-right, .m-pane.enter-left { animation: none; }
+  }
   /* iOS focus-zoom guard: any text input rendered in the mobile tree ≥16px.
      !important so this a11y floor beats the component-scoped sizes (13–14px),
      which are injected after this stylesheet. */

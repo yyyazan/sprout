@@ -91,7 +91,7 @@
 
 <style>
   .mho-head { display: flex; align-items: center; justify-content: space-between;
-    padding: calc(20px + env(safe-area-inset-top)) 0 6px; }
+    padding: calc(33px + env(safe-area-inset-top)) 0 6px; }
   .mho-head-wl { padding-top: 22px; }
   .mho-title { font-size: var(--fs-title); font-weight: 600; color: var(--ink); }
   .mho-win { display: inline-flex; gap: 2px; }

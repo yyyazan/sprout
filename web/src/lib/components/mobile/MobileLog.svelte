@@ -43,7 +43,7 @@
 
 <style>
   .ml-tiles { --card-pad: 14px 16px; display: flex; flex-direction: column; gap: 12px;
-    padding-top: calc(18px + env(safe-area-inset-top)); }
+    padding: calc(33px + env(safe-area-inset-top)) 0 14px; }
   /* give the tiles enough body for their 60%-rise entry panels */
   .ml-tiles > :global(.glass-card) { min-height: 190px; }
 </style>
