@@ -127,7 +127,11 @@
   .mh-hero { position: relative; margin: 0 -14px 14px; }
   .mh-hero-overlay { position: absolute; top: 0; left: 0; right: 0; z-index: 2; pointer-events: none;
     display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-    padding: calc(18px + env(safe-area-inset-top)) 16px 0; }
+    /* Safari's own top blur/gradient (standalone status bar and the in-tab
+       chrome alike) reaches a bit past the safe-area inset itself — enough to
+       clip through the top half of the 30px profile circle at the old 18px.
+       +15px (half that circle) clears it. */
+    padding: calc(33px + env(safe-area-inset-top)) 16px 0; }
   /* overlay is pointer-transparent so the garden stays scrollable; the tools opt back in */
   .mh-tools { display: flex; gap: 8px; pointer-events: auto; }
   .mh-profile { position: relative; display: flex; }

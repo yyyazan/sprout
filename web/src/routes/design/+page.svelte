@@ -164,6 +164,13 @@
       <li><b>One padding.</b> --card-pad — 14×16 in the rail, set on the container, never on the card.</li>
       <li><b>Pressable cards lift.</b> .pressable → --sh-pop on hover. The only card hover there is.</li>
     </ol>
+    <div class="w-h dm-gap">Ticker badges</div>
+    <div class="dm-btnrow">
+      <TickerBadge sym="AAPL" size="sm" />
+      <TickerBadge sym="NVDA" size="md" />
+      <TickerBadge sym="TSLA" size="big" />
+    </div>
+    <p class="dm-note">sm / md / big — big carries a darker, saturated brick of the same hue behind it, offset like --sh-pop, at twice md's size.</p>
   </section>
 
   <!-- ── buttons ── -->
@@ -280,7 +287,7 @@
     <p class="dm-usage">Same components, three panes: Home, Holdings, Log. Search is the strip on Home, not a tab.
       The stock view is a full-screen sheet. Nothing here has its own type — it uses the four sizes above.</p>
     <div class="dm-rows">
-      <div class="dm-row"><code class="dm-code">dock</code><span class="dm-usage">52px capsule on --surface, ink hairline, 3px inset. Each tab is a .btn: icon 18 + label 13/600 on one line; the sliding ink pill is .btn.on.</span></div>
+      <div class="dm-row"><code class="dm-code">dock</code><span class="dm-usage">56px bar, edge-to-edge and flush to the bottom — no capsule, no margins, just a hairline top edge. Icon over label (21 / 10.5·600); the active tab gets a 52×30 pill (11% ink wash, not a solid block) that hugs the icon alone, slides between tabs, and pops in with a small liquid overshoot each time it lands. Swipe anywhere in a pane to move a tab over.</span></div>
       <div class="dm-row"><code class="dm-code">header</code><span class="dm-usage">greeting 28/700 lowercase, 18px under the status bar; theme + profile as 30px rings on the right, the profile a 24-box person icon.</span></div>
       <div class="dm-row"><code class="dm-code">strip</code><span class="dm-usage">the desktop .strip. Idle = button; live = input + Cancel, results take the pane over.</span></div>
       <div class="dm-row"><code class="dm-code">rows</code><span class="dm-usage">48–56px touch rows, hairline between, press tint. Badge, name (body muted), figure (num).</span></div>
@@ -290,15 +297,21 @@
       <div class="dm-dock" aria-hidden="true">
         <span class="dm-dock-pill"></span>
         <span class="dm-dock-tab on">
-          <svg viewBox="0 0 24 24"><path d="M12 21 V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /><path d="M12 13 C 8.5 13, 6 10.8, 5.6 6.8 C 9.6 7, 11.7 9.4, 12 13 Z" fill="currentColor" /><path d="M12 11 C 15.5 11, 18 8.8, 18.4 4.8 C 14.4 5, 12.3 7.4, 12 11 Z" fill="currentColor" /></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 11 12 4 20 11 V19 A2 2 0 0 1 18 21 H6 A2 2 0 0 1 4 19 Z" /><path d="M9.5 21 V14 H14.5 V21" />
+          </svg>
           <span>Home</span>
         </span>
         <span class="dm-dock-tab">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 20 V13" /><path d="M12 20 V5" /><path d="M19 20 V9" /></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.21 15.89A10 10 0 1 1 8 2.83" /><path d="M22 12A10 10 0 0 0 12 2v10Z" />
+          </svg>
           <span>Holdings</span>
         </span>
         <span class="dm-dock-tab">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 7 h.01" /><path d="M10 7 h9" /><path d="M5 12 h.01" /><path d="M10 12 h9" /><path d="M5 17 h.01" /><path d="M10 17 h9" /></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 18 V6 M4.5 9.5 8 6 11.5 9.5" /><path d="M16 6 V18 M12.5 14.5 16 18 19.5 14.5" />
+          </svg>
           <span>Log</span>
         </span>
       </div>
@@ -338,13 +351,16 @@
 <style>
   /* mobile section: a static dock (the real one is position: fixed) and a glance row */
   .dm-mobile-demo { display: grid; grid-template-columns: 343px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 4px; }
-  .dm-dock { position: relative; height: 52px; padding: 3px; box-sizing: border-box; display: grid; grid-template-columns: repeat(3, 1fr);
-    border: var(--bw) solid var(--ink); border-radius: 999px; background: var(--surface); }
-  .dm-dock-pill { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / 3); background: var(--ink); border-radius: 999px; }
-  .dm-dock-tab { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-    color: var(--muted); font-size: 13px; font-weight: 600; }
-  .dm-dock-tab.on { color: var(--paper); }
-  .dm-dock-tab svg { width: 18px; height: 18px; display: block; }
+  .dm-dock { position: relative; height: 56px; box-sizing: border-box; display: flex;
+    border-top: var(--bw) solid var(--hairline); background: var(--surface); }
+  .dm-dock-pill { position: absolute; top: 6px; left: calc((100% / 3 - 52px) / 2); width: 52px; height: 30px;
+    background: color-mix(in srgb, var(--ink) 11%, transparent); border-radius: 999px; }
+  .dm-dock-tab { position: relative; z-index: 1; flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 3px;
+    color: var(--muted); font-size: 10.5px; font-weight: 600; line-height: 1; }
+  .dm-dock-tab.on { color: var(--ink); }
+  .dm-dock-tab.on svg { color: var(--ink); }
+  .dm-dock-tab svg { width: 21px; height: 21px; display: block; color: var(--muted); }
   .dm-glance { display: flex; flex-direction: column; }
   .dm-glance-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 2px; }
   .dm-glance-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; min-height: 48px; padding: 8px 0;

@@ -350,12 +350,12 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
 @media (max-width: 700px) {
   html, body { -webkit-tap-highlight-color: transparent; }
   /* 100dvh tracks Safari's collapsing URL bar; equals 100vh in standalone.
-     Bottom padding clears the floating dock (56px capsule + 8px inset) + home
-     indicator, with a little air above it. The shell clips sideways overflow
-     so <html> never needs an overflow rule (that demotes the viewport scroller
-     in Safari and the page loses its native feel). */
+     Bottom padding clears the dock (56px, flush to the edge, safe-area inset
+     padded inside it) with a little air above it. The shell clips sideways
+     overflow so <html> never needs an overflow rule (that demotes the
+     viewport scroller in Safari and the page loses its native feel). */
   .m-shell { min-height: 100dvh; box-sizing: border-box;
-    padding: 0 14px calc(78px + env(safe-area-inset-bottom));
+    padding: 0 14px calc(70px + env(safe-area-inset-bottom));
     display: flex; flex-direction: column; overflow-x: clip; }
   .m-pane { min-width: 0; }
   .m-pane.hidden { display: none; }

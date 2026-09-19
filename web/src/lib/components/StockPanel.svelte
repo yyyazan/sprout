@@ -193,12 +193,13 @@
         <div class="hw-quote">
           <span class="hw-px">${f(stock.price)}</span>
           <span class="hw-day {stock.dayPct >= 0 ? 'up' : 'down'}">
-            {#if dayAbs != null}<span>{usdS(dayAbs)}</span>{/if}<span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span>
+            {#if dayAbs != null}<span>{usdS(dayAbs)}</span>{/if}<span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span><span class="hw-tf">today</span>
           </span>
         </div>
       </div>
       {#if owned}
         <div class="hw-pos">
+          <span class="hw-pos-label">Your position</span>
           <span class="pos-ret {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">
             <b class="pct-pill {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">{pctS(stock.plPct)}</b><small>{usdS(stock.plAbs)}</small>
           </span>
@@ -370,11 +371,13 @@
     font-variant-numeric: tabular-nums; line-height: 1; }
   .hw-day { display: inline-flex; align-items: center; gap: 6px; font-family: var(--num); font-size: 13px;
     font-weight: 500; font-variant-numeric: tabular-nums; }
+  .hw-tf { font-family: var(--sans); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
   /* position row: abbreviated labels (sh/avg/val/wt) + a modest gap trim let the
      five stats fit on ONE line at the narrow stage width, so the holdings header
      stays compact (~150) instead of wrapping to a tall two-line block. Figures
      keep their full size for legibility. */
   .hw-pos { display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; }
+  .hw-pos-label { font-size: var(--fs-meta); font-weight: 600; color: var(--muted); }
   .pos-ret { display: inline-flex; align-items: baseline; gap: 7px; }
   .pos-ret b { font-family: var(--num); font-size: 15px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
   .pos-ret small { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums; }
