@@ -74,7 +74,7 @@
   <!-- persistent search strip: idle button (opens search) or the live query input -->
   {#if mode === 'search'}
     <div class="strip strip-active">
-      <span class="strip-icon" aria-hidden="true">⌕</span>
+      <span class="strip-icon" aria-hidden="true"></span>
       <input
         bind:this={input}
         bind:value={q}
@@ -87,7 +87,7 @@
     </div>
   {:else}
     <button class="strip strip-idle" onclick={() => openSearch()}>
-      <span class="strip-icon" aria-hidden="true">⌕</span>
+      <span class="strip-icon" aria-hidden="true"></span>
       <span class="strip-ph">Search</span>
       <kbd class="strip-kbd">⌘K</kbd>
     </button>
@@ -118,7 +118,7 @@
           {/each}
         </ul>
       {:else if !q.trim()}
-        <div class="ss-empty">Search the whole market — not just your holdings.</div>
+        <div class="ss-empty">Search the whole market, not just your holdings.</div>
       {/if}
     </div>
   {:else}
@@ -139,7 +139,7 @@
 
   /* search brings a card shell; stock mode is a bare widget grid; the chart card is its own chrome */
   .stage-card { background: var(--surface); border: var(--bw) solid var(--ink);
-    border-radius: calc(var(--r) + 2px); box-shadow: var(--sh); overflow: hidden; }
+    border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
   .stage-in { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
     animation: stage-in .18s ease; }
   @keyframes stage-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

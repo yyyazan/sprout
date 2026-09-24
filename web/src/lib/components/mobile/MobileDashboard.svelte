@@ -2,10 +2,10 @@
   // Phone dashboard shell: three always-mounted panes (Home, Holdings, Log) in
   // one horizontal track, live-dragged like a native page view, plus the fixed
   // bottom tab bar and the full-screen stock sheet. Takes over the data wiring
-  // the desktop Sidebar normally does (momentum poll + watchlist), since the
+  // the desktop Sidebar normally does (momentum poll + lists), since the
   // sidebar isn't mounted on mobile.
   import { onMount } from 'svelte';
-  import { startMomentum, loadWatchlist, detail } from '$lib/stores.js';
+  import { startMomentum, loadLists, detail } from '$lib/stores.js';
   import MobileTabBar from './MobileTabBar.svelte';
   import MobileHome from './MobileHome.svelte';
   import MobileHoldings from './MobileHoldings.svelte';
@@ -16,7 +16,7 @@
 
   const TAB_ORDER = ['home', 'holdings', 'log'];
   let tab = $state('home');
-  onMount(() => { startMomentum(); loadWatchlist(); });
+  onMount(() => { startMomentum(); loadLists(); });
 
   const idx = $derived(TAB_ORDER.indexOf(tab));
 

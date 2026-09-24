@@ -26,9 +26,9 @@
 <div class="glass-card earn">
   <div class="kpi-label">Upcoming earnings</div>
   {#if earnings === null}
-    <div class="earn-note">loading…</div>
+    <div class="earn-note">Loading…</div>
   {:else if earnings.length === 0}
-    <div class="earn-note">no earnings dates</div>
+    <div class="earn-note">No earnings dates.</div>
   {:else}
     <div class="earn-grid">
       {#each earnings as e (e.ticker)}

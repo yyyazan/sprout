@@ -71,7 +71,7 @@
     busy = true;
     try { await api.logout(); } catch { /* clearing the cookie is best-effort */ }
     // Full reload rather than a client-side transition: stores.js caches
-    // holdings/trades/watchlist at module scope and its loaders short-circuit
+    // holdings/trades/lists at module scope and its loaders short-circuit
     // when populated, so a soft sign-out would leak the old account's data.
     location.reload();
   }
@@ -137,8 +137,7 @@
   .pm-recon-edit { display: flex; flex-direction: column; gap: 6px; padding: 8px 9px;
     border-top: var(--bw) solid var(--hairline); }
   .pm-recon-field { display: flex; flex-direction: column; gap: 2px; }
-  .pm-recon-field span { font-family: var(--sans); font-size: 10px; font-weight: 600; color: var(--muted);
-    text-transform: uppercase; letter-spacing: .04em; }
+  .pm-recon-field span { font-family: var(--sans); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
   .pm-recon-field input { width: 100%; box-sizing: border-box; height: 26px; padding: 0 7px;
     background: var(--paper); border: var(--bw) solid var(--ink); border-radius: var(--r);
     font-family: var(--num); font-size: 12px; font-weight: 600; color: var(--ink); }
@@ -149,7 +148,7 @@
   .pm-recon-actions { display: flex; gap: 6px; padding-top: 2px; }
   .pm-recon-btn { flex: 1 1 auto; height: 24px; padding: 0 8px; box-sizing: border-box;
     border-radius: 999px; background: transparent; font-family: var(--sans); font-size: 11.5px; font-weight: 600;
-    cursor: pointer; border: 1.5px solid var(--hairline); color: var(--ink); }
+    cursor: pointer; border: var(--bw) solid var(--hairline); color: var(--ink); }
   .pm-recon-btn:hover:not(:disabled) { border-color: var(--ink); }
   .pm-recon-btn:disabled { opacity: .5; cursor: default; }
   .pm-recon-quiet { color: var(--muted); }

@@ -97,25 +97,77 @@ export function loadTrades(force = false) {
   return trInflight;
 }
 
-// Watched (non-held) tickers: [{ ticker, name, price, dayPct }] | null = not loaded.
-// Shared so the sidebar rail and the stock view's watch toggle stay in sync.
-export const watchlist = writable(null);
-let wlInflight = null;
-export function loadWatchlist(force = false) {
-  if (get(watchlist) && !force) return Promise.resolve();
-  if (wlInflight) return wlInflight;
-  wlInflight = api
-    .watchlist()
-    .then((w) => watchlist.set(w ?? []))
+// Sidebar lists: [{ id, name, items: [{ ticker, name, price, dayPct, weekPct,
+// monthPct, spark }] }] | null = not loaded. Shared by the sidebar, the stock
+// view's list picker and the phone Holdings pane.
+export const lists = writable(null);
+let lsInflight = null;
+export function loadLists(force = false) {
+  if (get(lists) && !force) return Promise.resolve();
+  if (lsInflight) return lsInflight;
+  lsInflight = api
+    .lists()
+    .then((l) => lists.set(l ?? []))
     .catch(() => {})
-    .finally(() => { wlInflight = null; });
-  return wlInflight;
+    .finally(() => { lsInflight = null; });
+  return lsInflight;
 }
 
-export async function toggleWatch(ticker, on) {
-  const r = await (on ? api.watch(ticker) : api.unwatch(ticker));
-  if (r?.watchlist) watchlist.set(r.watchlist);
-  return r?.ok ?? false;
+// Every write shows the new state at once, then swaps in the server's
+// hydrated copy. `seq` drops a slow response that a newer write superseded;
+// a failed write reloads the truth.
+let lsSeq = 0;
+async function commitLists(next, request) {
+  const mine = ++lsSeq;
+  if (next) lists.set(next);
+  try {
+    const r = await request();
+    if (mine === lsSeq && r?.lists) lists.set(r.lists);
+    return r;
+  } catch {
+    if (mine === lsSeq) loadLists(true);
+    return null;
+  }
+}
+
+const layoutOf = (ls) => ls.map((L) => ({ id: L.id, tickers: L.items.map((i) => i.ticker) }));
+export const saveLists = (next) => commitLists(next, () => api.setLayout(layoutOf(next)));
+
+export async function createList(name, tickers = []) {
+  const r = await commitLists(null, () => api.createList(name, tickers));
+  return r?.id ?? null;
+}
+export function renameList(id, name) {
+  const next = (get(lists) ?? []).map((L) => (L.id === id ? { ...L, name } : L));
+  return commitLists(next, () => api.renameList(id, name));
+}
+export function deleteList(id) {
+  return commitLists((get(lists) ?? []).filter((L) => L.id !== id), () => api.deleteList(id));
+}
+
+// A row for a ticker about to land in a list, before the server hydrates it:
+// reuse one from another list, else build it from the holding + live move.
+export function rowFor(ticker) {
+  for (const L of get(lists) ?? []) {
+    const hit = L.items.find((i) => i.ticker === ticker);
+    if (hit) return hit;
+  }
+  const c = (get(holdings) ?? []).find((h) => h.ticker === ticker);
+  const m = get(moves)[ticker];
+  return {
+    ticker, name: c?.company_name ?? ticker, price: m?.spot ?? c?.current_price ?? null,
+    dayPct: m?.day_pct ?? c?.day_pct ?? null, weekPct: m?.week_pct ?? c?.week_pct ?? null,
+    monthPct: m?.month_pct ?? null, spark: m?.spark ?? [],
+  };
+}
+
+export function setMembership(ticker, listId, on) {
+  const next = (get(lists) ?? []).map((L) => {
+    if (L.id !== listId) return L;
+    const items = L.items.filter((i) => i.ticker !== ticker);
+    return { ...L, items: on ? [...items, rowFor(ticker)] : items };
+  });
+  return saveLists(next);
 }
 
 export function openStock(payload) { detail.set(payload); }

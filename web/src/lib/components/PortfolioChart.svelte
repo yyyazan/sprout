@@ -205,7 +205,7 @@
   });
 
   const fmtUsd = (n) => '$' + Math.round(n).toLocaleString('en-US');
-  const fmtPct = (n) => (n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%');
+  const fmtPct = (n) => (n == null ? '—' : (n >= 0 ? '+' : '−') + Math.abs(n).toFixed(1) + '%');
   const fmtDate = (iso) =>
     new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -300,7 +300,7 @@
         localization: {
           priceFormatter: m === 'value'
             ? (x) => '$' + x.toLocaleString('en-US', { maximumFractionDigits: 0 })
-            : (x) => (x >= 0 ? '+' : '') + x.toFixed(0) + '%',
+            : (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(0) + '%',
         },
       });
 

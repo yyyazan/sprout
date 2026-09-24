@@ -164,7 +164,7 @@
      regardless of font metrics; the whole badge spins 45° into an × on open. */
   .cg-add { position: absolute; top: 39px; right: 7px; z-index: 2; pointer-events: none;
     width: 17px; height: 17px; border-radius: 50%;
-    background: var(--surface); border: 1.5px solid var(--hairline); color: var(--muted);
+    background: var(--surface); border: var(--bw) solid var(--hairline); color: var(--muted);
     transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease; }
   .cg-add::before, .cg-add::after { content: ''; position: absolute; top: 50%; left: 50%;
     background: currentColor; transform: translate(-50%, -50%); }
@@ -215,7 +215,7 @@
      date, same width) · save (right, a plain circle) — both sit vertically
      centred against the taller grid, not stretched to match it. */
   .cg-body { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
-  .cg-sign { flex: 0 0 auto; padding: 7px 14px; box-sizing: border-box; border: 1.5px solid var(--hairline);
+  .cg-sign { flex: 0 0 auto; padding: 7px 14px; box-sizing: border-box; border: var(--bw) solid var(--hairline);
     border-radius: 999px; background: transparent; font-family: var(--sans); font-size: 11.5px;
     font-weight: 600; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
     transition: background .12s ease, border-color .12s ease, color .12s ease; }
@@ -225,7 +225,7 @@
   .cg-sign.neg:active { background: color-mix(in srgb, var(--loss) 16%, transparent); }
   .cg-save { flex: 0 0 30px; width: 30px; height: 30px; padding: 0; box-sizing: border-box;
     border-radius: 999px; background: transparent; font-size: 13px; cursor: pointer;
-    border: 1.5px solid var(--hairline); color: var(--ink);
+    border: var(--bw) solid var(--hairline); color: var(--ink);
     display: flex; align-items: center; justify-content: center;
     transition: background .12s ease, border-color .12s ease, color .12s ease; }
   .cg-save:hover { border-color: var(--ink); }

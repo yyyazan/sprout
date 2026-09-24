@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Local dev: start FastAPI (:8000) + Vite (:5173) together, open http://localhost:5173.
 # Vite proxies /api -> :8000, so the frontend's relative /api calls just work.
-# Ctrl-C stops both. Run from the repo root: ./dev.sh
+# Ctrl-C stops both. Run from anywhere: ./scripts/dev.sh
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 # Kill both child processes when this script exits (Ctrl-C, error, or normal quit).
 trap "kill 0" EXIT

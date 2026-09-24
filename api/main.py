@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse
 from api import auth, backup, state
 from portfolio.data import db as db_mod
 from api.config import CORS_ORIGINS
-from api.routers import account, dashboard, entries, search, stock, watchlist
+from api.routers import account, dashboard, entries, lists, search, stock
 
 # Static SvelteKit bundle (adapter-static). Served by this same process so the
 # whole app is one deploy; missing in dev when the frontend runs on Vite :5173.
@@ -85,7 +85,7 @@ app.include_router(dashboard.router)
 app.include_router(entries.router)
 app.include_router(search.router)
 app.include_router(stock.router)
-app.include_router(watchlist.router)
+app.include_router(lists.router)
 
 
 @app.get("/healthz")

@@ -143,8 +143,8 @@
 </script>
 
 <div class="al-wrap">
-  <label class="al-search">
-    <span class="al-search-ic" aria-hidden="true">⌕</span>
+  <label class="strip strip-active al-search">
+    <span class="strip-icon" aria-hidden="true"></span>
     <input type="search" bind:value={query} placeholder="Search trades, transactions, realized"
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-label="Search activity" />
   </label>
@@ -212,7 +212,7 @@
     <div class="al-head"><span class="al-title">Transactions</span></div>
     {#if txnsFiltered.length}
       <div class="al-colhead al-txn" aria-hidden="true">
-        <span>Date</span><span>Amount</span><span></span>
+        <span>Amount</span><span>Date</span><span></span>
       </div>
       <div class="al-rows" class:al-fade={!txnsAll && !q && txns.length > recent}>
         {#each txnsFiltered as x (x.id)}
@@ -240,8 +240,8 @@
             </div>
           {:else}
             <div class="al-row al-txn">
-              <span class="al-date">{x.date}</span>
               <span class="al-fig {x.amount >= 0 ? 'up' : 'down'}">{fmt.signedMoney2(x.amount)}</span>
+              <span class="al-date">{x.date}</span>
               <span class="al-row-actions">
                 <button type="button" class="al-ic" onclick={() => startEditTxn(x)} aria-label="Edit transaction">✎</button>
                 <button type="button" class="al-ic" onclick={() => askDeleteTxn(x.id)} aria-label="Delete transaction">✕</button>
@@ -303,18 +303,9 @@
   .al-wrap { display: flex; flex-direction: column; gap: 26px; }
   .al-sec { min-width: 0; }
 
-  .al-search { width: 100%; max-width: 380px; min-width: 0; display: flex; align-items: center; gap: 6px;
-    padding: 6px 12px; border: var(--bw) solid var(--hairline); border-radius: 999px;
-    transition: border-color .12s ease; }
-  .al-search:focus-within { border-color: var(--ink); }
-  .al-search-ic { font-size: 13px; color: var(--muted); flex: 0 0 auto; }
-  .al-search input { flex: 1 1 auto; min-width: 0; width: 100%; border: 0; outline: 0; background: transparent;
-    color: var(--text); font-family: var(--sans); font-size: var(--fs-body); font-weight: 500;
-    -webkit-appearance: none; appearance: none; }
-  .al-search input::placeholder { color: var(--muted); }
-  .al-search input::-webkit-search-cancel-button { -webkit-appearance: none; }
+  /* the shared search strip (app.css) — same box as the home search */
+  .al-search input { -webkit-appearance: none; appearance: none; }
   @media (max-width: 700px) {
-    .al-search { max-width: none; }
     .al-search input { font-size: 16px; } /* under 16px makes Safari zoom the page */
   }
 
@@ -328,7 +319,7 @@
      the header just swaps padding/typography, never the geometry. */
   .al-row, .al-colhead { display: grid; align-items: center; column-gap: 6px; box-sizing: border-box; }
   .al-colhead { padding: 0 8px 6px; border-bottom: var(--bw) solid var(--hairline); margin-bottom: 2px; }
-  .al-colhead span { min-width: 0; font-size: 10px; font-weight: 600; color: var(--muted); text-align: center;
+  .al-colhead span { min-width: 0; font-size: var(--fs-meta); font-weight: 500; color: var(--muted); text-align: center;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* rows: alternating wash instead of a hairline per row — reads as a ledger
@@ -348,10 +339,9 @@
   /* every data column shares the row equally (a trailing utility column for
      the hover actions is the one exception — it's chrome, not data, so it
      stays a small fixed width and sits outside the split). Same column order
-     everywhere: ticker · action · shares · date · price/amount/P&L, with
+     everywhere: ticker, action, shares, date, price/amount/P&L, with
      whichever of those a table doesn't have simply omitted. Roomier padding
-     past a tablet-ish breakpoint, where headers also pick up their small-caps
-     treatment (too cramped to read well at phone widths). */
+     past a tablet-ish breakpoint. */
   .al-trade { grid-template-columns: repeat(5, 1fr) 48px; }
   .al-txn { grid-template-columns: repeat(2, 1fr) 48px; }
   .al-lot { grid-template-columns: repeat(4, 1fr); }
@@ -359,7 +349,6 @@
     .al-row, .al-colhead { column-gap: 10px; }
     .al-row { padding: 8px 10px; min-height: 44px; }
     .al-colhead { padding: 0 10px 8px; }
-    .al-colhead span { text-transform: uppercase; letter-spacing: .05em; }
   }
 
   /* ticker badge: centered in its column rather than stretched to fill it —
@@ -398,7 +387,7 @@
      toggle, a 2×2 field grid (ticker/shares over date/price — same order as
      TradeTicket's add form; 2 fields alone for a transaction), then save/cancel. */
   .al-row.al-edit { grid-template-columns: auto 1fr auto; column-gap: 8px; position: relative; }
-  .al-e-side { flex: 0 0 auto; padding: 6px 10px; box-sizing: border-box; border: 1.5px solid var(--hairline);
+  .al-e-side { flex: 0 0 auto; padding: 6px 10px; box-sizing: border-box; border: var(--bw) solid var(--hairline);
     border-radius: 999px; background: transparent; font-family: var(--sans); font-size: 11px;
     font-weight: 600; line-height: 1; cursor: pointer; white-space: nowrap; align-self: center;
     transition: background .12s ease, border-color .12s ease, color .12s ease; }
@@ -417,7 +406,7 @@
   .al-e-actions { display: flex; gap: 4px; align-self: center; justify-self: end; }
   .al-e-btn { flex: 0 0 auto; height: 26px; padding: 0 10px; box-sizing: border-box;
     border-radius: 999px; background: transparent; font-size: 12px; font-weight: 600; cursor: pointer;
-    border: 1.5px solid var(--hairline); color: var(--ink);
+    border: var(--bw) solid var(--hairline); color: var(--ink);
     display: flex; align-items: center; justify-content: center;
     transition: background .12s ease, border-color .12s ease, color .12s ease; }
   .al-e-btn:hover { border-color: var(--ink); }

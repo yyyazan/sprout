@@ -1,10 +1,10 @@
 <script>
   // Search results for the phone home — the strip that owns the query lives in
   // MobileHome; this is the list under it. Market results while typing,
-  // Recent → Your holdings → Watchlist when the query is empty. Debounce and
+  // Recent → Your holdings → each list when the query is empty. Debounce and
   // sequencing mirror the desktop stage; rows are the shared .ss-* rules.
   import { api } from '$lib/api.js';
-  import { holdings, watchlist, openSearchResult } from '$lib/stores.js';
+  import { holdings, lists, openSearchResult } from '$lib/stores.js';
   import TickerBadge from '../TickerBadge.svelte';
 
   let { q = '' } = $props();
@@ -50,14 +50,16 @@
   }
 
   const heldRows = $derived(($holdings ?? []).map((c) => ({ symbol: c.ticker, name: c.company_name, type: 'Holding' })));
-  const watchRows = $derived(($watchlist ?? []).map((w) => ({ symbol: w.ticker, name: w.name, type: 'Watching' })));
+  const listGroups = $derived(($lists ?? []).map((L) => ({
+    title: L.name, rows: L.items.map((i) => ({ symbol: i.ticker, name: i.name, type: 'List' })),
+  })));
 
   const groups = $derived(q.trim()
     ? [{ title: null, rows: results }]
     : [
         { title: 'Recent', rows: recents },
         { title: 'Your holdings', rows: heldRows },
-        { title: 'Watchlist', rows: watchRows },
+        ...listGroups,
       ].filter((g) => g.rows.length));
 </script>
 
@@ -65,7 +67,7 @@
   {#if q.trim() && !loading && results.length === 0}
     <div class="ss-empty">No matches for “{q.trim()}”.</div>
   {:else if groups.length}
-    {#each groups as g (g.title ?? 'results')}
+    {#each groups as g, gi (gi)}
       {#if g.title}<div class="ss-section">{g.title}</div>{/if}
       <ul class="ss-list">
         {#each g.rows as r (r.symbol)}

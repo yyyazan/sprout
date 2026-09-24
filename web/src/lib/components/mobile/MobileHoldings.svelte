@@ -1,8 +1,9 @@
 <script>
   // Mobile Holdings pane — the sidebar rail rebuilt for a full phone column:
   // richer rows (price + live move + value + weight), a D/W/M move window, and
-  // the watchlist underneath. Same stores and live-momentum fallback as the rail.
-  import { holdings, moves, watchlist, openStock, cardToHolding } from '$lib/stores.js';
+  // each list underneath. Same stores and live-momentum fallback as the rail.
+  // Lists are read-only here — arranging them is a desktop sidebar job.
+  import { holdings, moves, lists, openStock, cardToHolding } from '$lib/stores.js';
   import TickerBadge from '../TickerBadge.svelte';
 
   const WINS = [['day', 'D'], ['wk', 'W'], ['mo', 'M']];
@@ -68,13 +69,14 @@
   {/each}
 {/if}
 
-{#if $watchlist?.length}
+{#each ($lists ?? []).filter((L) => L.items.length) as L (L.id)}
   <div class="mho-head mho-head-wl">
-    <span class="mho-title">Watchlist</span>
+    <span class="mho-title">{L.name}</span>
   </div>
-  {#each $watchlist as w (w.ticker)}
-    {@const wv = win === 'day' ? w.dayPct : win === 'wk' ? w.weekPct : null}
-    <button class="mho-row" onclick={() => openStock({ ticker: w.ticker, name: w.name, holding: null })}>
+  {#each L.items as w (w.ticker)}
+    {@const wv = win === 'day' ? w.dayPct : win === 'wk' ? w.weekPct : w.monthPct}
+    {@const card = ($holdings ?? []).find((c) => c.ticker === w.ticker)}
+    <button class="mho-row" onclick={() => openStock({ ticker: w.ticker, name: w.name, holding: card ? cardToHolding(card) : null })}>
       <span class="mho-main">
         <span class="mho-line">
           <TickerBadge sym={w.ticker} />
@@ -87,7 +89,7 @@
       </span>
     </button>
   {/each}
-{/if}
+{/each}
 
 <style>
   .mho-head { display: flex; align-items: center; justify-content: space-between;

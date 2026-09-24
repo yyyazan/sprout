@@ -75,7 +75,7 @@
   const JUMP = [
     ['principles', 'Principles'], ['tokens', 'Tokens'], ['type', 'Type'], ['buttons', 'Buttons'],
     ['charts', 'Charts'], ['ring', 'Ring'], ['rings-live', 'Live rings'], ['stage', 'Stage'], ['cards', 'Rail cards'],
-    ['stock', 'Stock view'], ['log', 'Log'], ['mobile', 'Mobile'],
+    ['sidebar', 'Sidebar'], ['stock', 'Stock view'], ['log', 'Log'], ['mobile', 'Mobile'],
   ];
 
   const SPARK_DEMO = [219, 217, 216, 214, 208, 213, 209, 228, 217, 221, 217, 224, 228, 230, 225, 223, 218, 218, 211, 212, 214, 219];
@@ -134,9 +134,9 @@
     <div class="w-h dm-gap">Form tokens</div>
     <div class="dm-rows">
       <div class="dm-row"><code class="dm-code">--bw: 1px</code><span class="dm-usage">every border — widgets, pills, hairlines</span></div>
-      <div class="dm-row"><code class="dm-code">--r: 4px</code><span class="dm-usage">widget corners; controls are full pills (999px)</span></div>
+      <div class="dm-row"><code class="dm-code">--r: 4px</code><span class="dm-usage">widget corners, inputs (search strip included), drop zones; buttons are full pills (999px)</span></div>
       <div class="dm-row"><code class="dm-code">--sh: none</code><span class="dm-usage">nothing casts a shadow at rest</span></div>
-      <div class="dm-row"><code class="dm-code">--sh-pop: 4px 4px 0 ink</code><span class="dm-usage">interactive cards only, on hover</span></div>
+      <div class="dm-row"><code class="dm-code">--sh-pop: 4px 4px 0 ink</code><span class="dm-usage">interactive cards on hover, and a row held mid-drag</span></div>
       <div class="dm-row"><code class="dm-code">--card-pad: 14px 16px</code><span class="dm-usage">rail card padding — set on the container</span></div>
     </div>
   </section>
@@ -160,6 +160,7 @@
       <li><b>Caps means ticker.</b> NVDA, SPY. Every other label is a sentence. Letter-spacing 0 outside badges.</li>
       <li><b>Headline is the total, rows are its breakdown.</b> Title → figure → key/value rows. Every KPI card.</li>
       <li><b>No dots.</b> Alignment separates. A muted span for the date. Slash only means "of" ($808 / $1,000).</li>
+      <li><b>Minus is −.</b> U+2212 on every signed figure and axis, never the hyphen. Plus is always shown.</li>
       <li><b>Hairlines only between repeated rows.</b> Never between a headline and its own breakdown.</li>
       <li><b>One padding.</b> --card-pad — 14×16 in the rail, set on the container, never on the card.</li>
       <li><b>Pressable cards lift.</b> .pressable → --sh-pop on hover. The only card hover there is.</li>
@@ -168,9 +169,8 @@
     <div class="dm-btnrow">
       <TickerBadge sym="AAPL" size="sm" />
       <TickerBadge sym="NVDA" size="md" />
-      <TickerBadge sym="TSLA" size="big" />
     </div>
-    <p class="dm-note">sm / md / big — big carries a darker, saturated brick of the same hue straight down behind it, at twice md's size.</p>
+    <p class="dm-note">sm / md — md carries a darker, saturated brick of the same hue straight down behind it.</p>
   </section>
 
   <!-- ── buttons ── -->
@@ -193,7 +193,13 @@
         <button class="btn btn-sm btn-mono" class:on={seg === s} onclick={() => (seg = s)}>{s}</button>
       {/each}
     </div>
+    <div class="dm-btnrow">
+      <button class="btn btn-sm btn-danger">.btn-danger</button>
+      <span class="dm-usage">destructive confirm only (delete a list). Loss is the color of gone.</span>
+    </div>
     <p class="dm-note">Cards are the one exception: hover lifts with --sh-pop instead of ink inversion.</p>
+    <div class="w-h dm-gap">Icons</div>
+    <p class="dm-usage">SVG on a 24 box, 1.8 stroke, round caps: profile, theme (sun/moon), search. No Unicode glyphs as icons (☀ ☾ ⌕ render per font). Icon buttons are 28px rings with the pill states: hairline, ink outline on hover, ink fill pressed.</p>
   </section>
 
   <!-- ── charts ── -->
@@ -238,8 +244,9 @@
       <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested}
         total={d.kpis.portfolio_value} dayGain={dayMove.gain} dayPct={dayMove.pct} />
     {:else}
-      <p class="dm-usage">loading…</p>
+      <p class="dm-usage">Loading…</p>
     {/if}
+    <p class="dm-note">Search is one .strip everywhere: the stage, the phone home, the Log filter, the ⌘K modal on other routes. An input, so an --r box with an ink border, not a pill. Results are the shared .ss-* rows with md badges.</p>
   </section>
 
   <!-- ── rail cards, live ── -->
@@ -265,14 +272,47 @@
       are the one deliberate spot color is semantic instead of chrome (gain = deposit/buy, loss =
       withdraw/sell), carried by the toggle pill alone; save is a plain .btn. Amount/ticker/shares/
       date/price are each their own --r-radius field — no more fused segmented bar, no fixed hex,
-      no mono.</p>
+      no mono. The trade token is the coin's sibling: same darker edge (the face mixed 60% to black,
+      like the md badge brick), one glint, and the shine sweep on card hover.</p>
+  </section>
+
+  <!-- ── sidebar: lists + drag and drop (the live one is on the left) ── -->
+  <section class="w dm-sec" id="sidebar">
+    <div class="w-h">Sidebar</div>
+    <p class="dm-usage">Holdings, then the user's lists. The live rail is on the left of this page.</p>
+    <div class="dm-rows">
+      <div class="dm-row"><code class="dm-code">order</code><span class="dm-usage">Holdings stay heaviest first and never reorder. Lists keep the user's order, rows and lists alike.</span></div>
+      <div class="dm-row"><code class="dm-code">head</code><span class="dm-usage">name 13/600, count meta muted, chevron hanging in the gutter so the name sits on the badge edge. Rename and delete show on hover (ActivityLog's row actions); delete confirms in place with .btn-danger.</span></div>
+      <div class="dm-row"><code class="dm-code">row</code><span class="dm-usage">badge over value and weight (holdings) or name (lists), month sparkline, price over the D/W/M pill. Same row in every section.</span></div>
+      <div class="dm-row"><code class="dm-code">drag</code><span class="dm-usage">press and move 5px. A holding copies into a list; a list row moves (within or across lists); a list head reorders the lists. Esc cancels. Touch doesn't drag, so the rail still scrolls on a tablet.</span></div>
+      <div class="dm-row"><code class="dm-code">preview</code><span class="dm-usage">live: rows slide apart (160ms flip), a dashed ink slot marks the landing, the lifted copy holds the pressable-card lift. A copied holding keeps its place, outlined dashed.</span></div>
+      <div class="dm-row"><code class="dm-code">targets</code><span class="dm-usage">no dead space: a gap belongs to the list below it, anything past the last list appends to it, a collapsed list takes the drop at its end. The rail scrolls while the cursor rides its edge.</span></div>
+      <div class="dm-row"><code class="dm-code">zones</code><span class="dm-usage">dashed hairline tiles under the rail. + New list at rest; New list and Remove while a list row is dragged. Over: solid ink, Remove in loss. The lift shrinks to its badge so the label stays readable.</span></div>
+      <div class="dm-row"><code class="dm-code">data</code><span class="dm-usage">/api/lists. Every drag PUTs the whole layout and swaps in the hydrated reply. Collapsed sections are per viewer (localStorage).</span></div>
+    </div>
+    <div class="dm-rail-demo" aria-hidden="true">
+      <div class="dm-rd-col">
+        <span class="dm-usage">landing slot, lifted row</span>
+        <div class="dm-rd-slot"></div>
+        <div class="dm-rd-lift"><TickerBadge sym="MU" /><span class="dm-rd-px">$1,070.48</span></div>
+      </div>
+      <div class="dm-rd-col">
+        <span class="dm-usage">zones while dragging</span>
+        <div class="dm-rd-zones">
+          <span class="dm-rd-zone dm-rd-over">New list</span>
+          <span class="dm-rd-zone">Remove</span>
+        </div>
+        <div class="dm-rd-zones"><span class="dm-rd-zone">+ New list</span></div>
+      </div>
+    </div>
   </section>
 
   <!-- ── stock view, live ── -->
   <section class="dm-live" id="stock">
     <div class="dm-label">Stock view</div>
     <StockPanel ticker={demoTicker} name={demoCard?.company_name ?? demoTicker} holding={demoHolding} showClose={false} />
-    <p class="dm-note">12-month forecast is bare now (was bordered) — it sat next to the bare ratings ring, so one boxed + one naked read as mismatched. Same outlook row, no more split chrome.</p>
+    <p class="dm-note">12-month forecast: bare, beside the bare ratings ring. Headline is the average target (hero + pct-pill vs now), then low to high as a range on a price axis that always spans today: below now is loss, above is gain, now is a 1px ink tick labelled above (the label slides from left- to right-aligned with its x), the average is an ink dot ringed in paper. Low and High sit at the ends with their pills. Replaced the three ink bars.</p>
+    <p class="dm-note">Non-held tickers carry the list picker (was + Watch): the pill names the list, or the count, and goes ink when the ticker is in any. The popover is ProfileMenu's panel; checked lists are ink-filled boxes.</p>
   </section>
 
   <!-- ── activity log, live ── -->
@@ -349,6 +389,18 @@
 </div>
 
 <style>
+  /* sidebar section: the drag states, static (they only exist mid-drag) */
+  .dm-rail-demo { display: grid; grid-template-columns: repeat(2, minmax(0, 240px)); gap: 24px; margin-top: 4px; }
+  .dm-rd-col { display: flex; flex-direction: column; gap: 8px; }
+  .dm-rd-slot { height: 44px; border: var(--bw) dashed var(--ink); border-radius: var(--r); background: var(--hover); }
+  .dm-rd-lift { display: flex; align-items: center; justify-content: space-between; padding: 10px;
+    border: var(--bw) solid var(--ink); border-radius: var(--r); box-shadow: var(--sh-pop); }
+  .dm-rd-px { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .dm-rd-zones { display: flex; gap: 8px; }
+  .dm-rd-zone { flex: 1; min-height: 34px; display: grid; place-items: center; border: var(--bw) dashed var(--muted);
+    border-radius: var(--r); font-size: var(--fs-body); font-weight: 500; color: var(--ink); }
+  .dm-rd-over { border-style: solid; border-color: var(--ink); background: var(--hover); }
+
   /* mobile section: a static dock (the real one is position: fixed) and a glance row */
   .dm-mobile-demo { display: grid; grid-template-columns: 343px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 4px; }
   .dm-dock { position: relative; height: 56px; box-sizing: border-box; display: flex;
@@ -425,6 +477,6 @@
   .dm-sample { min-width: 150px; display: inline-flex; align-items: baseline; gap: 6px; }
 
   @media (max-width: 700px) {
-    .dm-widgets, .dm-ringrow, .dm-ring2, .dm-cardgrid { grid-template-columns: 1fr; }
+    .dm-widgets, .dm-ringrow, .dm-ring2, .dm-cardgrid, .dm-rail-demo { grid-template-columns: 1fr; }
   }
 </style>

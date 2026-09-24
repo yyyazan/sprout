@@ -68,12 +68,22 @@ CREATE TABLE IF NOT EXISTS cash_reconciliation (
     note          TEXT
 );
 
--- Non-held tickers the user wants on the radar (the "+ Watch" button).
-CREATE TABLE IF NOT EXISTS watchlist (
-    user_id  INTEGER NOT NULL REFERENCES users(user_id),
+-- User-named ticker lists in the sidebar (replaced the single watchlist).
+CREATE TABLE IF NOT EXISTS lists (
+    list_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(user_id),
+    name       TEXT    NOT NULL,
+    position   INTEGER NOT NULL,
+    created_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_lists_user ON lists(user_id, position);
+
+CREATE TABLE IF NOT EXISTS list_items (
+    list_id  INTEGER NOT NULL REFERENCES lists(list_id) ON DELETE CASCADE,
     ticker   TEXT    NOT NULL,
+    position INTEGER NOT NULL,
     added_at TEXT    NOT NULL,
-    PRIMARY KEY (user_id, ticker)
+    PRIMARY KEY (list_id, ticker)
 );
 
 -- Shared market-data cache freshness (the Parquet files hold the data itself).
@@ -168,11 +178,32 @@ def _migrate_users_oauth(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub)")
 
 
+def _migrate_watchlist_to_lists(conn: sqlite3.Connection) -> None:
+    """Fold the old single `watchlist` table into a list named "Watchlist" per
+    user, then rename the table to `watchlist_legacy` (kept, not dropped) so
+    this runs once and a user who later deletes every list doesn't get it back.
+    """
+    if conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='watchlist'"
+    ).fetchone() is None:
+        return
+    users = [r["user_id"] for r in conn.execute("SELECT DISTINCT user_id FROM watchlist").fetchall()]
+    for uid in users:
+        if conn.execute("SELECT 1 FROM lists WHERE user_id = ?", (uid,)).fetchone():
+            continue
+        tickers = [r["ticker"] for r in conn.execute(
+            "SELECT ticker FROM watchlist WHERE user_id = ? ORDER BY added_at", (uid,)
+        ).fetchall()]
+        list_create(conn, uid, "Watchlist", tickers, commit=False)
+    conn.execute("ALTER TABLE watchlist RENAME TO watchlist_legacy")
+
+
 def init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
     _migrate_price_cache_meta(conn)
     _migrate_trades_price(conn)
     _migrate_users_oauth(conn)
+    _migrate_watchlist_to_lists(conn)
     conn.commit()
 
 
@@ -299,29 +330,86 @@ def update_reconciliation(
     conn.commit()
 
 
-# ── watchlist ────────────────────────────────────────────────────────────────
+# ── lists ────────────────────────────────────────────────────────────────────
 
 
-def watchlist_tickers(conn: sqlite3.Connection, user_id: int = DEFAULT_USER_ID) -> list[str]:
+def lists_for_user(conn: sqlite3.Connection, user_id: int) -> list[dict]:
+    """The user's lists in sidebar order, each with its tickers in list order."""
+    lists = [
+        {"id": r["list_id"], "name": r["name"], "tickers": []}
+        for r in conn.execute(
+            "SELECT list_id, name FROM lists WHERE user_id = ? ORDER BY position, list_id", (user_id,)
+        ).fetchall()
+    ]
+    by_id = {L["id"]: L for L in lists}
+    for r in conn.execute(
+        "SELECT i.list_id, i.ticker FROM list_items i JOIN lists l ON l.list_id = i.list_id "
+        "WHERE l.user_id = ? ORDER BY i.position", (user_id,)
+    ).fetchall():
+        by_id[r["list_id"]]["tickers"].append(r["ticker"])
+    return lists
+
+
+def _set_list_items(conn: sqlite3.Connection, list_id: int, tickers: list[str]) -> None:
+    # keep added_at for tickers that stay; order is `position`
+    kept = {r["ticker"]: r["added_at"] for r in conn.execute(
+        "SELECT ticker, added_at FROM list_items WHERE list_id = ?", (list_id,)
+    ).fetchall()}
+    conn.execute("DELETE FROM list_items WHERE list_id = ?", (list_id,))
+    now = _now()
+    conn.executemany(
+        "INSERT INTO list_items (list_id, ticker, position, added_at) VALUES (?, ?, ?, ?)",
+        [(list_id, t, i, kept.get(t, now)) for i, t in enumerate(dict.fromkeys(tickers))],
+    )
+
+
+def list_create(conn: sqlite3.Connection, user_id: int, name: str,
+                tickers: list[str] = (), *, commit: bool = True) -> int:
+    """Append a new list at the end of the user's sidebar."""
+    pos = conn.execute(
+        "SELECT COALESCE(MAX(position) + 1, 0) AS p FROM lists WHERE user_id = ?", (user_id,)
+    ).fetchone()["p"]
     cur = conn.execute(
-        "SELECT ticker FROM watchlist WHERE user_id = ? ORDER BY added_at", (user_id,)
+        "INSERT INTO lists (user_id, name, position, created_at) VALUES (?, ?, ?, ?)",
+        (user_id, name, pos, _now()),
     )
-    return [r["ticker"] for r in cur.fetchall()]
+    list_id = int(cur.lastrowid)
+    _set_list_items(conn, list_id, list(tickers))
+    if commit:
+        conn.commit()
+    return list_id
 
 
-def watchlist_add(conn: sqlite3.Connection, ticker: str, user_id: int = DEFAULT_USER_ID) -> None:
-    conn.execute(
-        "INSERT OR IGNORE INTO watchlist (user_id, ticker, added_at) VALUES (?, ?, ?)",
-        (user_id, ticker, _now()),
-    )
-    conn.commit()
-
-
-def watchlist_remove(conn: sqlite3.Connection, ticker: str, user_id: int = DEFAULT_USER_ID) -> None:
-    conn.execute(
-        "DELETE FROM watchlist WHERE user_id = ? AND ticker = ?", (user_id, ticker)
+def list_rename(conn: sqlite3.Connection, user_id: int, list_id: int, name: str) -> bool:
+    cur = conn.execute(
+        "UPDATE lists SET name = ? WHERE list_id = ? AND user_id = ?", (name, list_id, user_id)
     )
     conn.commit()
+    return cur.rowcount > 0
+
+
+def list_delete(conn: sqlite3.Connection, user_id: int, list_id: int) -> bool:
+    cur = conn.execute("DELETE FROM lists WHERE list_id = ? AND user_id = ?", (list_id, user_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def lists_set_layout(conn: sqlite3.Connection, user_id: int, layout: list[tuple[int, list[str]]]) -> bool:
+    """Apply a sidebar layout: the given lists take positions in the given
+    order with exactly the given tickers; the user's other lists keep their
+    items and follow in their current order. False (nothing written) if any
+    id isn't one of the user's lists."""
+    owned = [L["id"] for L in lists_for_user(conn, user_id)]
+    ids = [lid for lid, _ in layout]
+    if not set(ids) <= set(owned) or len(set(ids)) != len(ids):
+        return False
+    order = ids + [lid for lid in owned if lid not in ids]
+    with conn:
+        for pos, lid in enumerate(order):
+            conn.execute("UPDATE lists SET position = ? WHERE list_id = ?", (pos, lid))
+        for lid, tickers in layout:
+            _set_list_items(conn, lid, tickers)
+    return True
 
 
 # ── price-cache metadata (used by store.py) ─────────────────────────────────

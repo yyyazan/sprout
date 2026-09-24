@@ -51,12 +51,21 @@
     <div class="greeting-title">{d.greeting}</div>
     <div class="mh-tools">
       <button class="mh-tool" onclick={toggleTheme} aria-label="Toggle light/dark theme">
-        {$theme === 'dark' ? '☀' : '☾'}
+        {#if $theme === 'dark'}
+          <svg class="mh-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4" />
+          </svg>
+        {:else}
+          <svg class="mh-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+            <path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z" />
+          </svg>
+        {/if}
       </button>
       <div class="mh-profile">
         <button class="mh-tool" type="button" aria-label="Account" aria-haspopup="menu"
           aria-expanded={menuOpen} onclick={() => (menuOpen = !menuOpen)}>
-          <svg class="mh-person" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <svg class="mh-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
             <circle cx="12" cy="8.5" r="3.6" /><path d="M5 20 c0 -4 3.2 -6.2 7 -6.2 s7 2.2 7 6.2" />
           </svg>
         </button>
@@ -68,7 +77,7 @@
 
 {#if searching}
   <div class="strip strip-active">
-    <span class="strip-icon" aria-hidden="true">⌕</span>
+    <span class="strip-icon" aria-hidden="true"></span>
     <input bind:this={input} bind:value={q} type="search" placeholder="Search"
       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
       enterkeyhint="search" aria-label="Search stocks" />
@@ -77,7 +86,7 @@
   <MobileSearch {q} />
 {:else}
   <button class="strip strip-idle" onclick={openSearch}>
-    <span class="strip-icon" aria-hidden="true">⌕</span>
+    <span class="strip-icon" aria-hidden="true"></span>
     <span class="strip-ph">Search</span>
   </button>
 {/if}
@@ -138,7 +147,7 @@
   .mh-tool { width: 30px; height: 30px; display: grid; place-items: center; cursor: pointer;
     font: inherit; font-size: 14px; line-height: 1; color: #1a1a1a; background: transparent;
     border: var(--bw) solid rgba(26, 26, 26, .4); border-radius: 999px; padding: 0; }
-  .mh-person { width: 17px; height: 17px; display: block; }
+  .mh-icon { width: 17px; height: 17px; display: block; }
 
   /* garden hidden (SHOW_GARDEN=false): overlay drops into flow, text/icons pick
      up theme color since there's no garden sky underneath anymore */

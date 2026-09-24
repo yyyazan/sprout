@@ -95,10 +95,21 @@
 <div class="glass-card pressable trade-card" class:open role="button" tabindex="0" aria-expanded={open}
   onclick={toggle}
   onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
-  <!-- corner token: ink-outlined tile with an up-arrow over a muted down-arrow —
-       reads as "trades", and lifts on hover like the cash coin (logger affordance).
-       Neutral blue (not red/green) so it never reads as a buy/sell signal. -->
-  <svg class="tt-badge" viewBox="0 0 120 120" width="32" height="32" aria-hidden="true">
+  <!-- corner token: the cash coin's sibling — same build (ink-outlined face on a
+       darker edge, one glint, a light streak swept across on card hover), as a
+       rounded tile with an up-arrow over a muted down-arrow. Neutral blue (not
+       red/green) so it never reads as a buy/sell signal. -->
+  <svg class="tt-badge" viewBox="0 0 120 132" width="32" height="35" aria-hidden="true">
+    <defs>
+      <clipPath id="tt-face-clip"><rect x="6" y="6" width="108" height="108" rx="26" /></clipPath>
+      <linearGradient id="tt-shine-grad" x1="0" y1="0" x2="1" y2="0" gradientTransform="rotate(25 0.5 0.5)">
+        <stop offset="0.40" stop-color="#fff" stop-opacity="0" />
+        <stop offset="0.50" stop-color="#fff" stop-opacity="0.55" />
+        <stop offset="0.60" stop-color="#fff" stop-opacity="0" />
+      </linearGradient>
+    </defs>
+    <!-- thickness: the face's blue mixed 60% toward black (TickerBadge's brick), offset straight down -->
+    <rect x="6" y="16" width="108" height="108" rx="26" fill="#37558f" stroke="#1a1a1a" stroke-width="6" />
     <rect x="6" y="6" width="108" height="108" rx="26" fill="#5b8def" stroke="#1a1a1a" stroke-width="6" />
     <!-- up arrow (buy) -->
     <path d="M44 78 V52 M44 52 L33 63 M44 52 L55 63" fill="none" stroke="#1a1a1a"
@@ -106,6 +117,11 @@
     <!-- down arrow (sell) -->
     <path d="M78 42 V68 M78 68 L67 57 M78 68 L89 57" fill="none" stroke="#1a1a1a"
       stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.45" />
+    <!-- specular glint, top-left of the face -->
+    <path d="M22 44 Q22 24 42 22" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" />
+    <g clip-path="url(#tt-face-clip)">
+      <rect class="tt-shine" x="-20" y="-20" width="160" height="160" fill="url(#tt-shine-grad)" />
+    </g>
   </svg>
 
   <!-- persistent "this opens" badge, half-overlapping the badge's corner — same
@@ -183,13 +199,16 @@
   .tt-badge { position: absolute; top: 12px; right: 12px; z-index: 1; overflow: visible;
     transition: transform .2s cubic-bezier(.34, 1.56, .5, 1); }
   .trade-card:hover .tt-badge { transform: translateY(-2px); }
+  /* the coin's shine sweep, clipped to the tile face */
+  .tt-shine { transform-box: view-box; transform: translateX(-120%); transition: transform .6s ease; }
+  .trade-card:hover .tt-shine { transform: translateX(120%); }
 
   /* quiet "+" affordance badge, half-overlapping the token's bottom-right edge.
      The plus is drawn as two CSS bars (not text) so it sits dead-center
      regardless of font metrics; the whole badge spins 45° into an × on open. */
   .tt-add { position: absolute; top: 39px; right: 7px; z-index: 2; pointer-events: none;
     width: 17px; height: 17px; border-radius: 50%;
-    background: var(--surface); border: 1.5px solid var(--hairline); color: var(--muted);
+    background: var(--surface); border: var(--bw) solid var(--hairline); color: var(--muted);
     transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease; }
   .tt-add::before, .tt-add::after { content: ''; position: absolute; top: 50%; left: 50%;
     background: currentColor; transform: translate(-50%, -50%); }
@@ -234,7 +253,7 @@
      a plain circle) — both sit vertically centred against the taller grid, not
      stretched to match it. */
   .tt-body { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
-  .tt-side { flex: 0 0 auto; padding: 7px 12px; box-sizing: border-box; border: 1.5px solid var(--hairline);
+  .tt-side { flex: 0 0 auto; padding: 7px 12px; box-sizing: border-box; border: var(--bw) solid var(--hairline);
     border-radius: 999px; background: transparent; font-family: var(--sans); font-size: 11.5px;
     font-weight: 600; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
     transition: background .12s ease, border-color .12s ease, color .12s ease; }
@@ -244,7 +263,7 @@
   .tt-side.neg:active { background: color-mix(in srgb, var(--loss) 16%, transparent); }
   .tt-save { flex: 0 0 30px; width: 30px; height: 30px; padding: 0; box-sizing: border-box;
     border-radius: 999px; background: transparent; font-size: 13px; cursor: pointer;
-    border: 1.5px solid var(--hairline); color: var(--ink);
+    border: var(--bw) solid var(--hairline); color: var(--ink);
     display: flex; align-items: center; justify-content: center;
     transition: background .12s ease, border-color .12s ease, color .12s ease; }
   .tt-save:hover { border-color: var(--ink); }
@@ -279,6 +298,8 @@
   @media (prefers-reduced-motion: reduce) {
     .tt-badge { transition: none; }
     .trade-card:hover .tt-badge { transform: none; }
+    .tt-shine { transition: none; }
+    .trade-card:hover .tt-shine { transform: translateX(-120%); }
     .tt-rise { transition: none; }
     .tt-add { transition: none; }
   }

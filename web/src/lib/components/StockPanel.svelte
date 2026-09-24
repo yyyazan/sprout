@@ -1,9 +1,9 @@
 <script>
   // Stock view as a WIDGET GRID — Google Finance's content in Sprout's widget
   // language. Strict 4-column grid, canvas showing through the gaps: header
-  // (4×0.5: crumb + back top-right, name/quote, position-or-watch) → chart (4×2)
+  // (4×0.5: crumb + back top-right, name/quote, position-or-list-picker) → chart (4×2)
   // → key stats (4×1, three columns) → analyst outlook (two BARE centred cells:
-  // ratings RingGauge | forecast bars) → news (4×1, sentiment-dotted headlines)
+  // ratings RingGauge | forecast range) → news (4×1, sentiment-dotted headlines)
   // → related stocks (4 × 1×1 cards). Chrome-less so the dashboard stage and
   // the modal both render this grid directly on the page.
   import { onMount } from 'svelte';
@@ -12,22 +12,14 @@
   import TickerBadge from './TickerBadge.svelte';
   import { mockStock, fmtCap, fmtVol } from '$lib/mockStock.js';
   import { api } from '$lib/api.js';
-  import { watchlist, loadWatchlist, toggleWatch, holdings, openStock, cardToHolding } from '$lib/stores.js';
+  import { holdings, openStock, cardToHolding } from '$lib/stores.js';
+  import ListPicker from './ListPicker.svelte';
 
   // showClose=false when a host provides its own way back (the dashboard stage's
   // portfolio strip); the modal keeps the ✕.
   let { ticker, name = null, holding = null, onClose, glyph = '✕', showClose = true } = $props();
 
   const owned = $derived(!!holding);
-
-  // watch state for non-held tickers — shared store keeps the sidebar in sync
-  const watched = $derived(($watchlist ?? []).some((w) => w.ticker === (ticker || '').toUpperCase()));
-  let watchBusy = $state(false);
-  async function onWatch() {
-    if (watchBusy) return;
-    watchBusy = true;
-    try { await toggleWatch((ticker || '').toUpperCase(), !watched); } finally { watchBusy = false; }
-  }
 
   let remote = $state(null);
   $effect(() => {
@@ -97,22 +89,23 @@
     !analyst?.verdict ? 'mid' : analyst.verdict.includes('buy') ? 'up' : analyst.verdict.includes('sell') ? 'down' : 'mid'
   );
 
-  // forecast bars scale: bars cap at 44% of the track so figures fit beside them
+  // 12-month targets: the average is the headline; low→high is a range on a
+  // price axis that also spans today's price, so "now" always sits on it
   const forecast = $derived.by(() => {
     const a = analyst, p = stock.price;
     if (!a || a.targetMean == null || !p) return null;
-    const rows = [
-      { label: 'Highest', v: a.targetHigh },
-      { label: 'Average', v: a.targetMean },
-      { label: 'Lowest', v: a.targetLow },
-    ].filter((r) => r.v != null);
-    if (!rows.length) return null;
-    const max = Math.max(...rows.map((r) => r.v), p) * 1.06;
-    const W = 44;
-    return {
-      rows: rows.map((r) => ({ ...r, w: (r.v / max) * W, pct: (r.v / p - 1) * 100 })),
-      curX: (p / max) * W,
-    };
+    const vs = (v) => (v / p - 1) * 100;
+    const out = { mean: a.targetMean, meanPct: vs(a.targetMean), range: null };
+    const lo = a.targetLow, hi = a.targetHigh;
+    if (lo != null && hi != null && hi > lo) {
+      const d0 = Math.min(lo, p), d1 = Math.max(hi, p), pad = (d1 - d0) * 0.04;
+      const x = (v) => ((v - d0 + pad) / (d1 - d0 + 2 * pad)) * 100;
+      out.range = {
+        low: lo, high: hi, lowPct: vs(lo), highPct: vs(hi),
+        xLow: x(lo), xHigh: x(hi), xNow: x(p), xMean: x(a.targetMean),
+      };
+    }
+    return out;
   });
 
   // ── sparkline path for a related card (viewBox 0 0 100 32) ──
@@ -128,7 +121,7 @@
   }
 
   const f = (n) => Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const pctS = (n) => (n == null ? '—' : (n > 0 ? '+' : '') + n.toFixed(1) + '%');
+  const pctS = (n) => (n == null ? '—' : (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(1) + '%');
   const usdS = (n) => (n == null ? '—' : (n >= 0 ? '+$' : '−$') + f(Math.abs(n)));
   const money = (n) => (n == null ? '—' : '$' + f(n));
   const sUsd = (n) => (n == null ? '—' : (n < 0 ? '−$' : '$') + f(Math.abs(n)));
@@ -169,14 +162,13 @@
 
   function onKey(e) { if (e.key === 'Escape') onClose?.(); }
   onMount(() => {
-    loadWatchlist();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 </script>
 
 <div class="spg">
-  <!-- header widget — 4 × 0.5: crumb · back (top right) · identity · quote · position/watch -->
+  <!-- header widget — 4 × 0.5: crumb, back (top right), identity, quote, position or list picker -->
   <section class="w w-head">
     <div class="hw-top">
       <span class="hw-crumb"><TickerBadge sym={ticker} size="md" />{#if stock.sector && stock.sector !== '—'}<span class="hw-sector">{stock.sector}</span>{/if}</span>
@@ -203,6 +195,9 @@
           <span class="pos-ret {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">
             <b class="pct-pill {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">{pctS(stock.plPct)}</b><small>{usdS(stock.plAbs)}</small>
           </span>
+          {#if hasRealized}
+            <span class="pos-kv"><span>Lifetime</span><b class={totalPnl >= 0 ? 'up' : 'down'}>{usdS(totalPnl)}</b></span>
+          {/if}
           <span class="pos-kv"><span>Shares</span><b>{f(stock.shares)}</b></span>
           <span class="pos-kv"><span>Avg</span><b>${f(stock.avgCost)}</b></span>
           <span class="pos-kv"><span>Value</span><b>${f(stock.mktValue)}</b></span>
@@ -214,14 +209,10 @@
           <span class="pos-ret {totalPnl >= 0 ? 'up' : 'down'}">
             <b>{usdS(totalPnl)}</b><small>previously held</small>
           </span>
-          <button class="btn btn-line hw-watch" class:on={watched} disabled={watchBusy} onclick={onWatch}>
-            {watched ? '✓ Watching' : '+ Watch'}
-          </button>
+          <ListPicker {ticker} />
         </div>
       {:else}
-        <button class="btn btn-line hw-watch" class:on={watched} disabled={watchBusy} onclick={onWatch}>
-          {watched ? '✓ Watching' : '+ Watch'}
-        </button>
+        <div class="hw-watch"><ListPicker {ticker} /></div>
       {/if}
     </div>
   </section>
@@ -259,7 +250,7 @@
   </section>
 
   <!-- analyst outlook — two BARE widgets side by side, centred like the
-       dashboard's ring row: ratings on the shared RingGauge · forecast bars -->
+       dashboard's ring row: ratings on the shared RingGauge, forecast range -->
   {#if analyst && (ratingSegs || forecast)}
     {#if ratingSegs}
       <section class="w-bare w-ratings">
@@ -274,24 +265,34 @@
       </section>
     {/if}
     {#if forecast}
+      {@const g = forecast.range}
       <section class="w-forecast">
-        <div class="fc-head">
-          <span class="w-h">12-month forecast</span>
-          <span class="fc-now"><span class="fc-now-k">Now</span> <span class="fc-now-v">${f(stock.price)}</span></span>
+        <span class="w-h">12-month forecast</span>
+        <div class="fc-hero">
+          <span class="fc-avg">${f(forecast.mean)}</span>
+          <span class="fc-pct pct-pill {forecast.meanPct >= 0 ? 'up' : 'down'}">{pctS(forecast.meanPct)}</span>
         </div>
-        <div class="fc-grid">
-          {#each forecast.rows as r (r.label)}
-            <span class="fc-label">{r.label}</span>
-            <div class="fc-track">
-              <div class="fc-bar" style="width:{r.w}%"></div>
-              <span class="fc-fig">${f(r.v)}</span>
-              <span class="fc-pct pct-pill {r.pct >= 0 ? 'up' : 'down'}">{pctS(r.pct)}</span>
-            </div>
-          {/each}
-          <!-- dashed guide threading through the bars at today's price, same
-               quiet reference-line language as the related-card sparklines -->
-          <div class="fc-cur" style="left:{forecast.curX}%"></div>
-        </div>
+        <span class="fc-sub"><span class="fc-dot" aria-hidden="true"></span>Average target</span>
+        {#if g}
+          <!-- range on a price axis: below today = downside (loss), above = upside (gain) -->
+          <div class="fc-track">
+            <span class="fc-now" style="left:{g.xNow}%;transform:translateX(-{g.xNow}%)">
+              <span class="fc-k">Now</span> ${f(stock.price)}
+            </span>
+            {#if g.xNow > g.xLow}
+              <span class="fc-seg down" class:solo={g.xNow >= g.xHigh} style="left:{g.xLow}%;width:{Math.min(g.xNow, g.xHigh) - g.xLow}%"></span>
+            {/if}
+            {#if g.xNow < g.xHigh}
+              <span class="fc-seg up" class:solo={g.xNow <= g.xLow} style="left:{Math.max(g.xNow, g.xLow)}%;width:{g.xHigh - Math.max(g.xNow, g.xLow)}%"></span>
+            {/if}
+            <span class="fc-tick" style="left:{g.xNow}%"></span>
+            <span class="fc-dot fc-mean" style="left:{g.xMean}%"></span>
+          </div>
+          <div class="fc-ends">
+            <span class="fc-end"><span class="fc-k">Low</span> ${f(g.low)} <span class="fc-pct pct-pill {g.lowPct >= 0 ? 'up' : 'down'}">{pctS(g.lowPct)}</span></span>
+            <span class="fc-end"><span class="fc-k">High</span> ${f(g.high)} <span class="fc-pct pct-pill {g.highPct >= 0 ? 'up' : 'down'}">{pctS(g.highPct)}</span></span>
+          </div>
+        {/if}
       </section>
     {/if}
   {/if}
@@ -349,10 +350,10 @@
   /* widget title = the card title spec (13/600 ink, sentence case) */
   .w-h { font-size: var(--fs-title); font-weight: 600; line-height: 1.2; color: var(--ink); }
 
-  /* header widget — 4 × 0.5; back rides the system .btn top right, watch is a
+  /* header widget — 4 × 0.5; back rides the system .btn top right, the list picker is a
      .btn-line pill in the quote row */
-  /* locked to --title-h so the watchlist (no position row) header matches the
-     taller holdings header — space-between drops the watch button where the
+  /* locked to --title-h so a non-held (no position row) header matches the
+     taller holdings header — space-between drops the list picker where the
      position row would sit. min-height (not height) so a wrapped position row is
      never clipped; --title-h is sized to fit the holdings content. */
   .w-head { grid-column: 1 / -1; min-height: var(--title-h, 152px); display: flex; flex-direction: column;
@@ -362,7 +363,7 @@
   .hw-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
   .hw-sector { white-space: nowrap; }
   .hw-watch { align-self: flex-end; }
-  /* previously-held: realized P&L stacked above the watch pill, right-aligned */
+  /* previously-held: realized P&L stacked above the list picker, right-aligned */
   .hw-prev { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   .hw-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .hw-name { margin: 0 0 5px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; }
@@ -406,31 +407,37 @@
     justify-content: center; padding: 6px 8px; }
   .w-ratings :global(.rgx) { height: auto; }
 
-  .w-forecast { grid-column: span 2; align-self: start; padding: 12px 16px 14px; }
-  .fc-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
-  .fc-now { display: flex; align-items: baseline; gap: 5px; }
-  .fc-now-k { font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
-  .fc-now-v { font-family: var(--num); font-size: var(--fs-body); font-weight: 700; color: var(--ink);
-    font-variant-numeric: tabular-nums; }
-
-  .fc-grid { position: relative; display: grid; grid-template-columns: 56px 1fr; column-gap: 8px; row-gap: 7px; align-items: center; }
-  .fc-label { font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
-  .fc-track { min-width: 0; height: 16px; display: flex; align-items: center; gap: 8px; }
-  .fc-bar { box-sizing: border-box; height: 100%; min-width: 10px; flex: 0 0 auto;
-    background: var(--ink); border-radius: 3px; }
-  .fc-fig { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; color: var(--ink); white-space: nowrap;
-    font-variant-numeric: tabular-nums; }
-  /* same price-line language as the sidebar rows and related-stock cards: a
-     .pct-pill, not bespoke colored parentheses */
+  /* forecast — bare like the ring beside it: title, the average target as the
+     headline (hero + pct-pill), then low→high as a range on a price axis */
+  .w-forecast { grid-column: span 2; min-height: 188px; box-sizing: border-box; display: flex; flex-direction: column;
+    justify-content: center; padding: 12px 16px 14px; }
+  .fc-hero { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+  .fc-avg { font-family: var(--num); font-size: var(--fs-hero); font-weight: 600; line-height: 1.05; letter-spacing: -.01em;
+    color: var(--ink); font-variant-numeric: tabular-nums; }
   .fc-pct { font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; }
+  .fc-sub { display: flex; align-items: center; gap: 6px; margin-top: 4px;
+    font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
+  .fc-k { color: var(--muted); font-family: var(--sans); }
 
-  /* dashed guide threading through the three bars at today's price — same
-     quiet var(--muted) reference-line the related-card sparklines use.
-     Grid-placed to span exactly the bar rows (no fixed-height hack), then
-     absolutely positioned within that grid area so `left` resolves against
-     the track column's own width, matching .fc-bar's %-of-track math. */
-  .fc-cur { position: absolute; grid-column: 2; grid-row: 1 / -1; top: 0; bottom: 0; width: 0;
-    pointer-events: none; border-left: 1px dashed var(--muted); }
+  /* track: 8px range bar, 3px corners (the old bars' corner). Room above for
+     the Now label, which slides from left- to right-aligned with its x so it
+     never runs off either end. */
+  .fc-track { position: relative; height: 8px; margin: 34px 0 10px; }
+  .fc-track::before { content: ''; position: absolute; inset: 0; border-radius: 3px; background: var(--hairline); }
+  .fc-seg { position: absolute; top: 0; bottom: 0; }
+  .fc-seg.down { background: var(--loss); border-radius: 3px 0 0 3px; }
+  .fc-seg.up { background: var(--gain); border-radius: 0 3px 3px 0; }
+  .fc-seg.solo { border-radius: 3px; }
+  .fc-tick { position: absolute; top: -5px; bottom: -5px; width: 0; border-left: var(--bw) solid var(--ink); }
+  .fc-now { position: absolute; bottom: calc(100% + 8px); white-space: nowrap;
+    font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+  /* the average: an ink dot ringed in paper so it reads on either color */
+  .fc-dot { display: inline-block; width: 9px; height: 9px; box-sizing: border-box; border-radius: 50%; background: var(--ink); }
+  .fc-mean { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+    box-shadow: 0 0 0 2px var(--paper); }
+  .fc-ends { display: flex; justify-content: space-between; gap: 8px; }
+  .fc-end { display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap;
+    font-family: var(--num); font-size: var(--fs-body); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
 
   /* news widget — 4×1; headline rows split by hairlines, sentiment dot leads.
      Link styling matches MarketPulse: always underlined, ink on hover. */
@@ -469,7 +476,7 @@
   .rel-spark { display: block; width: calc(100% + 26px); margin: 7px -13px 0; height: 36px; }
 
   .sp-mock { position: absolute; bottom: -18px; right: 2px; pointer-events: none;
-    font-size: 10px; font-weight: 500; color: var(--muted); opacity: .6; }
+    font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
 
   .up { color: var(--gain); } .down { color: var(--loss); }
 

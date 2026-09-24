@@ -37,6 +37,17 @@ async function post(path, body) {
   return r.json();
 }
 
+async function put(path, body) {
+  const r = await fetch(`/api${path}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  check401(r, path);
+  if (!r.ok) throw new Error(`PUT ${path} → ${r.status}`);
+  return r.json();
+}
+
 async function patch(path, body) {
   const r = await fetch(`/api${path}`, {
     method: 'PATCH',
@@ -56,9 +67,11 @@ export const api = {
   related: (t) => get('/stock/' + encodeURIComponent(t) + '/related'),
   market: () => get('/market'),
   earnings: () => get('/earnings'),
-  watchlist: () => get('/watchlist'),
-  watch: (t) => post('/watchlist', { ticker: t }),
-  unwatch: (t) => del('/watchlist/' + encodeURIComponent(t)),
+  lists: () => get('/lists'),
+  createList: (name, tickers = []) => post('/lists', { name, tickers }),
+  renameList: (id, name) => patch('/lists/' + id, { name }),
+  deleteList: (id) => del('/lists/' + id),
+  setLayout: (lists) => put('/lists', { lists }),
   search: (q) => get('/search?q=' + encodeURIComponent(q)),
   investments: () => get('/investments'),
   garden: () => get('/garden'),

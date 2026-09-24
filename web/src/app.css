@@ -130,7 +130,8 @@ a { color: inherit; text-decoration: none; }
    .btn-line   always-outlined pill (standalone actions: watch, search, esc)
    .btn.on     selected → solid ink, paper text
    .btn-sm     compact paddings (chart controls, mini toggles)
-   .btn-mono   mono label (ranges, D/W, esc) */
+   .btn-mono   tabular figures (ranges, D/W/M)
+   .btn-danger destructive confirm */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   box-sizing: border-box; font-family: var(--sans); font-size: 13px; font-weight: 600; line-height: 1.2;
   white-space: nowrap; cursor: pointer; color: var(--ink); background: transparent;
@@ -143,6 +144,10 @@ a { color: inherit; text-decoration: none; }
 .btn-quiet:hover { color: var(--ink); }
 .btn-sm { font-size: 11.5px; padding: 4px 11px; }
 .btn-mono { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* destructive confirm (delete a list): loss is the data color of "gone" */
+.btn-danger { color: var(--loss); }
+.btn-danger:hover { border-color: var(--loss); }
+.btn-danger:active { background: var(--loss); color: var(--paper); border-color: var(--loss); }
 .btn:disabled { opacity: .55; cursor: default; }
 
 /* --title-h = the canonical height for every "title" card (stock header, portfolio
@@ -266,7 +271,12 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
 .strip-idle { cursor: pointer; transition: box-shadow .12s ease, transform .12s ease; }
 .strip-idle:hover { box-shadow: var(--sh-pop); transform: translate(-1px, -1px); }
 .strip-idle:active { transform: none; box-shadow: none; }
-.strip-icon { font-size: 16px; color: var(--muted); flex: 0 0 auto; }
+/* magnifier drawn as a mask (not the ⌕ glyph, whose metrics vary by font) —
+   the same 1.8 stroke on a 24 box as the profile/theme icons */
+.strip-icon { flex: 0 0 auto; width: 16px; height: 16px; background: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 20 20'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 20 20'/%3E%3C/svg%3E") center / contain no-repeat; }
+.strip:focus-within .strip-icon, .strip-idle:hover .strip-icon { background: var(--ink); }
 .strip-ph { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .strip-idle:hover .strip-ph { color: var(--ink); }
@@ -294,7 +304,7 @@ table.data-table tbody tr:hover { background: color-mix(in srgb, var(--ink) 7%, 
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ss-meta { flex: 0 0 auto; display: inline-flex; gap: 10px; font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
 .ss-empty { padding: 18px 18px 20px; font-size: 13px; font-weight: 500; color: var(--muted); }
-.ss-section { padding: 14px 18px 4px; font-size: var(--fs-body); font-weight: 600; color: var(--ink); }
+.ss-section { padding: 14px 18px 4px; font-size: var(--fs-title); font-weight: 600; color: var(--ink); }
 
 /* ── Garden hero band + greeting (garden three.js reskin handled separately) ── */
 .page-hero {
