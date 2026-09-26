@@ -15,8 +15,10 @@ preferred over an empty result.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,6 +26,8 @@ import duckdb
 import pandas as pd
 
 from portfolio.data import db as db_mod
+
+log = logging.getLogger("sprout.store")
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 PARQUET_DIR = Path(os.environ.get("PORTFOLIO_PRICES", _REPO_ROOT / "data" / "prices"))
@@ -89,6 +93,21 @@ def _profile_path(ticker: str) -> Path:
     return _PROFILE_DIR / f"{_safe(ticker)}.json"
 
 
+def _replace_atomically(path: Path, write) -> None:
+    """Write via a sibling temp file, then rename over `path`.
+
+    Concurrent snapshot builds refetch the same ticker in parallel, and an
+    in-place write lets a reader (or a second writer) see a half-written file.
+    rename is atomic on POSIX, so readers get the old file or the new one.
+    """
+    tmp = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        write(tmp)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def is_fresh(ticker: str, kind: str) -> bool:
     """True if a cache entry exists and is younger than its TTL."""
     with _meta_lock:
@@ -111,9 +130,14 @@ def is_fresh(ticker: str, kind: str) -> bool:
 def _read_series(path: Path) -> pd.Series | None:
     if not path.exists():
         return None
-    df = _duck().execute(
-        "SELECT idx, val FROM read_parquet(?) ORDER BY idx", [str(path)]
-    ).df()
+    try:
+        df = _duck().execute(
+            "SELECT idx, val FROM read_parquet(?) ORDER BY idx", [str(path)]
+        ).df()
+    except duckdb.Error as e:
+        # A corrupt file is a cache miss: the caller refetches and overwrites it.
+        log.warning("unreadable cache file %s: %s", path, str(e).splitlines()[0])
+        return None
     if df.empty:
         return pd.Series(dtype=float)
     return pd.Series(df["val"].to_numpy(), index=pd.DatetimeIndex(df["idx"]))
@@ -124,7 +148,7 @@ def _write_series(path: Path, series: pd.Series, ticker: str, kind: str) -> None
     df = pd.DataFrame(
         {"idx": pd.DatetimeIndex(series.index), "val": series.to_numpy()}
     )
-    df.to_parquet(path, index=False)
+    _replace_atomically(path, lambda tmp: df.to_parquet(tmp, index=False))
     with _meta_lock:
         db_mod.upsert_cache_meta(_conn(), ticker, kind, len(series))
 
@@ -172,7 +196,7 @@ def read_profile(ticker: str) -> dict | None:
 
 def write_profile(ticker: str, prof: dict) -> None:
     _ensure_dirs()
-    _profile_path(ticker).write_text(json.dumps(prof))
+    _replace_atomically(_profile_path(ticker), lambda tmp: tmp.write_text(json.dumps(prof)))
     with _meta_lock:
         db_mod.upsert_cache_meta(_conn(), ticker, "profile", len(prof))
 
