@@ -8,6 +8,7 @@
   } from '$lib/stores.js';
   import { theme, toggleTheme } from '$lib/theme.js';
   import TickerBadge from './TickerBadge.svelte';
+  import { prefetch } from '$lib/stockCache.js';
   import Sparkline from './Sparkline.svelte';
   import ProfileMenu from './ProfileMenu.svelte';
 
@@ -320,7 +321,13 @@
       </div>
       {#if !isCollapsed('holdings')}
         {#if $holdings === null}
-          <div class="rail-empty">Loading…</div>
+          {#each [0, 1, 2, 3, 4, 5] as i (i)}
+            <div class="row sk-row" aria-hidden="true">
+              <span class="r-col r-id"><span class="skel sk-badge"></span><span class="skel skel-t" style="width:70%"></span></span>
+              <span class="skel sk-spark"></span>
+              <span class="r-col r-fig"><span class="skel skel-t" style="width:52px"></span><span class="skel sk-pill"></span></span>
+            </div>
+          {/each}
         {:else if rows.length === 0}
           <div class="rail-empty">No holdings yet.</div>
         {:else}
@@ -328,6 +335,7 @@
             <button class="row" class:src={drag?.from === 'holdings' && drag.ticker === c.ticker}
               style="--i:{Math.min(i, 16)}"
               onpointerdown={(e) => onPress(e, { kind: 'item', ticker: c.ticker, from: 'holdings', row: rowFor(c.ticker) })}
+              use:prefetch={c.ticker}
               onclick={() => openTicker(c.ticker, c.company_name)}>
               {@render rowBody(c.ticker, [usd(c.market_value), wt(c.position_pct)], $moves[c.ticker]?.spark,
                 $moves[c.ticker]?.spot ?? c.current_price, moveOf(c, win))}
@@ -377,6 +385,7 @@
                 {:else}
                   <button class="row"
                     onpointerdown={(e) => onPress(e, { kind: 'item', ticker: it.ticker, from: L.id, row: it })}
+                    use:prefetch={it.ticker}
                     onclick={() => openTicker(it.ticker, it.name)}>
                     {@render rowBody(it.ticker, [it.name], it.spark, it.price, itemMove(it, win))}
                   </button>
@@ -402,9 +411,6 @@
     {/if}
   </div>
 
-  <div class="foot">
-    <a href="/design" class="btn btn-sm btn-quiet" class:on={isActive($page.url.pathname, '/design')}>Design</a>
-  </div>
 </aside>
 
 {#if drag?.over?.zone}
@@ -436,7 +442,6 @@
   .btn-icon svg { width: 16px; height: 16px; display: block; }
   .profile-wrap { position: relative; display: flex; }
 
-  .foot { flex: 0 0 auto; margin-top: 10px; }
 
   /* scrollable rail — scrollbar chrome hidden. position: relative so row
      offsets resolve against it for drop hit-testing. */
@@ -444,6 +449,13 @@
     margin-top: 12px; padding-bottom: 8px; scrollbar-width: none; -ms-overflow-style: none; }
   .rail::-webkit-scrollbar { width: 0; height: 0; display: none; }
   .rail-empty { padding: 10px 11px; font-size: var(--fs-body); color: var(--muted); }
+  /* loading rows: the real row grid, bars in place of badge / spark / figures */
+  .sk-row, .sk-row:hover, .sk-row:active { cursor: default; animation: none; border-color: transparent; background: transparent; }
+  .sk-row .r-id { gap: 6px; }
+  .sk-row .r-fig { align-items: flex-end; gap: 6px; }
+  .sk-badge { width: 44px; height: 18px; }
+  .sk-spark { width: 56px; height: 20px; }
+  .sk-pill { width: 44px; height: 16px; border-radius: 999px; }
 
   .sec { display: flex; flex-direction: column; gap: 2px; }
   .sec + .sec { margin-top: 14px; }
@@ -542,6 +554,6 @@
 
   /* On mobile the sidebar collapses to a top nav bar — the rail would be huge there. */
   @media (max-width: 700px) {
-    .rail, .rail-drop, .foot { display: none; }
+    .rail, .rail-drop { display: none; }
   }
 </style>

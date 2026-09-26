@@ -6,6 +6,7 @@
   import StockPanel from './StockPanel.svelte';
   import TickerBadge from './TickerBadge.svelte';
   import { api } from '$lib/api.js';
+  import { prefetch } from '$lib/stockCache.js';
   import { detail, searchOpen, holdings, closeStock, closeSearch, openSearch, openSearchResult } from '$lib/stores.js';
 
   let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null } = $props();
@@ -13,7 +14,26 @@
   // search wins over an open stock view (⌘K should always summon the palette);
   // closing search falls back to the stock still in $detail, then the chart
   const mode = $derived($searchOpen ? 'search' : $detail ? 'stock' : 'portfolio');
-  const atHome = $derived(mode === 'portfolio');
+
+  // ── scroll: moving inside the stage behaves like a page change ──
+  // Leaving the portfolio remembers where it was scrolled and coming back
+  // restores it; opening a stock (or the next one from its related cards)
+  // while scrolled past the stage's top starts at the top of the page.
+  let stageEl = $state();
+  const view = $derived(mode === 'stock' ? 'stock:' + $detail.ticker : mode);
+  let lastView = 'portfolio';
+  let homeY = 0;
+  $effect.pre(() => {
+    // before the DOM swaps, while scrollY still belongs to the old view
+    if (view !== 'portfolio' && lastView === 'portfolio') homeY = window.scrollY;
+  });
+  $effect(() => {
+    const v = view;
+    if (v === lastView) return;
+    lastView = v;
+    if (v === 'portfolio') { window.scrollTo(0, homeY); return; }
+    if (stageEl && window.scrollY > stageEl.getBoundingClientRect().top + window.scrollY) window.scrollTo(0, 0);
+  });
 
   // ── persistent search strip ──
   // Always the first thing in the stage, whatever's beneath it: an idle button
@@ -70,7 +90,7 @@
 </script>
 
 <!-- stock mode renders the widget grid bare on the page paper; search keeps a card shell -->
-<section class="stage" class:stage-portfolio={atHome}>
+<section class="stage" bind:this={stageEl}>
   <!-- persistent search strip: idle button (opens search) or the live query input -->
   {#if mode === 'search'}
     <div class="strip strip-active">
@@ -93,14 +113,15 @@
     </button>
   {/if}
 
+  <!-- views swap in place — no enter animation; loading is the skeleton's job -->
   {#if mode === 'stock'}
     {#key $detail.ticker}
-      <div class="stage-in stage-widgets">
+      <div class="stage-pane stage-widgets">
         <StockPanel ticker={$detail.ticker} name={$detail.name} holding={$detail.holding} onClose={() => closeStock()} glyph="←" />
       </div>
     {/key}
   {:else if mode === 'search'}
-    <div class="stage-in stage-search stage-card">
+    <div class="stage-pane stage-search stage-card">
       {#if q.trim() && !loading && results.length === 0}
         <div class="ss-empty">No matches for “{q.trim()}”.</div>
       {:else if list.length}
@@ -109,6 +130,7 @@
           {#each list as r, i (r.symbol)}
             <li>
               <button class="ss-item" class:active={i === active} role="option" aria-selected={i === active}
+                      use:prefetch={r.symbol}
                       onmouseenter={() => (active = i)} onclick={() => pick(r)}>
                 <span class="ss-sym"><TickerBadge sym={r.symbol} size="md" /></span>
                 <span class="ss-name">{r.name}</span>
@@ -121,31 +143,32 @@
         <div class="ss-empty">Search the whole market, not just your holdings.</div>
       {/if}
     </div>
-  {:else}
-    <div class="stage-in stage-chart">
-      <PortfolioChart {equity} {spy} {twr} {netInvested} />
-    </div>
   {/if}
+  <!-- the portfolio stays mounted under the stock view and search, so coming
+       back is instant and keeps its range, metric and compares. Same stack as
+       the stock view: title card (--title-h) over the chart card. -->
+  <div class="stage-pane stage-home" class:stage-off={mode !== 'portfolio'}>
+    <section class="glass-card stage-title" aria-hidden="true"></section>
+    <section class="chart-widget"><PortfolioChart {equity} {spy} {twr} {netInvested} /></section>
+  </div>
 </section>
 
 <style>
   .stage { min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 16px; }
-  /* portfolio chart: a fixed-height widget so a tall sibling (e.g. market news
-     loading into the rail) can't stretch the shared grid row and grow the graph.
-     stock + search modes keep height:100% (page-scrolling grid / bounded card). */
-  .stage-portfolio { height: var(--stage-h, 520px); }
 
   /* .strip and .ss-* (search strip + result rows) are shared with the phone — see app.css */
 
-  /* search brings a card shell; stock mode is a bare widget grid; the chart card is its own chrome */
+  /* search brings a card shell; stock mode is a bare widget grid; home is two cards */
   .stage-card { background: var(--surface); border: var(--bw) solid var(--ink);
     border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
-  .stage-in { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
-    animation: stage-in .18s ease; }
-  @keyframes stage-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .stage-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .stage-off { display: none; }
   /* let the widget grid set its own height — the page scrolls, not the stage */
   .stage-widgets { display: block; min-height: 0; }
-  .stage-chart { min-height: 0; }
+  /* home: placeholder title card + chart card, the stock view's rhythm (16 gap).
+     Both boxes are fixed-size, so a tall rail can't stretch the chart. */
+  .stage-home { gap: 16px; }
+  .stage-title { min-height: var(--title-h, 152px); }
 
   .stage-search { overflow: hidden; }
 </style>

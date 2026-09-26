@@ -47,7 +47,12 @@
 </div>
 
 {#if $holdings === null}
-  <div class="mho-empty">Loading…</div>
+  {#each [0, 1, 2, 3, 4, 5] as i (i)}
+    <div class="mho-row sk-row" aria-hidden="true">
+      <span class="skel sk-badge"></span><span class="skel skel-t" style="width:40%"></span>
+      <span class="skel skel-t" style="width:52px;margin-left:auto"></span>
+    </div>
+  {/each}
 {:else if rows.length === 0}
   <div class="mho-empty">No holdings yet.</div>
 {:else}
@@ -99,6 +104,8 @@
   .mho-win { display: inline-flex; gap: 2px; }
 
   .mho-empty { padding: 14px 0; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
+  .sk-row { cursor: default; }
+  .sk-badge { width: 44px; height: 18px; flex: 0 0 auto; }
 
   /* ~56px touch rows: identity left, price + move right */
   .mho-row { width: 100%; display: flex; align-items: center; gap: 12px; min-height: 56px;

@@ -74,7 +74,7 @@
 
   const JUMP = [
     ['principles', 'Principles'], ['tokens', 'Tokens'], ['type', 'Type'], ['buttons', 'Buttons'],
-    ['charts', 'Charts'], ['ring', 'Ring'], ['rings-live', 'Live rings'], ['stage', 'Stage'], ['cards', 'Rail cards'],
+    ['charts', 'Charts'], ['loading', 'Loading'], ['ring', 'Ring'], ['rings-live', 'Live rings'], ['stage', 'Stage'], ['cards', 'Rail cards'],
     ['sidebar', 'Sidebar'], ['stock', 'Stock view'], ['log', 'Log'], ['mobile', 'Mobile'],
   ];
 
@@ -208,11 +208,38 @@
     <div class="dm-rows">
       <div class="dm-row"><code class="dm-code">chartPalette(theme)</code><span class="dm-usage">INK, GRID, MUTED, SPY, GAIN, LOSS per theme. Mirrors app.css by hand (canvas can't read vars).</span></div>
       <div class="dm-row"><code class="dm-code">baseChartOptions(pal)</code><span class="dm-usage">Archivo 11 axes in muted, no scale borders, no vertical grid, magnet crosshair (ink solid, grid dotted). Hosts override scaleMargins only.</span></div>
-      <div class="dm-row"><code class="dm-code">BRAND line</code><span class="dm-usage">portfolio value and stock price. Area fill 16% → 0.</span></div>
-      <div class="dm-row"><code class="dm-code">SPY overlay</code><span class="dm-usage">muted, dotted.</span></div>
+      <div class="dm-row"><code class="dm-code">areaStyle()</code><span class="dm-usage">BRAND line, fill 16% → 0. Portfolio value, portfolio return, stock price. One style.</span></div>
+      <div class="dm-row"><code class="dm-code">compare</code><span class="dm-usage">accent-deck lines, Percentage scale rebased to the window start.</span></div>
       <div class="dm-row"><code class="dm-code">volume</code><span class="dm-usage">gain/loss at 42%.</span></div>
       <div class="dm-row"><code class="dm-code">prev close</code><span class="dm-usage">muted, dashed, axis label on.</span></div>
-      <div class="dm-row"><code class="dm-code">readout</code><span class="dm-usage">18/600 num figure, 12/500 muted label. No caps.</span></div>
+      <div class="dm-row"><code class="dm-code">fills</code><span class="dm-usage">buy = gain arrow below the bar, sell = loss arrow above. One per bar and side. Indicators → My trades.</span></div>
+    </div>
+    <div class="w-h dm-gap">Both charts are one shell: components/chart/*, lib/chartKit</div>
+    <div class="dm-rows">
+      <div class="dm-row"><code class="dm-code">.chart-widget</code><span class="dm-usage">440 tall, 14×16 pad (340 ≤900, 300 ≤700). Home and the stock view use the same box.</span></div>
+      <div class="dm-row"><code class="dm-code">ChartFrame</code><span class="dm-usage">menus, readout, right control → compare chips → plot → ranges.</span></div>
+      <div class="dm-row"><code class="dm-code">readout</code><span class="dm-usage">window move: 18/600 figure, 12/500 muted label, one secondary. Hover = start to that bar. Own line under 720px of chart.</span></div>
+      <div class="dm-row"><code class="dm-code">ChartTip</code><span class="dm-usage">ink chip: value, date, fills. Drag = the span, oldest first either direction, gain/loss chip + band.</span></div>
+      <div class="dm-row"><code class="dm-code">ChartPointer</code><span class="dm-usage">hover, click-drag measure, touch hold-scrub, horizontal-wheel pan.</span></div>
+    </div>
+  </section>
+
+  <!-- ── loading + view changes ── -->
+  <section class="w dm-sec" id="loading">
+    <div class="w-h">Loading: skeletons, never placeholders</div>
+    <div class="dm-rows">
+      <div class="dm-row"><code class="dm-code">.skel</code><span class="dm-usage">breathing ink-10% bar. The card chrome and layout stay real; only unknown content becomes a bar. Text we already know stays text.</span></div>
+      <div class="dm-row"><code class="dm-code">.skel-t</code><span class="dm-usage">a text line: one line box tall (1lh). Put it inside the real text's class so the row keeps its height.</span></div>
+      <div class="dm-row"><code class="dm-code">charts</code><span class="dm-usage">one block over the plot. Never a line shape; it reads as a price.</span></div>
+      <div class="dm-row"><code class="dm-code">no fake data</code><span class="dm-usage">unknown numbers are bars, not zeros or mocks. Mocks only when a fetch fails ("Demo data").</span></div>
+      <div class="dm-row"><code class="dm-code">.arrive</code><span class="dm-usage">content that lands after a skeleton fades in, 220ms opacity. Nothing slides. A cache hit just appears.</span></div>
+    </div>
+    <div class="w-h dm-gap">View changes</div>
+    <div class="dm-rows">
+      <div class="dm-row"><code class="dm-code">swap in place</code><span class="dm-usage">stage views change with no enter animation.</span></div>
+      <div class="dm-row"><code class="dm-code">portfolio stays mounted</code><span class="dm-usage">under the stock view and search. Back is instant and keeps range, metric, compares.</span></div>
+      <div class="dm-row"><code class="dm-code">scroll</code><span class="dm-usage">a stock opens at the top. Back restores where the portfolio was.</span></div>
+      <div class="dm-row"><code class="dm-code">stockCache</code><span class="dm-usage">5 min shared cache; peek() paints the first frame, over 30s old refetches in place. use:prefetch warms a ticker after a 120ms hover.</span></div>
     </div>
   </section>
 
@@ -239,7 +266,7 @@
 
   <!-- ── stage: portfolio chart + strip ── -->
   <section class="dm-live" id="stage">
-    <div class="dm-label">Stage: portfolio chart</div>
+    <div class="dm-label">Stage: title card (placeholder) over the portfolio chart</div>
     {#if d}
       <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested}
         total={d.kpis.portfolio_value} dayGain={dayMove.gain} dayPct={dayMove.pct} />

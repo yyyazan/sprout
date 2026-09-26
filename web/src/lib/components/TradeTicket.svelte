@@ -22,6 +22,9 @@
   // Glance data — from the shared trades store (the mobile log pane reads the
   // same store, so the dashboard only fetches /api/trades once).
   const trades = $derived($tradesStore ?? []);
+  // until the store lands the figures are unknown, not zero — bars, and the
+  // Last row held open so the card doesn't grow when they arrive
+  const loading = $derived($tradesStore == null);
   onMount(() => loadTrades());
 
   const monthKey = $derived(today().slice(0, 7)); // "YYYY-MM"
@@ -130,14 +133,16 @@
 
   <div class="tt-head">
     <div class="kpi-label">Trades</div>
-    <div class="kpi-value">{monthTrades.length}</div>
+    <div class="kpi-value">{#if loading}<span class="skel skel-t" style="width:1.1em"></span>{:else}{monthTrades.length}{/if}</div>
     <div class="kpi-subtitle">this month</div>
   </div>
 
   <div class="bal-rows">
-    <div class="bal-row"><span class="bal-k">Buys</span><span class="bal-v">{buys}</span></div>
-    <div class="bal-row"><span class="bal-k">Sells</span><span class="bal-v">{sells}</span></div>
-    {#if last}
+    <div class="bal-row"><span class="bal-k">Buys</span><span class="bal-v">{#if loading}<span class="skel skel-t" style="width:1.5em"></span>{:else}{buys}{/if}</span></div>
+    <div class="bal-row"><span class="bal-k">Sells</span><span class="bal-v">{#if loading}<span class="skel skel-t" style="width:1.5em"></span>{:else}{sells}{/if}</span></div>
+    {#if loading}
+      <div class="bal-row"><span class="bal-k">Last</span><span class="bal-v"><span class="skel skel-t" style="width:7em"></span></span></div>
+    {:else if last}
       <div class="bal-row">
         <span class="bal-k">Last</span>
         <span class="bal-v"><span class={lastIsBuy ? 'up' : 'down'}>{lastIsBuy ? '+' : '−'}{sharesFmt(last.shares)}</span> {last.ticker} <span class="dim">{shortDate(last.date)}</span></span>

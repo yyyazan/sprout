@@ -99,7 +99,7 @@
     <PnlCard total={d.kpis.total_pnl} realized={d.kpis.realized_pnl} unrealized={d.kpis.unrealized_pnl} />
   </div>
 
-  <div class="mh-chart">
+  <div class="chart-widget">
     <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} />
   </div>
 
@@ -159,9 +159,6 @@
   .mh-body.hidden { display: none; }
 
   .mh-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; --card-pad: 14px 16px; }
-
-  /* PortfolioChart fills its stage on desktop; on the phone give it a fixed box */
-  .mh-chart :global(.pc-chart-w) { flex: 0 0 300px; height: 300px; }
 
   /* month glance — the sidebar row grammar: badge, name, then the move */
   .mh-glance-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 2px; }

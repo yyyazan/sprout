@@ -11,7 +11,7 @@
   import RingGauge from './RingGauge.svelte';
   import TickerBadge from './TickerBadge.svelte';
   import { mockStock, fmtCap, fmtVol } from '$lib/mockStock.js';
-  import { api } from '$lib/api.js';
+  import { cachedStock, cachedRelated, prefetch } from '$lib/stockCache.js';
   import { holdings, openStock, cardToHolding } from '$lib/stores.js';
   import ListPicker from './ListPicker.svelte';
 
@@ -21,24 +21,43 @@
 
   const owned = $derived(!!holding);
 
+  // ── data: first frame from the shared cache when it has this ticker (hover
+  // prefetch, a revisit), else skeletons. A cached copy over 30s old is
+  // refetched and swapped in place. `late` = the data came after a skeleton,
+  // so its sections fade in; a cache hit just appears. Mock numbers only
+  // stand in when the fetch fails.
   let remote = $state(null);
+  let failed = $state(false);
+  let late = $state(false);
   $effect(() => {
     const t = ticker;
     if (!t) { remote = null; return; }
     let cancelled = false;
-    remote = null;
-    api.stock(t).then((r) => { if (!cancelled) remote = r; }).catch(() => { if (!cancelled) remote = null; });
+    const hit = cachedStock.peek(t);
+    remote = hit ?? null;
+    failed = false;
+    late = !hit;
+    cachedStock.within(30_000, t)
+      .then((r) => { if (!cancelled) remote = r; })
+      .catch(() => { if (!cancelled && !remote) failed = true; });
     return () => { cancelled = true; };
   });
+  const ready = $derived(!!remote && remote.ticker === (ticker || '').toUpperCase());
+  // what the header can show before the payload: a holding's own card numbers
+  const quoteKnown = $derived(ready || failed || owned);
+  const statsKnown = $derived(ready || failed);
 
   // related stocks ride their own fetch so they never slow the main payload
   let related = $state(null);
+  let relatedLate = $state(false);
   $effect(() => {
     const t = ticker;
     if (!t) { related = null; return; }
     let cancelled = false;
-    related = null;
-    api.related(t).then((r) => {
+    const hit = cachedRelated.peek(t);
+    related = hit ? hit.related ?? [] : null;
+    relatedLate = !hit;
+    cachedRelated(t).then((r) => {
       if (!cancelled && r?.ticker === (t || '').toUpperCase()) related = r.related ?? [];
     }).catch(() => { if (!cancelled) related = []; });
     return () => { cancelled = true; };
@@ -57,7 +76,7 @@
   const stock = $derived.by(() => {
     const m = mockStock(base);
     const r = remote;
-    if (!r || r.ticker !== (ticker || '').toUpperCase()) return m;
+    if (!ready) return m;
     const price = r.price ?? m.price;
     return {
       ...m,
@@ -171,7 +190,7 @@
   <!-- header widget — 4 × 0.5: crumb, back (top right), identity, quote, position or list picker -->
   <section class="w w-head">
     <div class="hw-top">
-      <span class="hw-crumb"><TickerBadge sym={ticker} size="md" />{#if stock.sector && stock.sector !== '—'}<span class="hw-sector">{stock.sector}</span>{/if}</span>
+      <span class="hw-crumb"><TickerBadge sym={ticker} size="md" />{#if statsKnown}{#if stock.sector && stock.sector !== '—'}<span class="hw-sector">{stock.sector}</span>{/if}{:else}<span class="skel skel-t" style="width:76px"></span>{/if}</span>
       {#if showClose}
         <button class="btn btn-sm btn-quiet hw-back" onclick={() => onClose?.()}>
           <span aria-hidden="true">{glyph === '←' ? '←' : '✕'}</span>
@@ -183,10 +202,14 @@
       <div class="hw-id">
         <h2 class="hw-name">{stock.name}</h2>
         <div class="hw-quote">
-          <span class="hw-px">${f(stock.price)}</span>
-          <span class="hw-day {stock.dayPct >= 0 ? 'up' : 'down'}">
-            {#if dayAbs != null}<span>{usdS(dayAbs)}</span>{/if}<span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span><span class="hw-tf">today</span>
-          </span>
+          {#if quoteKnown}
+            <span class="hw-px">${f(stock.price)}</span>
+            <span class="hw-day {stock.dayPct >= 0 ? 'up' : 'down'}">
+              {#if dayAbs != null}<span>{usdS(dayAbs)}</span>{/if}<span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span><span class="hw-tf">today</span>
+            </span>
+          {:else}
+            <span class="skel sk-px"></span><span class="skel skel-t" style="width:120px"></span>
+          {/if}
         </div>
       </div>
       {#if owned}
@@ -217,8 +240,8 @@
     </div>
   </section>
 
-  <!-- chart widget — 4 × 2 -->
-  <section class="w w-chart">
+  <!-- chart widget — 4 × 2; .chart-widget is the size both charts share -->
+  <section class="w-chart chart-widget">
     {#key ticker}
       <StockChart {ticker} history={remote?.history ?? null} price={stock.price} />
     {/key}
@@ -229,31 +252,40 @@
     <div class="w-h">Key stats</div>
     <div class="ks-cols">
       <div class="ks-col">
-        <div class="g-row"><span>Open</span><b>{money(stock.open)}</b></div>
-        <div class="g-row"><span>High</span><b>{money(stock.dayHigh)}</b></div>
-        <div class="g-row"><span>Low</span><b>{money(stock.dayLow)}</b></div>
-        <div class="g-row"><span>Prev close</span><b>{money(stock.prevClose)}</b></div>
+        <div class="g-row"><span>Open</span><b>{#if statsKnown}{money(stock.open)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>High</span><b>{#if statsKnown}{money(stock.dayHigh)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>Low</span><b>{#if statsKnown}{money(stock.dayLow)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>Prev close</span><b>{#if statsKnown}{money(stock.prevClose)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
       </div>
       <div class="ks-col">
-        <div class="g-row"><span>Volume</span><b>{stock.volume != null ? fmtVol(stock.volume) : '—'}</b></div>
-        <div class="g-row"><span>Avg volume</span><b>{stock.avgVolume != null ? fmtVol(stock.avgVolume) : '—'}</b></div>
-        <div class="g-row"><span>Market cap</span><b>{stock.marketCap != null ? fmtCap(stock.marketCap) : '—'}</b></div>
-        <div class="g-row"><span>P/E ratio</span><b>{stock.pe ?? '—'}</b></div>
+        <div class="g-row"><span>Volume</span><b>{#if statsKnown}{stock.volume != null ? fmtVol(stock.volume) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>Avg volume</span><b>{#if statsKnown}{stock.avgVolume != null ? fmtVol(stock.avgVolume) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>Market cap</span><b>{#if statsKnown}{stock.marketCap != null ? fmtCap(stock.marketCap) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>P/E ratio</span><b>{#if statsKnown}{stock.pe ?? '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
       </div>
       <div class="ks-col">
-        <div class="g-row"><span>EPS</span><b>{sUsd(stock.eps)}</b></div>
-        <div class="g-row"><span>Dividend yield</span><b>{stock.divYield ? stock.divYield + '%' : '—'}</b></div>
-        <div class="g-row"><span>Beta</span><b>{stock.beta ?? '—'}</b></div>
-        <div class="g-row"><span>Earnings</span><b>{fmtEarn(remote?.earningsDate)}</b></div>
+        <div class="g-row"><span>EPS</span><b>{#if statsKnown}{sUsd(stock.eps)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>Dividend yield</span><b>{#if statsKnown}{stock.divYield ? stock.divYield + '%' : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>Beta</span><b>{#if statsKnown}{stock.beta ?? '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        <div class="g-row"><span>Earnings</span><b>{#if statsKnown}{fmtEarn(remote?.earningsDate)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
       </div>
     </div>
   </section>
 
   <!-- analyst outlook — two BARE widgets side by side, centred like the
        dashboard's ring row: ratings on the shared RingGauge, forecast range -->
-  {#if analyst && (ratingSegs || forecast)}
+  {#if !statsKnown}
+    <section class="w-bare w-ratings" aria-hidden="true"><span class="skel sk-ring"></span></section>
+    <section class="w-forecast" aria-hidden="true">
+      <span class="skel skel-t" style="width:112px"></span>
+      <span class="skel sk-hero"></span>
+      <span class="skel skel-t" style="width:84px;margin-top:6px"></span>
+      <span class="skel sk-track"></span>
+      <div class="fc-ends"><span class="skel skel-t" style="width:118px"></span><span class="skel skel-t" style="width:118px"></span></div>
+    </section>
+  {:else if analyst && (ratingSegs || forecast)}
     {#if ratingSegs}
-      <section class="w-bare w-ratings">
+      <section class="w-bare w-ratings" class:arrive={late}>
         <RingGauge heroSize={15}
           segments={[
             { key: 'buy', color: 'var(--gain)', value: ratingSegs.buy, tag: 'Buy', hero: String(ratingSegs.buy), sub: 'analysts' },
@@ -266,7 +298,7 @@
     {/if}
     {#if forecast}
       {@const g = forecast.range}
-      <section class="w-forecast">
+      <section class="w-forecast" class:arrive={late}>
         <span class="w-h">12-month forecast</span>
         <div class="fc-hero">
           <span class="fc-avg">${f(forecast.mean)}</span>
@@ -299,8 +331,25 @@
 
   <!-- news — full-width headline list; the dot is the sentiment read
        (green = positive · yellow = neutral · red = negative, keyword heuristic) -->
-  {#if remote?.news?.length}
-    <section class="w w-news">
+  {#if !statsKnown}
+    <section class="w w-news" aria-hidden="true">
+      <span class="skel skel-t" style="width:44px"></span>
+      <div class="nw-list">
+        <!-- bars sit in the real title/meta classes, so each row is a real row's height;
+             one headline wraps, as they usually do -->
+        {#each [[78], [96, 44], [64], [86]] as lines}
+          <div class="nw-row">
+            <span class="skel sk-dot"></span>
+            <span class="nw-body sk-body">
+              <span class="nw-title">{#each lines as wd}<span class="skel skel-t" style="width:{wd}%"></span>{/each}</span>
+              <span class="nw-meta"><span class="skel skel-t" style="width:24%"></span></span>
+            </span>
+          </div>
+        {/each}
+      </div>
+    </section>
+  {:else if remote?.news?.length}
+    <section class="w w-news" class:arrive={late}>
       <div class="w-h">News</div>
       <div class="nw-list">
         {#each remote.news as n (n.url ?? n.title)}
@@ -318,11 +367,21 @@
   {/if}
 
   <!-- related stocks — 4 standalone 1×1 cards -->
-  {#if related?.length}
+  {#if related == null}
+    {#each [0, 1, 2, 3] as i (i)}
+      <div class="w rel-card sk-rel" aria-hidden="true">
+        <span class="skel sk-badge"></span>
+        <span class="skel skel-t" style="width:80%"></span>
+        <span class="skel skel-t" style="width:46%"></span>
+        <span class="skel skel-t" style="width:34%"></span>
+        <span class="skel sk-spark"></span>
+      </div>
+    {/each}
+  {:else if related.length}
     {#each related as r (r.ticker)}
       {@const sp = sparkPath(r.spark, r.prevClose)}
       {@const up = (r.dayPct ?? 0) >= 0}
-      <button class="w rel-card" onclick={() => openRelated(r)}>
+      <button class="w rel-card" class:arrive={relatedLate} use:prefetch={r.ticker} onclick={() => openRelated(r)}>
         <span class="rel-tkr"><TickerBadge sym={r.ticker} /></span>
         <span class="rel-name">{r.name}</span>
         <span class="rel-px">{money(r.price)}</span>
@@ -338,7 +397,7 @@
     {/each}
   {/if}
 
-  {#if stock._mock}<div class="sp-mock">Demo data</div>{/if}
+  {#if failed}<div class="sp-mock">Demo data</div>{/if}
 </div>
 
 <style>
@@ -386,8 +445,8 @@
   .pos-kv span { font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
   .pos-kv b { font-family: var(--num); font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
 
-  /* chart widget — 4 × 2 */
-  .w-chart { grid-column: 1 / -1; height: 440px; padding: 14px 16px; }
+  /* chart widget — 4 × 2; box size comes from the global .chart-widget */
+  .w-chart { grid-column: 1 / -1; min-width: 0; }
 
   /* key stats widget — 4 × 1, three columns */
   .w-stats { grid-column: 1 / -1; padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -475,6 +534,20 @@
   .rel-day { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; }
   .rel-spark { display: block; width: calc(100% + 26px); margin: 7px -13px 0; height: 36px; }
 
+  /* ── skeleton parts: each sized like what it stands in for (see app.css .skel) ── */
+  .sk-px { display: inline-block; width: 132px; height: 28px; }
+  .sk-v { width: 52px; }
+  .sk-ring { width: 168px; height: 168px; border-radius: 50%; background: none;
+    border: 15px solid color-mix(in srgb, var(--ink) 10%, transparent); }
+  .sk-hero { width: 128px; height: 24px; margin-top: 10px; }
+  .sk-track { height: 8px; margin: 34px 0 10px; }
+  .sk-dot { flex: 0 0 auto; width: 9px; height: 9px; margin-top: 4px; border-radius: 50%; }
+  .sk-body { flex: 1; }
+  .sk-rel { gap: 7px; height: 145px; padding-bottom: 0; cursor: default; }
+  .sk-rel:hover { transform: none; box-shadow: var(--sh); }
+  .sk-badge { width: 46px; height: 18px; margin-bottom: 2px; }
+  .sk-spark { align-self: stretch; height: 36px; margin: auto -13px 0; border-radius: 0; }
+
   .sp-mock { position: absolute; bottom: -18px; right: 2px; pointer-events: none;
     font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
 
@@ -484,7 +557,6 @@
     .spg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .w-head, .w-chart, .w-stats, .w-bare, .w-forecast { grid-column: 1 / -1; }
     .rel-card { grid-column: span 1; }
-    .w-chart { height: 340px; }
     .ks-cols { grid-template-columns: 1fr; column-gap: 0; row-gap: 12px; }
     .ks-col + .ks-col { border-left: 0; padding-left: 0; }
   }
@@ -493,7 +565,6 @@
   @media (max-width: 700px) {
     .spg { gap: 12px; }
     .w-head { min-height: 0; }
-    .w-chart { height: 300px; padding: 10px 8px; }
     .hw-px { font-size: 24px; }
     .hw-pos { gap: 4px 10px; }
     .w-bare { min-height: 0; padding: 14px 8px; }

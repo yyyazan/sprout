@@ -26,7 +26,11 @@
 <div class="glass-card earn">
   <div class="kpi-label">Upcoming earnings</div>
   {#if earnings === null}
-    <div class="earn-note">Loading…</div>
+    <div class="earn-grid" aria-hidden="true">
+      {#each [0, 1, 2, 3, 4, 5] as i (i)}
+        <div class="earn-cell"><span class="skel sk-badge"></span><span class="earn-date"><span class="skel skel-t" style="width:3.4em"></span></span><span class="earn-when"><span class="skel skel-t" style="width:2.6em"></span></span></div>
+      {/each}
+    </div>
   {:else if earnings.length === 0}
     <div class="earn-note">No earnings dates.</div>
   {:else}
@@ -46,6 +50,7 @@
   .earn { display: flex; flex-direction: column; gap: 6px; }
   .earn .kpi-label { margin-bottom: 0; }
   .earn-note { font-size: var(--fs-body); color: var(--muted); }
+  .sk-badge { width: 44px; height: 16px; }
   .earn-grid { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 12px; row-gap: 12px; }
   .earn-cell { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
   .earn-date { font-family: var(--num); font-size: var(--fs-body); font-weight: 500; font-variant-numeric: tabular-nums;

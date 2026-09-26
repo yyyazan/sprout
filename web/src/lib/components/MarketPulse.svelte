@@ -5,6 +5,7 @@
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
   import { openStock } from '$lib/stores.js';
+  import { prefetch } from '$lib/stockCache.js';
 
   let m = $state(null);
   onMount(async () => {
@@ -25,11 +26,20 @@
 <div class="glass-card pulse">
   <div class="kpi-label">Market</div>
   {#if m === null}
-    <div class="pulse-empty">Loading…</div>
+    <div class="idx-row" aria-hidden="true">
+      {#each [0, 1, 2] as i (i)}
+        <div class="idx"><span class="idx-label"><span class="skel skel-t" style="width:4.5em"></span></span><span class="idx-pct"><span class="skel skel-t" style="width:3.6em"></span></span><span class="idx-px"><span class="skel skel-t" style="width:3.2em"></span></span></div>
+      {/each}
+    </div>
+    <div class="pulse-news" aria-hidden="true">
+      {#each [[96, 70], [92, 58], [98, 76]] as [a, b]}
+        <div class="pn-item"><span class="pn-title"><span class="skel skel-t" style="width:{a}%"></span><span class="skel skel-t" style="width:{b}%"></span></span><span class="pn-meta"><span class="skel skel-t" style="width:28%"></span></span></div>
+      {/each}
+    </div>
   {:else}
     <div class="idx-row">
       {#each m.indices as ix (ix.symbol)}
-        <button class="idx" onclick={() => openStock({ ticker: ix.symbol, name: ix.label, holding: null })}>
+        <button class="idx" use:prefetch={ix.symbol} onclick={() => openStock({ ticker: ix.symbol, name: ix.label, holding: null })}>
           <span class="idx-label">{ix.label}</span>
           <span class="idx-pct pct-pill {(ix.dayPct ?? 0) >= 0 ? 'up' : 'down'}">{pct(ix.dayPct)}</span>
           <span class="idx-px">{px(ix.price)}</span>
@@ -52,7 +62,6 @@
 <style>
   .pulse { display: flex; flex-direction: column; gap: 6px; }
   .pulse .kpi-label { margin-bottom: 0; }
-  .pulse-empty { font-size: var(--fs-body); color: var(--muted); }
 
   /* three cells — the gap separates, the % is the hero */
   .idx-row { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 12px; margin-top: 4px; }

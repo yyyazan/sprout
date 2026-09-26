@@ -167,6 +167,30 @@ a { color: inherit; text-decoration: none; }
 /* interactive cards lift — the only hover treatment a card gets */
 .glass-card.pressable { cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
 .glass-card.pressable:hover { transform: translate(-2px, -2px); box-shadow: var(--sh-pop); }
+/* chart widget — one box for the portfolio and stock charts, both views, both devices */
+.chart-widget { box-sizing: border-box; height: 440px; padding: 14px 16px; background: var(--surface);
+  border: var(--bw) solid var(--ink); border-radius: var(--r); box-shadow: var(--sh); }
+@media (max-width: 900px) { .chart-widget { height: 340px; } }
+@media (max-width: 700px) { .chart-widget { height: 300px; padding: 10px 8px; } }
+
+/* ── Skeleton ──────────────────────────────────────────────────────────────
+   Loading keeps the real card chrome and layout; only the unknown content is
+   swapped for a breathing ink-tint bar sized like what it stands in for, so
+   nothing moves when data lands. Text we already know stays text. A chart is
+   one block, never a line (a shape would read as a price trajectory). */
+.skel { display: block; box-sizing: border-box; border-radius: 3px;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  animation: skel 1.4s ease-in-out infinite; }
+/* a text line: a bar .78em tall whose margins make up exactly one line box
+   of the text it replaces (1lh), so a skeleton row is as tall as the real row */
+.skel-t { display: inline-block; height: .78em; width: 4em; vertical-align: top;
+  margin-block: calc((1lh - .78em) / 2); }
+.skel-fill { position: absolute; inset: 0; border-radius: var(--r); }
+@keyframes skel { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+/* data that replaces a skeleton fades in over it; nothing slides */
+.arrive { animation: arrive .22s ease-out; }
+@keyframes arrive { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .skel, .arrive { animation: none; } }
 
 /* ── Card type — four sizes, two weights, two inks (spec: /design → type) ──
    title 13/600 ink · headline 24/600 num · body 12/500 · meta 11/500 muted.

@@ -42,6 +42,15 @@ export function baseChartOptions(pal) {
   };
 }
 
+// the one area style — portfolio value, portfolio return, stock price: BRAND
+// line over a 16% → 0 fill
+export function areaStyle(color = BRAND) {
+  return {
+    lineColor: color, lineWidth: 2, topColor: hexA(color, 0.16), bottomColor: hexA(color, 0),
+    priceLineVisible: false, lastValueVisible: false,
+  };
+}
+
 export function hexA(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
