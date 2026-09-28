@@ -4,8 +4,9 @@
   import { page } from '$app/stores';
   import {
     holdings, moves, loadHoldings, startMomentum, openStock, cardToHolding,
-    lists, loadLists, saveLists, createList, renameList, deleteList, rowFor,
+    lists, loadLists, createList, renameList, deleteList,
   } from '$lib/stores.js';
+  import { ListDrag, previewLists, slotListOf, dropLayout, saveIfMoved } from '$lib/listDrag.svelte.js';
   import { theme, toggleTheme } from '$lib/theme.js';
   import TickerBadge from './TickerBadge.svelte';
   import { prefetch } from '$lib/stockCache.js';
@@ -55,7 +56,6 @@
   };
 
   function openTicker(ticker, name) {
-    if (suppressClick) return;
     const card = ($holdings ?? []).find((c) => c.ticker === ticker);
     openStock({ ticker, name: card?.company_name ?? name, holding: card ? cardToHolding(card) : null });
   }
@@ -67,7 +67,6 @@
   })());
   const isCollapsed = (k) => collapsed.includes(k);
   function toggleSection(k) {
-    if (suppressClick) return;
     collapsed = isCollapsed(k) ? collapsed.filter((x) => x !== k) : [...collapsed, k];
     try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapsed)); } catch {}
   }
@@ -98,153 +97,25 @@
     if (L) startRename(L);
   }
 
-  // ── drag and drop ──
-  // Pointer-driven so the rail can preview the drop live: rows slide apart,
-  // the dragged row leaves a dashed slot where it will land, and a lifted
-  // copy follows the cursor. Holdings are a copy source only; list rows move
-  // (within or across lists); list headers reorder the lists.
+  // ── drag and drop (lib/listDrag.svelte.js) ──
+  // Live preview: rows slide apart, the dragged row leaves a dashed slot where
+  // it will land, and a lifted copy follows the pointer. Touch picks a row up
+  // after a hold, so the rail still scrolls on a tablet.
   let railEl;
-  let press = null;
-  let drag = $state.raw(null);
-  let suppressClick = false;
-  let raf = 0;
-  const SLOP = 5;
-
-  function onPress(e, meta) {
-    if (e.button !== 0 || e.pointerType === 'touch' || renaming != null) return;
-    press = { ...meta, x0: e.clientX, y0: e.clientY, el: e.currentTarget };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    window.addEventListener('pointercancel', endDrag);
-    window.addEventListener('keydown', onKey);
-  }
-
-  function onMove(e) {
-    if (!drag) {
-      if (!press || Math.hypot(e.clientX - press.x0, e.clientY - press.y0) < SLOP) return;
-      const r = press.el.getBoundingClientRect();
-      drag = {
-        kind: press.kind, ticker: press.ticker, from: press.from, listId: press.listId,
-        row: press.row, label: press.label,
-        w: r.width, h: r.height, dx: press.x0 - r.left, dy: press.y0 - r.top,
-        x: e.clientX, y: e.clientY, over: null,
-      };
-      document.documentElement.classList.add('rail-dragging');
-      window.getSelection()?.removeAllRanges();
-      raf = requestAnimationFrame(autoScroll);
-    }
-    drag = { ...drag, x: e.clientX, y: e.clientY, over: hitTest(e.clientX, e.clientY) };
-  }
-
-  function onKey(e) { if (e.key === 'Escape') endDrag(); }
-
-  function endDrag() {
-    press = null;
-    window.removeEventListener('pointermove', onMove);
-    window.removeEventListener('pointerup', onUp);
-    window.removeEventListener('pointercancel', endDrag);
-    window.removeEventListener('keydown', onKey);
-    cancelAnimationFrame(raf);
-    document.documentElement.classList.remove('rail-dragging');
-    if (drag) {
-      // the click that follows this pointerup must not open the stock / toggle the section
-      suppressClick = true;
-      setTimeout(() => (suppressClick = false), 0);
-    }
-    drag = null;
-  }
-
-  async function onUp() {
-    const d = drag;
-    endDrag();
-    if (!d?.over) return;
-    const ls = $lists ?? [];
-    if (d.kind === 'list') {
-      saveLists(moveList(ls, d.listId, d.over.index));
-    } else if (d.over.zone === 'new') {
-      if (d.from !== 'holdings') await saveLists(placeItem(ls, d, d.over));
-      newList([d.ticker]);
-    } else {
-      saveLists(placeItem(ls, d, d.over));
-    }
-  }
-
-  // scroll the rail while the cursor rides its top/bottom edge
-  function autoScroll() {
-    if (!drag || !railEl) return;
-    const r = railEl.getBoundingClientRect();
-    const EDGE = 36;
-    let v = 0;
-    if (drag.y < r.top + EDGE && drag.y > r.top - EDGE) v = -Math.ceil((r.top + EDGE - drag.y) / 4);
-    else if (drag.y > r.bottom - EDGE && drag.y <= r.bottom) v = Math.ceil((drag.y - (r.bottom - EDGE)) / 4);
-    if (v) {
-      railEl.scrollTop += v;
-      drag = { ...drag, over: hitTest(drag.x, drag.y) };
-    }
-    raf = requestAnimationFrame(autoScroll);
-  }
-
-  // layout positions (offsetTop ignores the flip transforms mid-animation)
-  const topIn = (el) => { let t = 0; while (el && el !== railEl) { t += el.offsetTop; el = el.offsetParent; } return t; };
-
-  function hitTest(x, y) {
-    const zone = document.elementFromPoint(x, y)?.closest('[data-zone]');
-    if (zone) return { zone: zone.dataset.zone };
-    const r = railEl.getBoundingClientRect();
-    if (x < r.left - 24 || x > r.right + 24 || y < r.top || y > r.bottom) return null;
-    const cy = y - r.top + railEl.scrollTop;
-    const secs = [...railEl.querySelectorAll('[data-list]')];
-    if (drag.kind === 'list') {
-      const others = secs.filter((s) => +s.dataset.list !== drag.listId);
-      return { index: others.filter((s) => topIn(s) + s.offsetHeight / 2 < cy).length };
-    }
-    // no dead space under the holdings: a gap belongs to the list below it and
-    // everything past the last list appends to it — otherwise a preview that
-    // shifts the layout can leave the cursor in a gap, revert, and flicker
-    if (!secs.length || cy < topIn(secs[0]) - 6) return null;
-    const s = secs.find((el) => cy <= topIn(el) + el.offsetHeight + 6) ?? secs[secs.length - 1];
-    const id = +s.dataset.list;
-    if (isCollapsed('l' + id)) {
-      const L = ($lists ?? []).find((l) => l.id === id);
-      return { listId: id, index: L ? L.items.filter((i) => i.ticker !== drag.ticker).length : 0 };
-    }
-    const slots = [...s.querySelectorAll('[data-slot]')].filter((el) => el.dataset.slot !== drag.ticker);
-    return { listId: id, index: slots.filter((el) => topIn(el) + el.offsetHeight / 2 < cy).length };
-  }
-
-  function moveList(ls, id, index) {
-    const L = ls.find((l) => l.id === id);
-    const rest = ls.filter((l) => l.id !== id);
-    return [...rest.slice(0, index), L, ...rest.slice(index)];
-  }
-
-  // list rows move out of their list; holdings stay put (copy). A zone target
-  // ('new' / 'remove') just takes the row out of its source list.
-  function placeItem(ls, d, over) {
-    let next = d.from === 'holdings'
-      ? ls
-      : ls.map((L) => (L.id === d.from ? { ...L, items: L.items.filter((i) => i.ticker !== d.ticker) } : L));
-    if (over.zone) return next;
-    return next.map((L) => {
-      if (L.id !== over.listId) return L;
-      const items = L.items.filter((i) => i.ticker !== d.ticker);
-      const at = Math.min(over.index, items.length);
-      return { ...L, items: [...items.slice(0, at), d.row, ...items.slice(at)] };
-    });
-  }
-
-  // what the rail renders: the live preview while dragging, else the store
-  const shown = $derived.by(() => {
-    const ls = $lists ?? [];
-    if (!drag?.over) return ls;
-    if (drag.kind === 'list') return moveList(ls, drag.listId, drag.over.index);
-    return placeItem(ls, drag, drag.over);
+  const dnd = new ListDrag({
+    root: () => railEl,
+    scroller: () => railEl,
+    collapsed: (id) => isCollapsed('l' + id),
+    canStart: () => renaming == null,
+    onDrop: async (d) => {
+      await saveIfMoved(dropLayout($lists ?? [], d));
+      if (d.over.zone === 'new') newList([d.ticker]);
+    },
   });
-  // the list whose row for drag.ticker renders as the dashed landing slot
-  const slotList = $derived(
-    drag?.kind !== 'item' ? null
-      : drag.over?.listId ?? (drag.over || drag.from === 'holdings' ? null : drag.from)
-  );
+  const grab = dnd.grab;
+  const drag = $derived(dnd.drag);
+  const shown = $derived(previewLists($lists ?? [], drag));
+  const slotList = $derived(slotListOf(drag));
   const zoneOn = $derived(drag?.kind === 'item');
 </script>
 
@@ -334,7 +205,7 @@
           {#each rows as c, i (c.ticker)}
             <button class="row" class:src={drag?.from === 'holdings' && drag.ticker === c.ticker}
               style="--i:{Math.min(i, 16)}"
-              onpointerdown={(e) => onPress(e, { kind: 'item', ticker: c.ticker, from: 'holdings', row: rowFor(c.ticker) })}
+              use:grab={{ kind: 'item', ticker: c.ticker, from: 'holdings' }}
               use:prefetch={c.ticker}
               onclick={() => openTicker(c.ticker, c.company_name)}>
               {@render rowBody(c.ticker, [usd(c.market_value), wt(c.position_pct)], $moves[c.ticker]?.spark,
@@ -365,7 +236,7 @@
                 onblur={() => commitRename(L)} />
             {:else}
               <button class="sec-toggle sec-grab" aria-expanded={!isCollapsed(k)}
-                onpointerdown={(e) => onPress(e, { kind: 'list', listId: L.id, label: L.name })}
+                use:grab={{ kind: 'list', listId: L.id, label: L.name }}
                 onclick={() => toggleSection(k)}>
                 {@render chevron(k)}
                 <span class="sec-name">{L.name}</span>
@@ -384,7 +255,7 @@
                   <div class="slot-ph" style="height:{drag.h}px"></div>
                 {:else}
                   <button class="row"
-                    onpointerdown={(e) => onPress(e, { kind: 'item', ticker: it.ticker, from: L.id, row: it })}
+                    use:grab={{ kind: 'item', ticker: it.ticker, from: L.id, row: it }}
                     use:prefetch={it.ticker}
                     onclick={() => openTicker(it.ticker, it.name)}>
                     {@render rowBody(it.ticker, [it.name], it.spark, it.price, itemMove(it, win))}
@@ -466,7 +337,7 @@
     min-height: 26px; padding-left: 11px; margin-bottom: 2px; }
   .sec-toggle { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 6px; padding: 3px 0;
     background: transparent; border: 0; font: inherit; color: var(--ink); cursor: pointer; text-align: left;
-    user-select: none; }
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   .sec-name { font-size: var(--fs-title); font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sec-count { font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
   .chev { position: absolute; left: 0; top: 50%; width: 10px; height: 10px; margin-top: -5px; color: var(--muted);
@@ -496,7 +367,8 @@
      while pressed. no sweeps, no washes. ── */
   .row { width: 100%; box-sizing: border-box; padding: 8px 10px;
     border: var(--bw) solid transparent; border-radius: var(--r);
-    background: transparent; cursor: pointer; text-align: left; font: inherit; color: var(--ink); user-select: none;
+    background: transparent; cursor: pointer; text-align: left; font: inherit; color: var(--ink);
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
     transition: border-color .12s ease, background .12s ease;
     animation: rise .42s cubic-bezier(.2, .8, .3, 1) backwards; animation-delay: calc(var(--i, 0) * 26ms); }
   .row:hover { border-color: var(--ink); }
@@ -543,8 +415,8 @@
   .zone.over { border-style: solid; border-color: var(--ink); background: var(--hover); }
   .zone-rm.over { border-color: var(--loss); color: var(--loss); background: color-mix(in srgb, var(--loss) 10%, transparent); }
 
-  :global(html.rail-dragging), :global(html.rail-dragging *) { cursor: grabbing !important; user-select: none; }
-  :global(html.rail-dragging) .row:hover:not(.src) { border-color: transparent; }
+  :global(html.list-dragging), :global(html.list-dragging *) { cursor: grabbing !important; user-select: none; }
+  :global(html.list-dragging) .row:hover:not(.src) { border-color: transparent; }
 
   @keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) {

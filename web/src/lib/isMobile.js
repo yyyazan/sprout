@@ -15,3 +15,14 @@ export const isMobile = readable(false, (set) => {
   mq.addEventListener('change', on);
   return () => mq.removeEventListener('change', on);
 });
+
+// No hover = a touch-first device (phone, tablet). Rows there trade hover
+// actions for swipe-left actions (SwipeRow); CSS and JS read the same query.
+export const noHover = readable(false, (set) => {
+  if (typeof window === 'undefined') return;
+  const mq = window.matchMedia('(hover: none)');
+  set(mq.matches);
+  const on = (e) => set(e.matches);
+  mq.addEventListener('change', on);
+  return () => mq.removeEventListener('change', on);
+});

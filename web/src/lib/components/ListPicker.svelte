@@ -2,7 +2,7 @@
   // The stock view's list pill: which sidebar lists hold this ticker. The pill
   // names the list (or the count), ink when it's in any; the popover toggles
   // membership per list and can start a new one. Same panel as ProfileMenu.
-  import { onMount, tick } from 'svelte';
+  import { onMount, flushSync } from 'svelte';
   import { lists, loadLists, setMembership, createList } from '$lib/stores.js';
 
   let { ticker } = $props();
@@ -37,10 +37,11 @@
     };
   });
 
-  async function startNew() {
+  // render + focus inside the tap: iOS won't raise the keyboard after an await
+  function startNew() {
     naming = true;
     name = '';
-    await tick();
+    flushSync();
     nameEl?.focus();
   }
   function commitNew() {

@@ -7,13 +7,15 @@
   // a colored headline figure (buy/sell, amount, or P&L) trails — so the eye
   // doesn't have to relearn the row on every section. Entry lives in the cash
   // + trade tiles; trades and transactions can also be edited or deleted in
-  // place here — realized lots are FIFO-computed from the trade history, not
+  // place here (hover icons with a mouse, swipe left on touch) — realized lots are FIFO-computed from the trade history, not
   // stored, so they're read-only and just fall out of whatever trades remain
   // after an edit.
   import { fmt } from '$lib/format.js';
   import { api } from '$lib/api.js';
   import { loadTrades } from '$lib/stores.js';
   import TickerBadge from './TickerBadge.svelte';
+  import SwipeRow from './SwipeRow.svelte';
+  import { noHover } from '$lib/isMobile.js';
 
   const today = () => new Date().toISOString().slice(0, 10);
   const TICKER_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
@@ -142,7 +144,7 @@
   });
 </script>
 
-<div class="al-wrap">
+<div class="al-wrap" class:al-touch={$noHover}>
   <label class="strip strip-active al-search">
     <span class="strip-icon" aria-hidden="true"></span>
     <input type="search" bind:value={query} placeholder="Search trades, transactions, realized"
@@ -153,7 +155,7 @@
     <div class="al-head"><span class="al-title">Trades</span></div>
     {#if tradesFiltered.length}
       <div class="al-colhead al-trade" aria-hidden="true">
-        <span>Ticker</span><span>Action</span><span>Shares</span><span>Date</span><span>Price</span><span></span>
+        <span>Ticker</span><span>Action</span><span>Shares</span><span>Date</span><span>Price</span>{#if !$noHover}<span></span>{/if}
       </div>
       <div class="al-rows" class:al-fade={!tradesAll && !q && trades.length > recent}>
         {#each tradesFiltered as t (t.id)}
@@ -182,17 +184,24 @@
               </span>
             </div>
           {:else}
-            <div class="al-row al-trade">
-              <span class="al-tkr"><TickerBadge sym={t.ticker} /></span>
-              <span class="al-kind {t.action === 'buy' ? 'up' : 'down'}">{t.action === 'buy' ? 'Buy' : 'Sell'}</span>
-              <span class="al-fig">{sh(t.shares)}</span>
-              <span class="al-date">{t.date}</span>
-              <span class="al-fig">{t.price != null ? fmt.money2(t.price) : '—'}</span>
-              <span class="al-row-actions">
-                <button type="button" class="al-ic" onclick={() => startEditTrade(t)} aria-label="Edit trade">✎</button>
-                <button type="button" class="al-ic" onclick={() => askDeleteTrade(t.id)} aria-label="Delete trade">✕</button>
-              </span>
-            </div>
+            <SwipeRow enabled={$noHover} actions={[
+              { label: 'Edit', onclick: () => startEditTrade(t) },
+              { label: 'Delete', tone: 'loss', onclick: () => askDeleteTrade(t.id) },
+            ]}>
+              <div class="al-row al-trade">
+                <span class="al-tkr"><TickerBadge sym={t.ticker} /></span>
+                <span class="al-kind {t.action === 'buy' ? 'up' : 'down'}">{t.action === 'buy' ? 'Buy' : 'Sell'}</span>
+                <span class="al-fig">{sh(t.shares)}</span>
+                <span class="al-date">{t.date}</span>
+                <span class="al-fig">{t.price != null ? fmt.money2(t.price) : '—'}</span>
+                {#if !$noHover}
+                  <span class="al-row-actions">
+                    <button type="button" class="al-ic" onclick={() => startEditTrade(t)} aria-label="Edit trade">✎</button>
+                    <button type="button" class="al-ic" onclick={() => askDeleteTrade(t.id)} aria-label="Delete trade">✕</button>
+                  </span>
+                {/if}
+              </div>
+            </SwipeRow>
           {/if}
         {/each}
       </div>
@@ -212,7 +221,7 @@
     <div class="al-head"><span class="al-title">Transactions</span></div>
     {#if txnsFiltered.length}
       <div class="al-colhead al-txn" aria-hidden="true">
-        <span>Amount</span><span>Date</span><span></span>
+        <span>Amount</span><span>Date</span>{#if !$noHover}<span></span>{/if}
       </div>
       <div class="al-rows" class:al-fade={!txnsAll && !q && txns.length > recent}>
         {#each txnsFiltered as x (x.id)}
@@ -239,14 +248,21 @@
               </span>
             </div>
           {:else}
-            <div class="al-row al-txn">
-              <span class="al-fig {x.amount >= 0 ? 'up' : 'down'}">{fmt.signedMoney2(x.amount)}</span>
-              <span class="al-date">{x.date}</span>
-              <span class="al-row-actions">
-                <button type="button" class="al-ic" onclick={() => startEditTxn(x)} aria-label="Edit transaction">✎</button>
-                <button type="button" class="al-ic" onclick={() => askDeleteTxn(x.id)} aria-label="Delete transaction">✕</button>
-              </span>
-            </div>
+            <SwipeRow enabled={$noHover} actions={[
+              { label: 'Edit', onclick: () => startEditTxn(x) },
+              { label: 'Delete', tone: 'loss', onclick: () => askDeleteTxn(x.id) },
+            ]}>
+              <div class="al-row al-txn">
+                <span class="al-fig {x.amount >= 0 ? 'up' : 'down'}">{fmt.signedMoney2(x.amount)}</span>
+                <span class="al-date">{x.date}</span>
+                {#if !$noHover}
+                  <span class="al-row-actions">
+                    <button type="button" class="al-ic" onclick={() => startEditTxn(x)} aria-label="Edit transaction">✎</button>
+                    <button type="button" class="al-ic" onclick={() => askDeleteTxn(x.id)} aria-label="Delete transaction">✕</button>
+                  </span>
+                {/if}
+              </div>
+            </SwipeRow>
           {/if}
         {/each}
       </div>
@@ -332,7 +348,7 @@
     -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 34px), transparent 100%);
   }
   .al-row { min-height: 40px; padding: 7px 8px; border-radius: var(--r); }
-  .al-rows > .al-row:nth-child(even) { background: var(--hover); }
+  .al-rows > .al-row:nth-child(even), .al-rows > :global(:nth-child(even) .al-row) { background: var(--hover); }
   /* an active edit/confirm row reads as its own state, not a resting stripe */
   .al-row.al-edit, .al-row.al-del-row { background: var(--surface); }
 
@@ -345,6 +361,10 @@
   .al-trade { grid-template-columns: repeat(5, 1fr) 48px; }
   .al-txn { grid-template-columns: repeat(2, 1fr) 48px; }
   .al-lot { grid-template-columns: repeat(4, 1fr); }
+  /* touch: the actions live behind a left swipe (SwipeRow), so no icon column */
+  .al-touch .al-trade { grid-template-columns: repeat(5, 1fr); }
+  .al-touch .al-txn { grid-template-columns: repeat(2, 1fr); }
+  .al-touch .al-rows { --sw-r: var(--r); }
   @media (min-width: 640px) {
     .al-row, .al-colhead { column-gap: 10px; }
     .al-row { padding: 8px 10px; min-height: 44px; }
@@ -366,14 +386,11 @@
   .down { color: var(--loss-ink); }
 
   /* row actions: hidden until the row is hovered/focused, so a full list of
-     trades or transactions doesn't read as a wall of buttons — touch devices
-     have no hover, so they stay visible there. */
+     trades or transactions doesn't read as a wall of buttons. Touch devices
+     have no hover; they swipe the row left instead (SwipeRow). */
   .al-row-actions { display: flex; gap: 2px; justify-self: end; opacity: 0; pointer-events: none;
     transition: opacity .12s ease; }
   .al-row:hover .al-row-actions, .al-row:focus-within .al-row-actions { opacity: 1; pointer-events: auto; }
-  @media (hover: none) {
-    .al-row-actions { opacity: 1; pointer-events: auto; }
-  }
   .al-ic { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 999px; background: transparent;
     color: var(--muted); font-size: 11px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
