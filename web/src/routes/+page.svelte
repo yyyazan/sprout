@@ -70,7 +70,7 @@
          desktop tree — the garden's #garden-root is a singleton. -->
     <MobileDashboard {d} {garden} {refresh} />
   {:else}
-    <!-- phone skeleton: the home pane's stack (header, search, KPI duo, chart, month rows) -->
+    <!-- phone skeleton: the home pane's stack (header, search, KPI duo, chart, driver rows) -->
     <div class="m-skel" aria-busy="true" aria-label="Loading">
       <div class="m-sk-head">
         <div class="greeting-title"><span class="skel skel-t" style="width:6.5em"></span></div>
@@ -105,7 +105,7 @@
     <!-- stage (big, leftmost) · widget rail (mid) · template column (right) -->
     <div class="dash">
       {#if d}
-        <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} />
+        <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} drivers={d.drivers} />
       {:else}
         <section class="sk-stage" aria-hidden="true">
           <div class="strip"><span class="strip-icon"></span><span class="strip-ph">Search</span><kbd class="strip-kbd">⌘K</kbd></div>

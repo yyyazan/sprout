@@ -55,6 +55,25 @@ def _allocation(market_value: pd.Series, cash: float) -> dict:
     return {"labels": labels, "values": values}
 
 
+def _drivers(pnl_by_ticker: pd.DataFrame) -> dict:
+    """Cumulative $ P&L per ticker on the equity curve's dates.
+
+    The client diffs two rows for any window (range, pan, drag-measure), so the
+    Drivers tile follows the chart without another request. Tickers that never
+    moved (unpriced, or a zero-share ghost) are dropped.
+    """
+    if pnl_by_ticker.empty:
+        return {"x": [], "series": {}}
+    x = [d.strftime("%Y-%m-%d") for d in pd.DatetimeIndex(pnl_by_ticker.index)]
+    series = {}
+    for t in pnl_by_ticker.columns:
+        vals = np.round(pnl_by_ticker[t].to_numpy(dtype=float), 2)
+        if not np.any(np.abs(np.nan_to_num(vals)) >= 0.01):
+            continue
+        series[str(t)] = [None if (math.isnan(v) or math.isinf(v)) else float(v) for v in vals]
+    return {"x": x, "series": series}
+
+
 def dashboard_payload(s: PortfolioSnapshot, period: str, name: str | None = None) -> dict:
     # Headline total from LIVE spot prices (same source as the positions and
     # allocation below) rather than the last point of the daily-close equity
@@ -97,6 +116,8 @@ def dashboard_payload(s: PortfolioSnapshot, period: str, name: str | None = None
             "portfolio": _xy(s.twr_portfolio, 5),
             "spy": _xy(s.twr_spy, 5),
         },
+        # Return attribution: see _drivers / analytics/attribution.py
+        "drivers": _drivers(s.pnl_by_ticker),
         "cards": [{k: _py(v) for k, v in c.items()} for c in s.cards],
     }
 

@@ -21,7 +21,10 @@
   // twr    = {portfolio:{x,y}, spy:{x,y}} decimals — for the apples-to-apples % view
   // netInvested = {x,y} cumulative net deposits ($) — strips deposits out of a
   //          span's $ change so a measure reads earnings, not balance growth
-  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null } = $props();
+  // onwindow({ from, to, range, custom }) = the window on screen, for the Drivers
+  //          tile: the range's bars, or the drag-measure span while measuring.
+  //          custom = panned or measured, so the label should be dates.
+  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null, onwindow = null } = $props();
 
   const RANGES = [
     { k: '1D',  days: 1 },
@@ -187,6 +190,18 @@
     const abs = b.pv - a.pv - (a.ni != null && b.ni != null ? b.ni - a.ni : 0);
     return { ...s, pct, abs };
   });
+
+  // the window the Drivers tile explains. Follows range, pan and drag-measure,
+  // not hover: a deliberate gesture re-ranks the bars, passing the mouse doesn't.
+  const win = $derived.by(() => {
+    if (measure) {
+      const a = timeKey(measure.t0), b = timeKey(measure.t1);
+      return { from: a <= b ? a : b, to: a <= b ? b : a, range, custom: true };
+    }
+    if (!baseRow || !lastRow) return null;
+    return { from: baseRow.t, to: lastRow.t, range, custom: panBars > 0 };
+  });
+  $effect(() => { onwindow?.(win); });
 
   // ── my buy/sell fills, every ticker ──
   onMount(() => loadTrades());

@@ -2,7 +2,7 @@
   // Mobile Home pane: garden hero (the brand moment) with the profile + theme
   // controls → search strip (the desktop stage's, folded in: idle button or
   // live input, results take the pane over) → KPI duo → portfolio chart →
-  // month glance of the top holdings → rings → market pulse.
+  // Drivers for the chart's window → rings → market pulse.
   import GardenView from '../GardenView.svelte';
   import BalanceCard from '../BalanceCard.svelte';
   import PnlCard from '../PnlCard.svelte';
@@ -10,15 +10,14 @@
   import DividendRing from '../DividendRing.svelte';
   import AllocationRing from '../AllocationRing.svelte';
   import MarketPulse from '../MarketPulse.svelte';
-  import TickerBadge from '../TickerBadge.svelte';
-  import Sparkline from '../Sparkline.svelte';
+  import DriversCard from '../DriversCard.svelte';
   import MobileSearch from './MobileSearch.svelte';
   import ProfileMenu from '../ProfileMenu.svelte';
   import { theme, toggleTheme } from '$lib/theme.js';
-  import { moves, holdings, portfolioDayMove, allTimeReturn, openStock, cardToHolding } from '$lib/stores.js';
+  import { moves, portfolioDayMove, allTimeReturn } from '$lib/stores.js';
   import { SHOW_GARDEN } from '$lib/config.js';
 
-  let { d, garden, onSeeAll } = $props();
+  let { d, garden } = $props();
   let menuOpen = $state(false);
   const dayMove = $derived(d ? portfolioDayMove(d.cards, $moves) : { gain: null, pct: null });
   const allTime = $derived(allTimeReturn(d?.twr));
@@ -30,15 +29,8 @@
   function openSearch() { searching = true; queueMicrotask(() => input?.focus()); }
   function closeSearch() { searching = false; q = ''; }
 
-  // ── month glance: top 5 by weight, each with its 21-session sparkline ──
-  const GLANCE = 5;
-  const glance = $derived(
-    [...($holdings ?? d?.cards?.filter((c) => !c.is_joker) ?? [])]
-      .sort((a, b) => (b.market_value ?? 0) - (a.market_value ?? 0))
-      .slice(0, GLANCE)
-  );
-  const pct = (n) => n == null ? '—' : (n >= 0 ? '+' : '−') + Math.abs(n).toFixed(2) + '%';
-  const open = (c) => openStock({ ticker: c.ticker, name: c.company_name, holding: cardToHolding(c) });
+  // the chart's window, which Drivers explains (range, pan)
+  let win = $state(null);
 </script>
 
 <!-- full-bleed hero; the overlay clears the iOS status bar (standalone runs
@@ -100,29 +92,11 @@
   </div>
 
   <div class="chart-widget">
-    <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} />
+    <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested}
+      onwindow={(w) => (win = w)} />
   </div>
 
-  {#if glance.length}
-    <section class="mh-glance">
-      <div class="mh-glance-head">
-        <span class="mh-title">Holdings, past month</span>
-        <button class="btn btn-sm btn-quiet" onclick={onSeeAll}>See all</button>
-      </div>
-      {#each glance as c (c.ticker)}
-        {@const m = $moves[c.ticker]}
-        {@const mp = m?.month_pct}
-        <button class="mh-row" onclick={() => open(c)}>
-          <TickerBadge sym={c.ticker} />
-          <span class="mh-name">{c.company_name}</span>
-          <span class="mh-move {(mp ?? 0) >= 0 ? 'up' : 'down'}">
-            <Sparkline values={m?.spark ?? []} />
-            <span class="mh-pct">{pct(mp)}</span>
-          </span>
-        </button>
-      {/each}
-    </section>
-  {/if}
+  <DriversCard drivers={d.drivers} {win} variant="list" />
 
   <div class="mh-rings">
     <DividendRing data={d.dividends} holdings={d.cards} />
@@ -159,21 +133,6 @@
   .mh-body.hidden { display: none; }
 
   .mh-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; --card-pad: 14px 16px; }
-
-  /* month glance — the sidebar row grammar: badge, name, then the move */
-  .mh-glance-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 2px; }
-  .mh-title { font-size: var(--fs-title); font-weight: 600; color: var(--ink); }
-  .mh-row { width: 100%; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
-    min-height: 48px; padding: 8px 0; border: 0; border-bottom: var(--bw) solid var(--hairline); border-radius: 0;
-    background: transparent; cursor: pointer; text-align: left; font: inherit; color: var(--ink); }
-  .mh-row:active { background: var(--hover); }
-  .mh-name { min-width: 0; font-size: var(--fs-body); font-weight: 500; color: var(--muted);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mh-move { display: flex; align-items: center; gap: 10px; }
-  .mh-pct { min-width: 64px; text-align: right; font-family: var(--num); font-size: var(--fs-body); font-weight: 500;
-    font-variant-numeric: tabular-nums; }
-  .up { color: var(--gain-ink); }
-  .down { color: var(--loss-ink); }
 
   .mh-rings { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: center; }
 </style>

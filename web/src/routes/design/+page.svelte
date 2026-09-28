@@ -266,9 +266,9 @@
 
   <!-- ── stage: portfolio chart + strip ── -->
   <section class="dm-live" id="stage">
-    <div class="dm-label">Stage: title card (placeholder) over the portfolio chart</div>
+    <div class="dm-label">Stage: Drivers title card over the portfolio chart</div>
     {#if d}
-      <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested}
+      <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} drivers={d.drivers}
         total={d.kpis.portfolio_value} dayGain={dayMove.gain} dayPct={dayMove.pct} />
     {:else}
       <p class="dm-usage">Loading…</p>

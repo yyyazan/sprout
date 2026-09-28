@@ -5,11 +5,15 @@
   import PortfolioChart from './PortfolioChart.svelte';
   import StockPanel from './StockPanel.svelte';
   import TickerBadge from './TickerBadge.svelte';
+  import DriversCard from './DriversCard.svelte';
   import { api } from '$lib/api.js';
   import { prefetch } from '$lib/stockCache.js';
   import { detail, searchOpen, holdings, closeStock, closeSearch, openSearch, openSearchResult } from '$lib/stores.js';
 
-  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null } = $props();
+  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null, drivers = null } = $props();
+
+  // the chart's current window, which the Drivers title card explains
+  let win = $state(null);
 
   // search wins over an open stock view (⌘K should always summon the palette);
   // closing search falls back to the stock still in $detail, then the chart
@@ -148,8 +152,8 @@
        back is instant and keeps its range, metric and compares. Same stack as
        the stock view: title card (--title-h) over the chart card. -->
   <div class="stage-pane stage-home" class:stage-off={mode !== 'portfolio'}>
-    <section class="glass-card stage-title" aria-hidden="true"></section>
-    <section class="chart-widget"><PortfolioChart {equity} {spy} {twr} {netInvested} /></section>
+    <DriversCard {drivers} {win} />
+    <section class="chart-widget"><PortfolioChart {equity} {spy} {twr} {netInvested} onwindow={(w) => (win = w)} /></section>
   </div>
 </section>
 
@@ -165,10 +169,9 @@
   .stage-off { display: none; }
   /* let the widget grid set its own height — the page scrolls, not the stage */
   .stage-widgets { display: block; min-height: 0; }
-  /* home: placeholder title card + chart card, the stock view's rhythm (16 gap).
+  /* home: Drivers title card + chart card, the stock view's rhythm (16 gap).
      Both boxes are fixed-size, so a tall rail can't stretch the chart. */
   .stage-home { gap: 16px; }
-  .stage-title { min-height: var(--title-h, 152px); }
 
   .stage-search { overflow: hidden; }
 </style>

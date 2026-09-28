@@ -94,7 +94,7 @@
   <div class="m-track" class:dragging bind:this={trackEl}
     style="transform: translateX(calc({(-idx * 100) / 3}% + {dragDX}px))"
     ontouchstart={onTouchStart} ontouchend={onTouchEnd} ontouchcancel={reset}>
-    <div class="m-pane"><MobileHome {d} {garden} onSeeAll={() => (tab = 'holdings')} /></div>
+    <div class="m-pane"><MobileHome {d} {garden} /></div>
     <div class="m-pane"><MobileHoldings /></div>
     <div class="m-pane"><MobileLog {d} {refresh} /></div>
   </div>

@@ -13,6 +13,7 @@ from pathlib import Path
 import pandas as pd
 
 from portfolio.analytics import (
+    attribution as attr_mod,
     cards as cards_mod,
     cash as cash_mod,
     cost_basis as cb_mod,
@@ -53,6 +54,10 @@ class PortfolioSnapshot:
     twr_portfolio: pd.Series
     twr_spy: pd.Series
     twr_qqq: pd.Series
+
+    # Attribution: cumulative $ P&L per ticker (columns), same index as the
+    # value series. Diff any two rows for a window's contributions.
+    pnl_by_ticker: pd.DataFrame
 
     # Risk (scalars over the trimmed window)
     max_drawdown_portfolio: float
@@ -163,6 +168,7 @@ def run(
     equity_ts = ts_mod.portfolio_equity(trades_adj, all_history, daily, trading_days)
     cash_ts = cash_mod.cash_timeseries(trades_adj, txn, daily, recon_offset).reindex(trading_days, method="ffill").fillna(0.0)
     total_value_ts = equity_ts + cash_ts
+    pnl_by_ticker = attr_mod.cumulative_pnl_by_ticker(trades_adj, all_history, daily, trading_days)
 
     # ── 11. Parallel benchmark portfolios ──────────────────────────────────
     bench_value_ts = {
@@ -228,6 +234,7 @@ def run(
         twr_portfolio=twr_port,
         twr_spy=twr_spy,
         twr_qqq=twr_qqq,
+        pnl_by_ticker=pnl_by_ticker[mask],
         max_drawdown_portfolio=risk_mod.max_drawdown(twr_port),
         max_drawdown_spy=risk_mod.max_drawdown(twr_spy),
         max_drawdown_qqq=risk_mod.max_drawdown(twr_qqq) if len(twr_qqq) else 0.0,
