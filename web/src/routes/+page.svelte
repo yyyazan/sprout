@@ -103,7 +103,7 @@
     </div>
 
     <!-- stage (big, leftmost) · widget rail (mid) · template column (right) -->
-    <div class="dash">
+    <div class="dash dash-grid">
       {#if d}
         <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} drivers={d.drivers} />
       {:else}
@@ -174,11 +174,9 @@
 {/snippet}
 
 <style>
-  /* stage : rail : templates = 2 : 1 : 0.7. The stage sizes itself: home and
-     the stock view are the same title card + .chart-widget stack. */
-  .dash { display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(312px, 1.05fr) minmax(180px, 0.7fr);
-    gap: 16px; align-items: start; }
+  /* stage : rail : templates = 2 : 1 : 0.7 (.dash-grid in app.css, shared with the
+     Log). The stage sizes itself: home and the stock view are the same title card +
+     .chart-widget stack. */
 
   /* right column — the two rings; drops away first when the viewport tightens */
   .dash-templates { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -193,11 +191,7 @@
 
   /* template column drops first; stage + rail keep the 2:1 split */
   @media (max-width: 1280px) {
-    .dash { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); }
     .dash-templates { display: none; }
-  }
-  @media (max-width: 1100px) {
-    .dash { grid-template-columns: 1fr; }
   }
   @media (max-width: 700px) {
     .rail-duo { gap: 12px; }

@@ -161,6 +161,15 @@ a { color: inherit; text-decoration: none; }
 .page-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
 .page-content { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
+/* The home grid, shared with the Log so a column is the same width on both:
+   main : rail : right = 2 : 1.05 : 0.7. The right track is the template column
+   (rings) on home and stays empty on the Log; it drops first, then everything stacks. */
+.dash-grid { display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(312px, 1.05fr) minmax(180px, 0.7fr);
+  gap: 16px; align-items: start; }
+@media (max-width: 1280px) { .dash-grid { grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr); } }
+@media (max-width: 1100px) { .dash-grid { grid-template-columns: 1fr; } }
+
 /* ── Cards (hard ink border + offset shadow, zero blur) ───────────────────── */
 .glass-card { background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r); padding: var(--card-pad); box-shadow: var(--sh); }
 .kpi-card { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; background: var(--fill, var(--surface)); }

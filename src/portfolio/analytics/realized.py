@@ -91,6 +91,25 @@ def closed_stats(realized: pd.DataFrame, ticker: str) -> dict | None:
     }
 
 
+def closed_positions(realized: pd.DataFrame, open_tickers) -> list[dict]:
+    """Every ticker we've sold out of entirely: its `closed_stats` plus the date
+    of the last sell, most recently closed first. `open_tickers` is whatever is
+    still held; a ticker bought back after an exit is open again, so it drops
+    off (the stock view shows it as a holding with a lifetime figure)."""
+    if realized.empty:
+        return []
+    out = []
+    for ticker in realized["ticker"].unique():
+        if ticker in open_tickers:
+            continue
+        stats = closed_stats(realized, ticker)
+        if stats is None:
+            continue
+        closed = pd.to_datetime(realized.loc[realized["ticker"] == ticker, "sell_date"]).max()
+        out.append({"ticker": str(ticker), "closed": closed.strftime("%Y-%m-%d"), **stats})
+    return sorted(out, key=lambda r: r["closed"], reverse=True)
+
+
 def realized_summary(realized: pd.DataFrame) -> pd.Series:
     if realized.empty:
         return pd.Series(dtype=float)

@@ -9,10 +9,11 @@
   // + trade tiles; trades and transactions can also be edited or deleted in
   // place here (hover icons with a mouse, swipe left on touch) — realized lots are FIFO-computed from the trade history, not
   // stored, so they're read-only and just fall out of whatever trades remain
-  // after an edit.
+  // after an edit. Previously held is a per-ticker rollup of the same lots for
+  // tickers sold out of entirely; a row opens that ticker's stock view.
   import { fmt } from '$lib/format.js';
   import { api } from '$lib/api.js';
-  import { loadTrades } from '$lib/stores.js';
+  import { loadTrades, openStock } from '$lib/stores.js';
   import TickerBadge from './TickerBadge.svelte';
   import SwipeRow from './SwipeRow.svelte';
   import { noHover } from '$lib/isMobile.js';
@@ -22,10 +23,14 @@
 
   // onChanged: called after any edit/delete saves, so the parent can refresh
   // whatever else the mutation touches (dashboard KPIs, realized lots, txns).
-  let { trades = [], txns = [], realized = null, recent = 6, onChanged = null } = $props();
+  let { trades = [], txns = [], realized = null, closed = null, recent = 6, onChanged = null } = $props();
 
   // "8.0000" reads like a spreadsheet; keep the precision, drop the padding
   const sh = (n) => n == null ? '' : Number(n).toLocaleString('en-US', { maximumFractionDigits: 4 });
+  // same format as the stock view's position row (StockPanel pctS)
+  const pctS = (n) => (n == null ? '—' : (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(1) + '%');
+  // return = realized over everything bought, the same figure the stock view shows
+  const closedPct = (c) => (c.cost ? (c.realized / c.cost) * 100 : null);
 
   // ── trade row actions: edit-in-place / delete-with-confirm ──
   let editTradeId = $state(null);
@@ -141,6 +146,12 @@
   const realFiltered = $derived.by(() => {
     const list = q ? (realized ?? []).filter((r) => (r.ticker || '').toLowerCase().includes(q)) : (realized ?? []);
     return realAll || q ? list : list.slice(0, recent);
+  });
+
+  let closedAllRows = $state(false);
+  const closedFiltered = $derived.by(() => {
+    const list = q ? (closed ?? []).filter((c) => c.ticker.toLowerCase().includes(q)) : (closed ?? []);
+    return closedAllRows || q ? list : list.slice(0, recent);
   });
 </script>
 
@@ -310,6 +321,40 @@
       {/if}
     </section>
   {/if}
+
+  <!-- previously held — one row per ticker sold out of entirely, newest exit first -->
+  {#if closed}
+    <section class="al-sec">
+      <div class="al-head"><span class="al-title">Previously held</span></div>
+      {#if closedFiltered.length}
+        <div class="al-colhead al-closed" aria-hidden="true">
+          <span>Ticker</span><span>Closed</span><span class="al-opt">Avg buy</span><span class="al-opt">Avg sell</span><span>Return</span><span>P&amp;L</span>
+        </div>
+        <div class="al-rows" class:al-fade={!closedAllRows && !q && closed.length > recent}>
+          {#each closedFiltered as c (c.ticker)}
+            <button type="button" class="al-row al-closed al-go" aria-label="{c.ticker} detail"
+              onclick={() => openStock({ ticker: c.ticker, name: null, holding: null })}>
+              <span class="al-tkr"><TickerBadge sym={c.ticker} /></span>
+              <span class="al-date">{c.closed}</span>
+              <span class="al-fig al-opt">{fmt.money2(c.avgBuy)}</span>
+              <span class="al-fig al-opt">{fmt.money2(c.avgSell)}</span>
+              <span class="al-fig"><b class="pct-pill {c.realized >= 0 ? 'up' : 'down'}">{pctS(closedPct(c))}</b></span>
+              <span class="al-fig {c.realized >= 0 ? 'up' : 'down'}">{fmt.signedMoney2(c.realized)}</span>
+            </button>
+          {/each}
+        </div>
+      {:else}
+        <div class="al-empty">{q ? 'No matching tickers.' : 'Nothing sold out yet.'}</div>
+      {/if}
+      {#if closed.length > recent && !q}
+        <div class="al-viewall-wrap">
+          <button class="btn btn-sm btn-quiet" onclick={() => (closedAllRows = !closedAllRows)}>
+            {closedAllRows ? 'Show less' : `View all ${closed.length}`}
+          </button>
+        </div>
+      {/if}
+    </section>
+  {/if}
 </div>
 
 <style>
@@ -361,6 +406,12 @@
   .al-trade { grid-template-columns: repeat(5, 1fr) 48px; }
   .al-txn { grid-template-columns: repeat(2, 1fr) 48px; }
   .al-lot { grid-template-columns: repeat(4, 1fr); }
+  .al-closed { grid-template-columns: repeat(6, 1fr); }
+  /* phone: avg buy / sell drop out (the stock view has them) so six columns don't crush */
+  @media (max-width: 700px) {
+    .al-closed { grid-template-columns: repeat(4, 1fr); }
+    .al-opt { display: none; }
+  }
   /* touch: the actions live behind a left swipe (SwipeRow), so no icon column */
   .al-touch .al-trade { grid-template-columns: repeat(5, 1fr); }
   .al-touch .al-txn { grid-template-columns: repeat(2, 1fr); }
@@ -370,6 +421,10 @@
     .al-row { padding: 8px 10px; min-height: 44px; }
     .al-colhead { padding: 0 10px 8px; }
   }
+
+  /* a row that opens the stock view: button reset, ink hairline on hover (the sidebar rows' rule) */
+  .al-go { width: 100%; border: 0; background: transparent; font: inherit; color: inherit; text-align: inherit; cursor: pointer; }
+  .al-go:hover, .al-go:focus-visible { box-shadow: inset 0 0 0 var(--bw) var(--ink); outline: none; }
 
   /* ticker badge: centered in its column rather than stretched to fill it —
      a 2-letter badge (MU) shouldn't carry as much colored area as a 4-letter

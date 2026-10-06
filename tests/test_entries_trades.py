@@ -191,3 +191,25 @@ def test_other_user_has_isolated_trade_list(client, as_user, other_user_id):
     default_client = as_user(1)
     [row] = default_client.get("/api/trades").json()
     assert row["ticker"] == "AAPL"  # the other user's TSLA trade never shows up here
+
+
+def test_closed_lists_sold_out_tickers_only(client, monkeypatch):
+    import pandas as pd
+    from api import state
+    from tests.conftest import make_fake_snapshot
+
+    cols = ["ticker", "shares", "buy_date", "sell_date", "buy_price", "sell_price", "realized_pnl"]
+    realized = pd.DataFrame(
+        [
+            ("AAPL", 5.0, "2026-01-02", "2026-02-02", 100.0, 120.0, 100.0),
+            ("MSFT", 2.0, "2026-01-02", "2026-03-02", 300.0, 290.0, -20.0),
+        ],
+        columns=cols,
+    )
+    monkeypatch.setattr(
+        state, "get_snapshot",
+        lambda user_id=1: make_fake_snapshot(open_positions=pd.Series({"AAPL": 1.0}), realized=realized),
+    )
+    rows = client.get("/api/closed").json()
+    assert [r["ticker"] for r in rows] == ["MSFT"]
+    assert rows[0]["closed"] == "2026-03-02" and rows[0]["realized"] == -20.0

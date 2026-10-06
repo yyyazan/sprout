@@ -24,14 +24,15 @@
   let trades = $state([]);
   let txns = $state([]);
   let realized = $state([]);
+  let closed = $state([]);
 
   async function refresh() {
     try { d = await api.dashboard(); } catch { /* stays null — sections show their own empty state */ }
   }
   onMount(() => {
     refresh();
-    Promise.all([api.trades(), api.transactions(), api.realized()])
-      .then(([t, x, r]) => { trades = t; txns = x; realized = r; })
+    Promise.all([api.trades(), api.transactions(), api.realized(), api.closed()])
+      .then(([t, x, r, c]) => { trades = t; txns = x; realized = r; closed = c; })
       .catch(() => {});
   });
 
@@ -345,7 +346,8 @@
   <!-- ── activity log, live ── -->
   <section class="dm-live" id="log">
     <div class="dm-label">Activity log</div>
-    <ActivityLog {trades} {txns} {realized} />
+    <ActivityLog {trades} {txns} {realized} {closed} />
+    <p class="dm-note">Previously held is one row per ticker sold out of entirely, newest exit first: return (pct-pill) over everything bought, P&amp;L trailing, the same figures the stock view shows. A row is a button; ink hairline on hover. Phone drops avg buy / sell.</p>
   </section>
 
   <!-- ── mobile ── -->

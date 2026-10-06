@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from portfolio.analytics.realized import closed_stats
+from portfolio.analytics.realized import closed_positions, closed_stats
 
 COLS = ["ticker", "shares", "buy_date", "sell_date", "buy_price", "sell_price", "realized_pnl"]
 
@@ -57,3 +57,22 @@ def test_unpriced_rows_are_skipped():
     )
     s = closed_stats(r, "AAA")
     assert s["shares"] == 2.0 and s["cost"] == 20.0
+
+
+def test_closed_positions_skips_held_and_orders_by_last_sell():
+    r = _rows(
+        ("AAA", 2.0, "2026-01-02", "2026-02-02", 10.0, 15.0, 10.0),
+        ("AAA", 1.0, "2026-01-05", "2026-03-09", 20.0, 18.0, -2.0),   # AAA's last sell
+        ("BBB", 1.0, "2026-01-02", "2026-04-01", 5.0, 9.0, 4.0),
+        ("CCC", 1.0, "2026-01-02", "2026-05-01", 5.0, 6.0, 1.0),      # CCC still held
+    )
+    rows = closed_positions(r, {"CCC"})
+    assert [x["ticker"] for x in rows] == ["BBB", "AAA"]
+    assert rows[1] == {
+        "ticker": "AAA", "closed": "2026-03-09",
+        "realized": 8.0, "cost": 40.0, "shares": 3.0, "avgBuy": 13.33, "avgSell": 16.0,
+    }
+
+
+def test_closed_positions_empty():
+    assert closed_positions(pd.DataFrame(), set()) == []

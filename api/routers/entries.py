@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 import pandas as pd
 
+from portfolio.analytics import realized as realized_mod
 from portfolio.data import db as db_mod, loader, prices, writer
 
 from api import state
@@ -57,6 +58,13 @@ def transactions(user_id: int = Depends(current_user_id)):
 @router.get("/realized")
 def realized(user_id: int = Depends(current_user_id)):
     return realized_payload(state.get_snapshot(user_id))
+
+
+@router.get("/closed")
+def closed(user_id: int = Depends(current_user_id)):
+    """Previously held: tickers sold out of entirely, with their sold-side totals."""
+    snap = state.get_snapshot(user_id)
+    return realized_mod.closed_positions(snap.realized, set(snap.open_positions.index))
 
 
 class TradeIn(BaseModel):

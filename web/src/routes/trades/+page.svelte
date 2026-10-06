@@ -1,7 +1,8 @@
 <script>
   // Desktop Log — the shared activity lists (same rows the mobile Log pane
-  // renders) plus the realized FIFO lots, with the cash + trade tiles in a
-  // rail beside them so a fill can be logged without leaving the page.
+  // renders), the realized FIFO lots and the previously held tickers, with the
+  // cash + trade tiles in a rail beside them (above them once the page is too
+  // narrow for two columns) so a fill can be logged without scrolling.
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
   import ActivityLog from '$lib/components/ActivityLog.svelte';
@@ -15,14 +16,16 @@
   let d = $state(null);
   let txns = $state([]);
   let realized = $state([]);
+  let closed = $state([]);
   let error = $state(null);
 
   async function load(force = false) {
     try {
-      [d, txns, realized] = await Promise.all([
+      [d, txns, realized, closed] = await Promise.all([
         api.dashboard(),
         api.transactions(),
         api.realized(),
+        api.closed(),
         loadTrades(force)
       ]);
     } catch (e) {
@@ -38,9 +41,9 @@
   {#if error}
     <p style="color:var(--loss)">Failed to load: {error}</p>
   {:else}
-    <div class="log">
+    <div class="log dash-grid">
       <div class="log-main">
-        <ActivityLog {trades} {txns} {realized} recent={8} onChanged={() => load(true)} />
+        <ActivityLog {trades} {txns} {realized} {closed} recent={8} onChanged={() => load(true)} />
       </div>
       <aside class="log-rail">
         {#if d}
@@ -55,17 +58,16 @@
 </div>
 
 <style>
-  /* lists : rail — the rail is the same band as the dashboard's */
-  .log { display: grid; grid-template-columns: minmax(0, 1fr) minmax(312px, 380px); gap: 16px 40px; align-items: start; }
+  /* lists : rail : empty — the columns are the home grid's (.dash-grid in app.css),
+     lists where the stage is, the tiles where the rail is, the rings' column left empty */
   .log-main { min-width: 0; }
   .log-rail { --card-pad: 14px 16px; display: flex; flex-direction: column; gap: 16px; min-width: 0;
     position: sticky; top: 24px; }
-  /* the tiles need body for their rising entry panels */
-  .log-rail > :global(.glass-card) { min-height: 190px; }
+  /* one column: the rail leads, the tiles are what this page is for and the lists run long.
+     Side by side they need body for their rising entry panels */
   @media (max-width: 1100px) {
-    .log { grid-template-columns: 1fr; }
-    .log-rail { position: static; flex-direction: row; }
-    .log-rail > :global(.glass-card) { flex: 1 1 0; min-width: 0; }
+    .log-rail { order: -1; position: static; flex-direction: row; }
+    .log-rail > :global(.glass-card) { flex: 1 1 0; min-width: 0; min-height: 190px; }
   }
   @media (max-width: 700px) {
     .log-rail { flex-direction: column; }
