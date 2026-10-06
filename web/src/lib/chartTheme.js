@@ -51,6 +51,30 @@ export function areaStyle(color = BRAND) {
   };
 }
 
+// No marker room under the series. Series markers add their arrow height to the axis
+// in pixels (a ~30px band below the lowest bar), on top of scaleMargins — that is what
+// pushed the Return axis well under its low and a tall stock chart under $0. The bottom
+// scale margin carries the arrows' room instead, so the axis floor is exactly what it
+// says; the room above stays as the library sizes it.
+export const dataRange = (original) => {
+  const r = original();
+  return r && { ...r, margins: { above: r.margins?.above ?? 0, below: 0 } };
+};
+
+// Bottom scale margin that keeps a $ axis from running past 0. The axis reaches
+// bottom × span below the series' lowest value, so cap `want` where that lands on the
+// floor: b ≤ (lo − floor)(1 − top) / (hi − floor). Prices and portfolio value can't
+// be negative; a volatile ticker's tall volume band used to pull the axis (and its
+// labels) under $0. The floor sits 1% of the range above 0 so the 0.00 tick falls
+// outside instead of being half-cut on the plot edge. Only binds when lo is small
+// next to hi.
+export function bottomMargin(want, top, lo, hi, floor = 0) {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= floor) return 0;
+  const edge = floor + 0.01 * (hi - floor);
+  const cap = (Math.max(lo, edge) - edge) * (1 - top) / (hi - edge);
+  return Math.max(0, Math.min(want, cap));
+}
+
 export function hexA(hex, a) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;

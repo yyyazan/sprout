@@ -7,7 +7,7 @@
   import { onMount } from 'svelte';
   import { createChart, AreaSeries, LineSeries, LineStyle, PriceScaleMode, createSeriesMarkers } from 'lightweight-charts';
   import { theme } from '$lib/theme.js';
-  import { chartPalette, baseChartOptions, themeOptions, areaStyle } from '$lib/chartTheme.js';
+  import { chartPalette, baseChartOptions, themeOptions, areaStyle, bottomMargin, dataRange } from '$lib/chartTheme.js';
   import { ChartPointer, addBand, paintBand, tradeMarkers, tradeLines, timeKey, fmtTime, fmtPct, fmtUsd, fmtUsdSigned, RANGE_LABELS } from '$lib/chartKit.svelte.js';
   import { cachedStock } from '$lib/stockCache.js';
   import { trades as tradesStore, loadTrades } from '$lib/stores.js';
@@ -26,6 +26,8 @@
   //          custom = panned or measured, so the label should be dates.
   let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null, onwindow = null } = $props();
 
+  // scale margins as a fraction of the plot: air above the peak, and under the low just enough for a buy arrow
+  const MARGIN_TOP = 0.12, MARGIN_BOTTOM = 0.07;
   const RANGES = [
     { k: '1D',  days: 1 },
     { k: '1W',  days: 7 },
@@ -214,7 +216,7 @@
     const base = baseChartOptions(PAL);
     chart = createChart(host, {
       ...base,
-      rightPriceScale: { ...base.rightPriceScale, scaleMargins: { top: 0.12, bottom: 0.08 } },
+      rightPriceScale: { ...base.rightPriceScale, scaleMargins: { top: MARGIN_TOP, bottom: MARGIN_BOTTOM } },
     });
     band = addBand(chart);
     const detach = ptr.attach(chart, host);
@@ -238,6 +240,17 @@
 
     // compare: rebased % via the Percentage scale; alone: $ or TWR % as-is
     chart.priceScale('right').applyOptions({ mode: cmp.length ? PriceScaleMode.Percentage : PriceScaleMode.Normal });
+    // the axis stops at the data: a thin margin under the lowest point, and Value
+    // (dollars) never runs under $0. Return and compare are % and can really go below 0.
+    const vals = pts.map((p) => p.value);
+    chart.priceScale('right').applyOptions({
+      scaleMargins: {
+        top: MARGIN_TOP,
+        bottom: m === 'value' && !cmp.length
+          ? bottomMargin(MARGIN_BOTTOM, MARGIN_TOP, Math.min(...vals), Math.max(...vals))
+          : MARGIN_BOTTOM,
+      },
+    });
     chart.applyOptions({
       localization: {
         priceFormatter: cmp.length ? undefined : m === 'value'
@@ -247,7 +260,7 @@
     });
 
     // one area style for Value, Return and compare (chartTheme.areaStyle)
-    main = chart.addSeries(AreaSeries, areaStyle());
+    main = chart.addSeries(AreaSeries, { ...areaStyle(), autoscaleInfoProvider: dataRange });
     main.setData(pts);
     // fills ride the fresh series, so the old markers go with the removed one
     createSeriesMarkers(main, showTrades ? marks.markers : []);

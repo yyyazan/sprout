@@ -9,7 +9,7 @@
   // a backend follow-up; the histogram swaps in transparently once it lands.
   import { onMount } from 'svelte';
   import { createChart, AreaSeries, CandlestickSeries, LineSeries, HistogramSeries, LineStyle, PriceScaleMode, createSeriesMarkers } from 'lightweight-charts';
-  import { BRAND, chartPalette, baseChartOptions, themeOptions, areaStyle, hexA } from '$lib/chartTheme.js';
+  import { BRAND, chartPalette, baseChartOptions, themeOptions, areaStyle, hexA, bottomMargin, dataRange } from '$lib/chartTheme.js';
   import { ChartPointer, addBand, paintBand, tradeMarkers, tradeLines, indexOf, timeKey, fmtTime, fmtPct, fmtUsd, fmtUsdSigned, RANGE_LABELS } from '$lib/chartKit.svelte.js';
   import { priceSeries } from '$lib/mockStock.js';
   import { cachedStock, cachedIntraday } from '$lib/stockCache.js';
@@ -48,6 +48,8 @@
   const cfg = $derived(RANGES.find((r) => r.k === range) ?? RANGES[0]);
 
   const TYPE_LABEL = { area: 'Area', candles: 'Candlestick', line: 'Line' };
+  // scale margins as a fraction of the plot; the bottom one is the volume band's room
+  const MARGIN_TOP = 0.08, MARGIN_BOTTOM = 0.26;
 
   // ── compare: rebased-% overlays of any tickers ──
   let compares = $state([]);     // [{ sym, label, color }]
@@ -217,7 +219,7 @@
     const base = baseChartOptions(PAL);
     chart = createChart(host, {
       ...base,
-      rightPriceScale: { ...base.rightPriceScale, scaleMargins: { top: 0.08, bottom: 0.26 } },
+      rightPriceScale: { ...base.rightPriceScale, scaleMargins: { top: MARGIN_TOP, bottom: MARGIN_BOTTOM } },
       timeScale: { ...base.timeScale, timeVisible: true, secondsVisible: false },
     });
     band = addBand(chart);
@@ -243,19 +245,30 @@
       series = chart.addSeries(CandlestickSeries, {
         upColor: PAL.GAIN, downColor: PAL.LOSS, borderUpColor: PAL.INK, borderDownColor: PAL.INK,
         wickUpColor: PAL.INK, wickDownColor: PAL.INK, priceLineVisible: false, lastValueVisible: false,
+        autoscaleInfoProvider: dataRange,
       });
       series.setData(real ? d.candles : []);
     } else if (type === 'line') {
-      series = chart.addSeries(LineSeries, { color: BRAND, lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+      series = chart.addSeries(LineSeries, { color: BRAND, lineWidth: 2, priceLineVisible: false, lastValueVisible: false, autoscaleInfoProvider: dataRange });
       series.setData(real ? d.area : []);
     } else {
-      series = chart.addSeries(AreaSeries, areaStyle());
+      series = chart.addSeries(AreaSeries, { ...areaStyle(), autoscaleInfoProvider: dataRange });
       series.setData(real ? d.area : []);
     }
     // a raw-$ reference line is meaningless on the % compare scale
     if (real && d.prevClose != null && !compares.length) {
       series.createPriceLine({ price: d.prevClose, color: PAL.MUTED, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Prev close' });
     }
+    // the volume band sits under the price, but a price axis can't run under $0 — on a
+    // ticker that swings hard the band narrows instead (the % compare scale can go below 0)
+    const bars = real ? d.candles : [];
+    chart.priceScale('right').applyOptions({
+      scaleMargins: {
+        top: MARGIN_TOP,
+        bottom: compares.length || !bars.length ? MARGIN_BOTTOM
+          : bottomMargin(MARGIN_BOTTOM, MARGIN_TOP, Math.min(...bars.map((b) => b.low)), Math.max(...bars.map((b) => b.high))),
+      },
+    });
     // fills ride the fresh series, so the old markers go with the removed one
     createSeriesMarkers(series, real && showTrades ? marks.markers : []);
     // the series IS the window slice (shifted by panBars), so fit it edge-to-edge
