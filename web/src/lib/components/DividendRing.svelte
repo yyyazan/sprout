@@ -1,7 +1,8 @@
 <script>
   // Dividend ring — monthly dividend income on the shared RingGauge. Segments
   // are this month's payers sized by contribution; hover a payer → the core
-  // swaps to that stock.
+  // swaps to that stock. A fund's slice is hollow (ink outline, no hue — see
+  // RingGauge) and, like the allocation ring, takes no palette slot.
   //
   // `data` is the real per-holding breakdown (portfolio.analytics.dividends,
   // served as dashboard_payload().dividends) — both live call sites pass it.
@@ -30,9 +31,11 @@
         monthly: tail.reduce((s, d) => s + d.monthly, 0),
       }];
     }
-    return list.map((d, i) => ({
+    let hue = 0;
+    return list.map((d) => ({
       key: d.t,
-      color: d.other ? OTHER : COLORS[i % COLORS.length],
+      hollow: !d.other && (d.kind ?? 'stock') !== 'stock',
+      color: d.other ? OTHER : (d.kind ?? 'stock') !== 'stock' ? 'transparent' : COLORS[hue++ % COLORS.length],
       value: d.monthly,
       tag: d.t,
       hero: m0(d.monthly),

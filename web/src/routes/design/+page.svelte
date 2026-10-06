@@ -70,6 +70,7 @@
     { key: 'a', color: '#0fb39a', value: 42, tag: 'NVDA', hero: '42.0', per: '%', sub: 'Demo segment' },
     { key: 'b', color: '#ff90e8', value: 28, tag: 'AAPL', hero: '28.0', per: '%', sub: 'Demo segment' },
     { key: 'c', color: '#ffc900', value: 18, tag: 'GOOG', hero: '18.0', per: '%', sub: 'Demo segment' },
+    { key: 'e', hollow: true, color: 'transparent', value: 16, tag: 'VOO', hero: '16.0', per: '%', sub: 'Fund, hollow' },
     { key: 'd', color: '#8a8478', value: 12, tag: 'Other', hero: '12.0', per: '%', sub: 'Demo segment' },
   ];
 
@@ -170,8 +171,11 @@
     <div class="dm-btnrow">
       <TickerBadge sym="AAPL" size="sm" />
       <TickerBadge sym="NVDA" size="md" />
+      <TickerBadge sym="VOO" size="sm" fund />
+      <TickerBadge sym="VOO" size="md" fund />
     </div>
     <p class="dm-note">sm / md — md carries a darker, saturated brick of the same hue straight down behind it.</p>
+    <p class="dm-note">Solid is a company; a fund (index or otherwise) is the same pill as an ink outline, no fill, no brick. The kinds store decides (holding cards, /api/kinds, the stock view, an ETF flag on search results), so every badge follows without being told.</p>
   </section>
 
   <!-- ── buttons ── -->
@@ -252,7 +256,8 @@
         <RingGauge segments={RING_DEMO} idle={{ tag: 'Demo', hero: '100', per: '%', sub: 'Hover a segment' }} />
       </div>
       <p class="dm-usage">Rounded annular sectors, 3° gaps, faint track, hover-swaps the core, staggered fade-in.
-        Backs dividends, allocation, analyst ratings. Never draw a donut another way.</p>
+        Backs dividends, allocation, analyst ratings. Never draw a donut another way.
+        A fund is a hollow sector, an ink outline with no fill; it takes no palette slot, so the stocks keep one run of hues.</p>
     </div>
   </section>
 
@@ -340,6 +345,7 @@
     <div class="dm-label">Stock view</div>
     <StockPanel ticker={demoTicker} name={demoCard?.company_name ?? demoTicker} holding={demoHolding} showClose={false} />
     <p class="dm-note">12-month forecast: bare, beside the bare ratings ring. Headline is the average target (hero + pct-pill vs now), then low to high as a range on a price axis that always spans today: below now is loss, above is gain, now is a 1px ink tick labelled above (the label slides from left- to right-aligned with its x), the average is an ink dot ringed in paper. Low and High sit at the ends with their pills. Replaced the three ink bars.</p>
+    <p class="dm-note">A fund keeps the header, chart, news and related, and swaps what doesn't apply: key stats trade P/E, EPS, market cap and earnings for net assets, yield and cost (expense ratio against its category, and what that costs a year in dollars on your position, or per $1,000 if you hold none). The analyst pair becomes top holdings and sectors, bare cells with muted bars on the forecast track's spec. Rows open that ticker. A leveraged or crypto fund has no holdings, so no cell.</p>
     <p class="dm-note">Non-held tickers carry the list picker (was + Watch): the pill names the list, or the count, and goes ink when the ticker is in any. The popover is ProfileMenu's panel; checked lists are ink-filled boxes.</p>
   </section>
 

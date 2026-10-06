@@ -7,7 +7,7 @@ Times shares -> annual $; / 12 -> monthly $. Non-payers drop out.
 
 Returns the shape the dashboard's Dividend Wraith consumes:
 
-    {items: [{t, name, value, yieldPct, annual, monthly}, ...],
+    {items: [{t, name, kind, value, yieldPct, annual, monthly}, ...],
      monthlyTotal, annualTotal, yieldOnValue}
 
 `items` are payers only, biggest monthly first. `yieldOnValue` is the blended
@@ -53,6 +53,8 @@ def monthly_dividends(pnl, cards) -> dict:
         if not c.get("is_joker")
     }
 
+    kinds = {c["ticker"]: c.get("kind", "stock") for c in cards if not c.get("is_joker")}
+
     items: list[dict] = []
     for ticker, row in pnl.iterrows():
         t = str(ticker)
@@ -66,6 +68,7 @@ def monthly_dividends(pnl, cards) -> dict:
         items.append({
             "t": t,
             "name": names.get(t, t),
+            "kind": kinds.get(t, "stock"),
             "value": round(value, 2),
             "yieldPct": round(annual / value * 100, 2) if value else 0.0,
             "annual": round(annual, 2),

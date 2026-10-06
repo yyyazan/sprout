@@ -179,9 +179,11 @@ def compute_positions(
         except Exception:
             suit = "dm"
         try:
-            name = prices_mod.profile(t).get("name", "") or t
+            prof = prices_mod.profile(t)
         except Exception:
-            name = t
+            prof = {}
+        name = prof.get("name", "") or t
+        kind = prof.get("kind", "stock")
 
         entry = first_buy.get(t)
         hold_days = int((today - entry).days) if entry is not None and pd.notna(entry) else 0
@@ -213,6 +215,7 @@ def compute_positions(
         cards.append({
             "ticker": t,
             "company_name": name,
+            "kind": kind,
             "domain": TICKER_DOMAINS.get(t, ""),
             "suit": suit,
             "suit_symbol": SUIT_SYMBOL.get(suit, "♦"),

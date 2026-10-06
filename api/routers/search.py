@@ -30,6 +30,8 @@ def _quote_to_result(quote: dict) -> dict | None:
         "name": quote.get("shortname") or quote.get("longname") or symbol,
         "exchange": quote.get("exchDisp") or quote.get("exchange") or "",
         "type": quote.get("typeDisp") or quote.get("quoteType") or "",
+        # a hint only (the badge's outline); the real classification needs the fund's category
+        "kind": "fund" if str(quote.get("quoteType") or "").upper() in {"ETF", "MUTUALFUND"} else "stock",
     }
 
 

@@ -4,10 +4,12 @@
   // rounded corners and small gaps, a faint track behind, and a swappable core
   // readout (idle content at rest, the hovered segment's content on hover).
   //
-  // segments: [{ key, color, value, tag, hero, per?, sub?, pick? }]
+  // segments: [{ key, color, value, tag, hero, per?, sub?, pick?, hollow? }]
   //   value drives the arc span; tag/hero/per/sub fill the core on hover;
-  //   pick() makes the sector clickable.
-  // idle: { tag, hero, per?, sub? } — the core at rest.
+  //   pick() makes the sector clickable. hollow = a fund: an ink outline, no fill
+  //   (the track shows through) instead of a hue, the same read as its outlined
+  //   ticker badge.
+  // idle: { tag, hero, per?, sub?, sub2? } — the core at rest.
   let { segments = [], idle = {}, heroSize = 30, size = '168px', minH = '132px' } = $props();
 
   // ── geometry (viewBox 0..120) — ported from the original Dividend Ring ──
@@ -65,7 +67,7 @@
     <svg viewBox="0 0 120 120" class="rgx-svg">
       <path d={trackPath} class="rgx-track" />
       {#each segs as s (s.key)}
-        <path d={s.d} fill={s.color} class="rgx-seg" class:dim={hovered && hovered !== s.key}
+        <path d={s.d} fill={s.hollow ? null : s.color} class="rgx-seg" class:hollow={s.hollow} class:dim={hovered && hovered !== s.key}
           class:clickable={!!s.pick} style="--i:{s.i}"
           onpointerenter={() => (hovered = s.key)}
           onclick={() => s.pick?.()}
@@ -78,13 +80,14 @@
     <div class="rgx-core">
       {#if core.tag}
         <div class="rgx-tag">
-          {#if active}<span class="rgx-dot" style="background:{active.color}"></span>{/if}{core.tag}
+          {#if active}<span class="rgx-dot" class:hollow={active.hollow} style="background:{active.hollow ? 'transparent' : active.color}"></span>{/if}{core.tag}
         </div>
       {/if}
       {#if core.hero != null}
         <div class="rgx-hero" style={core.heroColor ? `color:${core.heroColor}` : ''}>{core.hero}{#if core.per}<span class="rgx-per">{core.per}</span>{/if}</div>
       {/if}
       {#if core.sub}<div class="rgx-sub">{core.sub}</div>{/if}
+      {#if core.sub2}<div class="rgx-sub rgx-sub2">{core.sub2}</div>{/if}
     </div>
   </div>
 </div>
@@ -97,6 +100,7 @@
   .rgx-track { fill: color-mix(in srgb, var(--ink) 9%, transparent); }
   .rgx-seg { transition: filter .16s ease; }
   .rgx-seg.clickable { cursor: pointer; }
+  .rgx-seg.hollow { fill: transparent; stroke: var(--ink); stroke-width: var(--bw); vector-effect: non-scaling-stroke; }
   .rgx-seg.dim { filter: opacity(.26); }
 
   /* staggered fade-in on load */
@@ -107,12 +111,14 @@
     align-items: center; justify-content: center; gap: 2px; text-align: center; pointer-events: none; }
   .rgx-tag { display: flex; align-items: center; gap: 5px; font-size: var(--fs-meta); font-weight: 500;
     color: var(--muted); max-width: 96px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .rgx-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; }
+  .rgx-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; box-sizing: border-box; }
+  .rgx-dot.hollow { border: var(--bw) solid var(--ink); }
   .rgx-hero { font-family: var(--num); font-size: var(--rg-hero); font-weight: 600; line-height: 1.05;
     color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; max-width: 96px; }
   .rgx-per { font-size: var(--fs-body); font-weight: 500; color: var(--muted); margin-left: 1px; }
   .rgx-sub { font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--muted);
     font-variant-numeric: tabular-nums; white-space: nowrap; margin-top: 2px; }
+  .rgx-sub2 { margin-top: 0; }
 
   @media (prefers-reduced-motion: reduce) {
     .rgx-seg { animation: none; opacity: 1; }

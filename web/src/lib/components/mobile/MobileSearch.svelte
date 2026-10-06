@@ -4,7 +4,7 @@
   // Recent → Your holdings → each list when the query is empty. Debounce and
   // sequencing mirror the desktop stage; rows are the shared .ss-* rules.
   import { api } from '$lib/api.js';
-  import { holdings, lists, openSearchResult } from '$lib/stores.js';
+  import { holdings, lists, openSearchResult, noteSearchKinds } from '$lib/stores.js';
   import TickerBadge from '../TickerBadge.svelte';
 
   let { q = '' } = $props();
@@ -31,6 +31,7 @@
         const r = await api.search(query);
         if (mine !== seq) return;
         results = r.results ?? [];
+        noteSearchKinds(results);
       } catch {
         if (mine === seq) results = [];
       } finally {

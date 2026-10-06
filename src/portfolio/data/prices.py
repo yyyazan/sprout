@@ -24,6 +24,7 @@ from datetime import datetime
 import pandas as pd
 import yfinance as yf
 
+from portfolio.analytics.kinds import kind_of
 from portfolio.data import store
 
 # Concurrent yfinance fetches share one worker cap — stay under Yahoo's
@@ -286,7 +287,8 @@ def profile(ticker: str) -> dict:
         return hit
 
     cached = store.read_profile(ticker)
-    if cached is not None and store.is_fresh(ticker, "profile"):
+    # a profile cached before `kind` existed is refetched once so funds get classified
+    if cached is not None and "kind" in cached and store.is_fresh(ticker, "profile"):
         _l1_set(_PROFILE_CACHE, ticker, cached)
         return cached
 
@@ -298,12 +300,17 @@ def profile(ticker: str) -> dict:
             # forward annual dividend per share ($); None for non-payers. Free to
             # grab from the .info we already fetch -> the dividends calc prefers it.
             "dividend_rate": info.get("dividendRate"),
+            # stock | index | fund (analytics/kinds.py) + the Morningstar category behind it
+            "kind": kind_of(info),
+            "category": info.get("category") or "",
         }
     except Exception:
         prof = None
     if prof is None:
         result = cached if cached is not None else {}
-        _l1_set(_PROFILE_CACHE, ticker, result)
+        # a failed refetch of an unclassified profile retries next call, not in 30 days
+        if "kind" in result or not result:
+            _l1_set(_PROFILE_CACHE, ticker, result)
         return result
 
     store.write_profile(ticker, prof)

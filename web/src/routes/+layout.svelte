@@ -6,13 +6,16 @@
   import StockSearch from '$lib/components/StockSearch.svelte';
   import PasswordGate from '$lib/components/PasswordGate.svelte';
   import { locked } from '$lib/api.js';
-  import { detail, searchOpen, holdings, openSearchResult, closeStock, openSearch, closeSearch } from '$lib/stores.js';
+  import { detail, searchOpen, holdings, openSearchResult, closeStock, openSearch, closeSearch, loadKinds } from '$lib/stores.js';
   import { isMobile } from '$lib/isMobile.js';
   let { children } = $props();
 
   // The dashboard renders stock view + search INSIDE its main stage widget;
   // every other route falls back to the full-screen overlays.
   const onDashboard = $derived($page.url.pathname === '/');
+
+  // which tickers are funds (outlined badges, hollow ring segments) — one fetch for every route
+  $effect(() => { loadKinds(); });
 
   // ⌘K / Ctrl-K opens search from anywhere.
   function onKey(e) {

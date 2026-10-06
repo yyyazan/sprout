@@ -4,6 +4,7 @@
   // Debounced calls to /api/search; ↑ ↓ Enter, Esc to close.
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
+  import { noteSearchKinds } from '$lib/stores.js';
   import TickerBadge from './TickerBadge.svelte';
 
   let { onClose, onPick, holdings = [] } = $props();
@@ -30,6 +31,7 @@
         const r = await api.search(query);
         if (mine !== seq) return;        // a newer keystroke superseded this one
         results = r.results ?? [];
+        noteSearchKinds(results);
         active = 0;
       } catch {
         if (mine === seq) results = [];

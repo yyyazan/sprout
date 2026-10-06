@@ -1,8 +1,9 @@
 <script>
   // Drivers: which positions made the chart's move. The chart says what
-  // happened; this says why. Follows the chart's window (range, pan,
-  // drag-measure) by diffing the per-ticker cumulative $ P&L the dashboard
-  // payload already carries (api/serialize._drivers), so no extra request.
+  // happened; this says why. Opens on today, then follows the chart's window
+  // (range, pan, drag-measure) once that changes from where it loaded, by
+  // diffing the per-ticker cumulative $ P&L the dashboard payload already
+  // carries (api/serialize._drivers), so no extra request.
   // The rows sum to the chart's drag-measure $ (net of deposits); a ticker's
   // contribution is realized + unrealized, closed positions included.
   //
@@ -12,7 +13,23 @@
   import { RANGE_LABELS } from '$lib/chartKit.svelte.js';
   import { holdings, openSearchResult } from '$lib/stores.js';
 
-  let { drivers = null, win = null, variant = 'tile' } = $props();
+  let { drivers = null, win: chartWin = null, variant = 'tile' } = $props();
+
+  // The chart loads on ALL, but a glance wants today. Hold today until the chart's
+  // range, pan or measure moves off where it first reported, then follow it.
+  let first = null;
+  let touched = $state(false);
+  $effect(() => {
+    if (!chartWin) return;
+    first ??= chartWin.range;
+    if (chartWin.range !== first || chartWin.custom) touched = true;
+  });
+  // today = the last two rows of the calendar, the same bars the chart's 1D shows
+  const win = $derived.by(() => {
+    const x = drivers?.x ?? [];
+    if (touched || !chartWin || x.length < 2) return chartWin;
+    return { from: x[x.length - 2], to: x[x.length - 1], range: '1D', custom: false };
+  });
 
   const UP = 3, DOWN = 2, SLOTS = UP + DOWN;   // rows shown; a short side lends its slots
   const MIN = 0.5;                            // under 50¢ isn't a driver

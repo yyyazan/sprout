@@ -7,6 +7,38 @@ import { api } from './api.js';
 // Non-joker holding cards powering the sidebar rail. null = not loaded yet.
 export const holdings = writable(null);
 
+// What each ticker is, where it isn't a plain stock: { VOO: 'index', MUU: 'fund' }.
+// Fed by the holding cards, /api/kinds (everything traded or listed), the stock view
+// and search results; TickerBadge reads it. Mirrored to localStorage so a reload
+// doesn't flash fund badges solid while the first fetch lands.
+const KINDS_KEY = 'sprout-kinds';
+function seededKinds() {
+  try { return JSON.parse(localStorage.getItem(KINDS_KEY)) ?? {}; } catch { return {}; }
+}
+export const kinds = writable(typeof localStorage === 'undefined' ? {} : seededKinds());
+// map: { TICKER: 'stock' | 'index' | 'fund' }; 'stock' clears an entry. keepKnown = a hint
+// (a search result's ETF flag) that must not overwrite a real classification.
+export function noteKinds(map, keepKnown = false) {
+  if (!map) return;
+  kinds.update((cur) => {
+    const next = { ...cur };
+    for (const [t, k] of Object.entries(map)) {
+      if (keepKnown && next[t]) continue;
+      if (!k || k === 'stock') delete next[t]; else next[t] = k;
+    }
+    try { localStorage.setItem(KINDS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+    return next;
+  });
+}
+// search results flag ETFs/mutual funds; that's only a hint (index vs other fund needs the
+// category), so it never overwrites what we already know
+export function noteSearchKinds(results) {
+  noteKinds(Object.fromEntries((results ?? []).map((r) => [r.symbol, r.kind])), true);
+}
+export function loadKinds() {
+  return api.kinds().then(noteKinds).catch(() => {});
+}
+
 // Global stock-detail overlay: { ticker, name, holding } | null.
 export const detail = writable(null);
 // Global ⌘K search palette.
@@ -79,7 +111,9 @@ export async function loadHoldings(force = false) {
 }
 
 export function primeHoldings(cards) {
-  holdings.set((cards ?? []).filter((c) => !c.is_joker));
+  const held = (cards ?? []).filter((c) => !c.is_joker);
+  holdings.set(held);
+  noteKinds(Object.fromEntries(held.map((c) => [c.ticker, c.kind ?? 'stock'])));
 }
 
 // Trade history (newest first) — shared by the trade ticket tile and the mobile

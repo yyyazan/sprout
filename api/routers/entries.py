@@ -60,6 +60,25 @@ def realized(user_id: int = Depends(current_user_id)):
     return realized_payload(state.get_snapshot(user_id))
 
 
+@router.get("/kinds")
+def kinds(user_id: int = Depends(current_user_id)):
+    """stock | index | fund for every ticker this user has traded or listed — what
+    the ticker badges and ring segments read. Profiles are disk-cached, so only a
+    first sight of a ticker goes to Yahoo."""
+    conn = db_mod.connect()
+    tickers = set(loader.load_trades_db(user_id, conn)["ticker"].astype(str))
+    for lst in db_mod.lists_for_user(conn, user_id):
+        tickers.update(lst["tickers"])
+
+    def kind(t: str) -> str:
+        try:
+            return prices.profile(t).get("kind", "stock")
+        except Exception:
+            return "stock"
+
+    return prices._parallel(kind, sorted(tickers))
+
+
 @router.get("/closed")
 def closed(user_id: int = Depends(current_user_id)):
     """Previously held: tickers sold out of entirely, with their sold-side totals."""

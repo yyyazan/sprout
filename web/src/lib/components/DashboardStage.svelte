@@ -8,7 +8,7 @@
   import DriversCard from './DriversCard.svelte';
   import { api } from '$lib/api.js';
   import { prefetch } from '$lib/stockCache.js';
-  import { detail, searchOpen, holdings, closeStock, closeSearch, openSearch, openSearchResult } from '$lib/stores.js';
+  import { detail, searchOpen, holdings, closeStock, closeSearch, openSearch, openSearchResult, noteSearchKinds } from '$lib/stores.js';
 
   let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null, drivers = null } = $props();
 
@@ -67,6 +67,7 @@
         const r = await api.search(query);
         if (mine !== seq) return;
         results = r.results ?? [];
+        noteSearchKinds(results);
         active = 0;
       } catch {
         if (mine === seq) results = [];

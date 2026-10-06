@@ -6,13 +6,18 @@
   // ratings RingGauge | forecast range) → news (4×1, sentiment-dotted headlines)
   // → related stocks (4 × 1×1 cards). Chrome-less so the dashboard stage and
   // the modal both render this grid directly on the page.
+  //
+  // A fund (index or otherwise) keeps the header, chart, news and related, and
+  // swaps what doesn't apply: key stats trade P/E, EPS, market cap and earnings
+  // for net assets, yield and cost; the analyst pair becomes top holdings and
+  // sectors (what's inside, in the same bare-cell slot).
   import { onMount } from 'svelte';
   import StockChart from './StockChart.svelte';
   import RingGauge from './RingGauge.svelte';
   import TickerBadge from './TickerBadge.svelte';
   import { mockStock, fmtCap, fmtVol } from '$lib/mockStock.js';
   import { cachedStock, cachedRelated, prefetch } from '$lib/stockCache.js';
-  import { holdings, openStock, cardToHolding } from '$lib/stores.js';
+  import { holdings, kinds, noteKinds, openStock, cardToHolding } from '$lib/stores.js';
   import ListPicker from './ListPicker.svelte';
 
   // showClose=false when a host provides its own way back (the dashboard stage's
@@ -43,6 +48,29 @@
     return () => { cancelled = true; };
   });
   const ready = $derived(!!remote && remote.ticker === (ticker || '').toUpperCase());
+  // ── fund layout: kind comes with the payload; before it lands, whatever the
+  // kinds store already knows (held funds, listed funds) picks the skeleton ──
+  const isFund = $derived(ready ? (remote.kind ?? 'stock') !== 'stock' : !!$kinds[(ticker || '').toUpperCase()]);
+  $effect(() => { if (ready) noteKinds({ [remote.ticker]: remote.kind ?? 'stock' }); });
+  const fund = $derived(ready && isFund ? remote.fund ?? null : null);
+  const kindLabel = $derived(remote?.kind === 'index' ? 'Index fund' : 'Fund');
+  // Morningstar's "Trading--Leveraged Equity" / "Large Blend" → sentence case
+  const sentence = (c) => (c ? c.replace(/^Trading--/, '').toLowerCase().replace(/^./, (m) => m.toUpperCase()) : '');
+  // what the position costs to hold, in dollars: your value, or a $1,000 stake when you hold none
+  const yearlyCost = $derived(fund?.expense == null ? null : fund.expense * (owned ? (stock.mktValue ?? 0) : 1000));
+  const topHoldings = $derived(fund?.holdings ?? []);
+  const topTotal = $derived(topHoldings.reduce((a, h) => a + h.weight, 0));
+  // seven biggest sectors, the rest folded into one row; a single-sector fund has no mix to show
+  const sectorRows = $derived.by(() => {
+    const all = fund?.sectors ?? [];
+    if (all.length < 2) return [];
+    const head = all.slice(0, 7), tail = all.slice(7).reduce((a, r) => a + r.weight, 0);
+    return tail > 0.0005 ? [...head, { name: 'Other', weight: tail }] : head;
+  });
+  const wPct = (w) => (w * 100 < 10 ? (w * 100).toFixed(1) : Math.round(w * 100)) + '%';
+  const ratioPct = (r) => (r == null ? '—' : (r * 100).toFixed(2) + '%');
+  const peakOf = (rows) => Math.max(1e-9, ...rows.map((r) => r.weight));
+
   // what the header can show before the payload: a holding's own card numbers
   const quoteKnown = $derived(ready || failed || owned);
   const statsKnown = $derived(ready || failed);
@@ -194,7 +222,7 @@
   <!-- header widget — 4 × 0.5: crumb, back (top right), identity, quote, position or list picker -->
   <section class="w w-head">
     <div class="hw-top">
-      <span class="hw-crumb"><TickerBadge sym={ticker} size="md" />{#if statsKnown}{#if stock.sector && stock.sector !== '—'}<span class="hw-sector">{stock.sector}</span>{/if}{:else}<span class="skel skel-t" style="width:76px"></span>{/if}</span>
+      <span class="hw-crumb"><TickerBadge sym={ticker} size="md" />{#if statsKnown}{#if isFund}<span class="hw-kind">{kindLabel}</span>{#if fund?.category}<span class="hw-sector">{sentence(fund.category)}</span>{/if}{:else if stock.sector && stock.sector !== '—'}<span class="hw-sector">{stock.sector}</span>{/if}{:else}<span class="skel skel-t" style="width:76px"></span>{/if}</span>
       {#if showClose}
         <button class="btn btn-sm btn-quiet hw-back" onclick={() => onClose?.()}>
           <span aria-hidden="true">{glyph === '←' ? '←' : '✕'}</span>
@@ -273,24 +301,46 @@
         <div class="g-row"><span>Low</span><b>{#if statsKnown}{money(stock.dayLow)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
         <div class="g-row"><span>Prev close</span><b>{#if statsKnown}{money(stock.prevClose)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
       </div>
-      <div class="ks-col">
-        <div class="g-row"><span>Volume</span><b>{#if statsKnown}{stock.volume != null ? fmtVol(stock.volume) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
-        <div class="g-row"><span>Avg volume</span><b>{#if statsKnown}{stock.avgVolume != null ? fmtVol(stock.avgVolume) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
-        <div class="g-row"><span>Market cap</span><b>{#if statsKnown}{stock.marketCap != null ? fmtCap(stock.marketCap) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
-        <div class="g-row"><span>P/E ratio</span><b>{#if statsKnown}{stock.pe ?? '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
-      </div>
-      <div class="ks-col">
-        <div class="g-row"><span>EPS</span><b>{#if statsKnown}{sUsd(stock.eps)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
-        <div class="g-row"><span>Dividend yield</span><b>{#if statsKnown}{stock.divYield ? stock.divYield + '%' : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
-        <div class="g-row"><span>Beta</span><b>{#if statsKnown}{stock.beta ?? '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
-        <div class="g-row"><span>Earnings</span><b>{#if statsKnown}{fmtEarn(remote?.earningsDate)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
-      </div>
+      {#if isFund}
+        <div class="ks-col">
+          <div class="g-row"><span>Volume</span><b>{#if statsKnown}{stock.volume != null ? fmtVol(stock.volume) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Avg volume</span><b>{#if statsKnown}{stock.avgVolume != null ? fmtVol(stock.avgVolume) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Net assets</span><b>{#if statsKnown}{fund?.assets != null ? fmtCap(fund.assets) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Yield</span><b>{#if statsKnown}{fund?.yield ? ratioPct(fund.yield) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        </div>
+        <div class="ks-col">
+          <div class="g-row"><span>Expense ratio</span><b>{#if statsKnown}{ratioPct(fund?.expense)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Category avg</span><b>{#if statsKnown}{ratioPct(fund?.categoryExpense)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>{owned ? 'Your cost a year' : 'Cost per $1,000'}</span><b>{#if statsKnown}{yearlyCost != null ? money(yearlyCost) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Family</span><b>{#if statsKnown}{fund?.family ?? '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        </div>
+      {:else}
+        <div class="ks-col">
+          <div class="g-row"><span>Volume</span><b>{#if statsKnown}{stock.volume != null ? fmtVol(stock.volume) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Avg volume</span><b>{#if statsKnown}{stock.avgVolume != null ? fmtVol(stock.avgVolume) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Market cap</span><b>{#if statsKnown}{stock.marketCap != null ? fmtCap(stock.marketCap) : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>P/E ratio</span><b>{#if statsKnown}{stock.pe ?? '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        </div>
+        <div class="ks-col">
+          <div class="g-row"><span>EPS</span><b>{#if statsKnown}{sUsd(stock.eps)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Dividend yield</span><b>{#if statsKnown}{stock.divYield ? stock.divYield + '%' : '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Beta</span><b>{#if statsKnown}{stock.beta ?? '—'}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+          <div class="g-row"><span>Earnings</span><b>{#if statsKnown}{fmtEarn(remote?.earningsDate)}{:else}<span class="skel skel-t sk-v"></span>{/if}</b></div>
+        </div>
+      {/if}
     </div>
   </section>
 
   <!-- analyst outlook — two BARE widgets side by side, centred like the
        dashboard's ring row: ratings on the shared RingGauge, forecast range -->
-  {#if !statsKnown}
+  {#if !statsKnown && isFund}
+    {#each [0, 1] as i (i)}
+      <section class="w-fund" aria-hidden="true">
+        <span class="skel skel-t" style="width:84px"></span>
+        {#each [0, 1, 2, 3, 4, 5] as r (r)}<span class="skel fd-sk"></span>{/each}
+      </section>
+    {/each}
+  {:else if !statsKnown}
     <section class="w-bare w-ratings" aria-hidden="true"><span class="skel sk-ring"></span></section>
     <section class="w-forecast" aria-hidden="true">
       <span class="skel skel-t" style="width:112px"></span>
@@ -299,6 +349,39 @@
       <span class="skel sk-track"></span>
       <div class="fc-ends"><span class="skel skel-t" style="width:118px"></span><span class="skel skel-t" style="width:118px"></span></div>
     </section>
+  {:else if isFund}
+    <!-- what's inside: the ten biggest holdings and the sector mix, bars on the
+         forecast track's spec; a leveraged or crypto fund has neither, so no cell -->
+    {#if topHoldings.length}
+      {@const peak = peakOf(topHoldings)}
+      <section class="w-fund" class:solo={!sectorRows.length} class:arrive={late}>
+        <div class="fd-head"><span class="w-h">Top holdings</span><span class="fd-sub">{wPct(topTotal)} of the fund</span></div>
+        <div class="fd-rows">
+          {#each topHoldings as h (h.symbol)}
+            <button class="fd-row fd-go" aria-label="{h.name}" onclick={() => openRelated({ ticker: h.symbol, name: h.name })}>
+              <span class="fd-key"><TickerBadge sym={h.symbol} /></span>
+              <span class="fd-track"><span class="fd-bar" style="width:{(h.weight / peak) * 100}%"></span></span>
+              <span class="fd-v">{wPct(h.weight)}</span>
+            </button>
+          {/each}
+        </div>
+      </section>
+    {/if}
+    {#if sectorRows.length}
+      {@const peak = peakOf(sectorRows)}
+      <section class="w-fund w-sectors" class:solo={!topHoldings.length} class:arrive={late}>
+        <div class="fd-head"><span class="w-h">Sectors</span></div>
+        <div class="fd-rows">
+          {#each sectorRows as r (r.name)}
+            <div class="fd-row">
+              <span class="fd-key fd-name">{r.name}</span>
+              <span class="fd-track"><span class="fd-bar" style="width:{(r.weight / peak) * 100}%"></span></span>
+              <span class="fd-v">{wPct(r.weight)}</span>
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
   {:else if analyst && (ratingSegs || forecast)}
     {#if ratingSegs}
       <section class="w-bare w-ratings" class:arrive={late}>
@@ -437,6 +520,7 @@
   .hw-back span { font-size: 15px; line-height: 1; }
   .hw-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
   .hw-sector { white-space: nowrap; }
+  .hw-kind { white-space: nowrap; color: var(--ink); }
   .hw-watch { align-self: flex-end; }
   .hw-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .hw-name { margin: 0 0 5px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; }
@@ -483,6 +567,30 @@
   .w-bare { grid-column: span 2; min-height: 188px; display: flex; align-items: center;
     justify-content: center; padding: 6px 8px; }
   .w-ratings :global(.rgx) { height: auto; }
+
+  /* fund cells — top holdings | sectors, bare like the analyst pair they stand in for.
+     A row is key · bar · weight; the bar is the forecast track's spec (6px, 3px corners,
+     hairline track) in muted, scaled to the cell's biggest row. Holdings rows open that
+     ticker, so they take the ink hairline on hover like the Log's rows. */
+  .w-fund { grid-column: span 2; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 12px 16px 14px; }
+  .w-fund.solo { grid-column: 1 / -1; }
+  /* the title row is the same height in both cells (the holdings total rides it, right) so the rows start level */
+  .fd-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-height: 18px; }
+  .fd-sub { font-size: var(--fs-meta); font-weight: 500; color: var(--muted); white-space: nowrap; }
+  .fd-rows { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+  .fd-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) 40px; align-items: center; column-gap: 10px;
+    min-height: 26px; padding: 0 6px; margin: 0 -6px; border: 0; border-radius: var(--r); background: transparent;
+    font: inherit; color: inherit; text-align: left; }
+  .fd-go { cursor: pointer; }
+  .fd-go:hover, .fd-go:focus-visible { box-shadow: inset 0 0 0 var(--bw) var(--ink); outline: none; }
+  .fd-key { min-width: 0; display: flex; }
+  .fd-name { font-size: var(--fs-body); font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .fd-track { height: 6px; border-radius: 3px; background: var(--hairline); overflow: hidden; }
+  .fd-bar { display: block; height: 100%; border-radius: 3px; background: var(--muted); }
+  .fd-v { text-align: right; font-family: var(--num); font-size: var(--fs-body); font-weight: 500; color: var(--ink);
+    font-variant-numeric: tabular-nums; }
+  .fd-sk { height: 26px; }
+  .w-sectors .fd-row { grid-template-columns: 112px minmax(0, 1fr) 40px; }
 
   /* forecast — bare like the ring beside it: title, the average target as the
      headline (hero + pct-pill), then low→high as a range on a price axis */
@@ -573,7 +681,7 @@
 
   @media (max-width: 900px) {
     .spg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .w-head, .w-chart, .w-stats, .w-bare, .w-forecast { grid-column: 1 / -1; }
+    .w-head, .w-chart, .w-stats, .w-bare, .w-forecast, .w-fund { grid-column: 1 / -1; }
     .rel-card { grid-column: span 1; }
     .ks-cols { grid-template-columns: 1fr; column-gap: 0; row-gap: 12px; }
     .ks-col + .ks-col { border-left: 0; padding-left: 0; }

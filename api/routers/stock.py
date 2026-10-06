@@ -17,6 +17,7 @@ import yfinance as yf
 from fastapi import APIRouter, Depends, Query
 
 from portfolio.analytics import realized as realized_mod
+from portfolio.analytics.kinds import STOCK, kind_of
 from portfolio.data import prices as prices_mod
 from api import state
 from api.auth import current_user_id
@@ -36,6 +37,9 @@ _intraday_cache: dict[tuple[str, str], tuple[float, dict]] = {}
 _ANALYST_TTL = 1800.0  # ratings move slowly
 _analyst_cache: dict[str, tuple[float, dict | None]] = {}
 
+_FUND_TTL = 6 * 3600.0  # holdings / sector mix move slowly
+_fund_cache: dict[str, tuple[float, dict]] = {}
+
 _RELATED_TTL = 1800.0  # Yahoo's similar-symbols list + 4 quotes/sparks
 _related_cache: dict[str, tuple[float, list]] = {}
 
@@ -51,6 +55,75 @@ def _info(ticker: str) -> dict:
         info = {}
     _info_cache[ticker] = (now, info)
     return info
+
+
+_SECTOR_NAMES = {
+    "technology": "Technology", "communication_services": "Communication", "financial_services": "Financials",
+    "healthcare": "Healthcare", "consumer_cyclical": "Consumer cyclical", "consumer_defensive": "Consumer defensive",
+    "industrials": "Industrials", "energy": "Energy", "utilities": "Utilities", "realestate": "Real estate",
+    "basic_materials": "Materials",
+}
+
+
+def _fund(ticker: str, info: dict) -> dict:
+    """What's inside a fund, for the stock view's fund layout: cost (expense ratio vs
+    its category), the ten biggest holdings, and the sector mix. Every piece is
+    optional — Yahoo has holdings for plain index ETFs and little for leveraged or
+    crypto ones — so the frontend skips what's missing. Ratios are fractions
+    (0.0003 = 0.03%)."""
+    now = time.time()
+    hit = _fund_cache.get(ticker)
+    if hit is not None and now - hit[0] < _FUND_TTL:
+        return hit[1]
+
+    out: dict = {
+        "category": info.get("category") or None,
+        "family": info.get("fundFamily") or None,
+        "assets": _py(info.get("totalAssets")),
+        "yield": _py(info.get("yield")),
+        "expense": None, "categoryExpense": None, "holdings": [], "sectors": [],
+    }
+    # netExpenseRatio is in percent (0.03 = 0.03%)
+    net = info.get("netExpenseRatio")
+    if net is not None:
+        out["expense"] = _py(float(net) / 100)
+
+    try:
+        fd = yf.Ticker(prices_mod.yf_symbol(ticker)).funds_data
+    except Exception:
+        fd = None
+    if fd is not None:
+        try:
+            ops = fd.fund_operations
+            row = "Annual Report Expense Ratio"
+            if ops is not None and row in ops.index:
+                if out["expense"] is None:
+                    out["expense"] = _py(ops.loc[row].iloc[0])
+                cat = _py(ops.loc[row].get("Category Average"))
+                out["categoryExpense"] = cat if cat and cat > 0 else None
+        except Exception:
+            pass
+        try:
+            top = fd.top_holdings
+            if top is not None and len(top):
+                out["holdings"] = [
+                    {"symbol": str(sym), "name": str(r.get("Name") or sym), "weight": _py(float(r["Holding Percent"]))}
+                    for sym, r in top.head(10).iterrows()
+                    if r.get("Holding Percent") is not None
+                ]
+        except Exception:
+            pass
+        try:
+            w = fd.sector_weightings or {}
+            out["sectors"] = sorted(
+                ({"name": _SECTOR_NAMES.get(k, k), "weight": _py(float(v))} for k, v in w.items() if v and v > 0.0005),
+                key=lambda r: r["weight"], reverse=True,
+            )
+        except Exception:
+            pass
+
+    _fund_cache[ticker] = (now, out)
+    return out
 
 
 def _first(info: dict, *keys):
@@ -296,8 +369,13 @@ def stock(ticker: str, user_id: int = Depends(current_user_id)):
     # for anything held or previously held. None when it was never sold.
     lifetime = realized_mod.closed_stats(state.get_snapshot(user_id).realized, ticker)
 
+    # stock | index | fund; fall back to the cached profile if Yahoo returned nothing
+    kind = kind_of(info) if info else prices_mod.profile(ticker).get("kind", STOCK)
+
     return {
         "ticker": ticker,
+        "kind": kind,
+        "fund": _fund(ticker, info) if kind != STOCK else None,
         "sector": info.get("sector") or info.get("industry") or "",
         "price": _py(price),
         "open": _py(_first(info, "open", "regularMarketOpen")),

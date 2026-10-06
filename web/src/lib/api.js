@@ -79,6 +79,7 @@ export const api = {
   transactions: () => get('/transactions'),
   realized: () => get('/realized'),
   closed: () => get('/closed'),
+  kinds: () => get('/kinds'),
   addTrade: (body) => post('/trades', body),
   addTransaction: (body) => post('/transactions', body),
   editTrade: (id, body) => patch('/trades/' + id, body),
