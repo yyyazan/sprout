@@ -148,13 +148,17 @@
     stock.prevClose && stock.price ? stock.price - stock.prevClose : null
   );
 
-  // Realized P&L for this ticker (lifetime; from /api/stock) → show TOTAL P&L =
-  // realized + the open position's unrealized. Covers holdings and tickers we've
-  // fully sold (those have no card, so they land in the non-owned branch below).
-  const realizedPnl = $derived(remote?.realizedPnl ?? null);
-  const hasRealized = $derived(realizedPnl != null && Math.abs(realizedPnl) > 0.005);
-  const totalPnl = $derived((owned ? (stock.plAbs ?? 0) : 0) + (realizedPnl ?? 0));
-  const prevHeld = $derived(!owned && hasRealized);
+  // Lifetime P&L + return for this ticker. /api/stock sends the sold side (closed
+  // FIFO lots: realized $, their cost, shares, avg buy/sell); the open position
+  // adds its own unrealized $ and cost. Return = total P&L over everything ever
+  // bought. Tickers we've fully sold have no card, so they land in prevHeld.
+  const sold = $derived(remote?.lifetime ?? null);
+  const openCost = $derived(owned && stock.avgCost != null ? stock.avgCost * (stock.shares ?? 0) : 0);
+  const lifePnl = $derived(sold ? (owned ? (stock.plAbs ?? 0) : 0) + sold.realized : null);
+  const lifeCost = $derived(sold ? sold.cost + openCost : null);
+  const lifePct = $derived(lifeCost ? (lifePnl / lifeCost) * 100 : null);
+  const lifeDir = $derived((lifePnl ?? 0) >= 0 ? 'up' : 'down');
+  const prevHeld = $derived(!owned && !!sold);
   // ── headline sentiment — crude keyword scan driving the news dots (green /
   // yellow / red). SWAP POINT: replace with a real sentiment score on the
   // /api/stock news items; the 'pos'|'neu'|'neg' contract stays. ──
@@ -213,26 +217,38 @@
         </div>
       </div>
       {#if owned}
+        {#if sold}
+          <!-- the whole ticker's return, sold lots included — right of the quote, where the
+               row below has no room; without sells it equals the position, so it's skipped -->
+          <div class="hw-life">
+            <span class="hw-pos-label">Lifetime</span>
+            <span class="pos-ret {lifeDir}">
+              <b class="pct-pill {lifeDir}">{pctS(lifePct)}</b><small>{usdS(lifePnl)}</small>
+            </span>
+          </div>
+        {/if}
         <div class="hw-pos">
           <span class="hw-pos-label">Your position</span>
           <span class="pos-ret {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">
             <b class="pct-pill {(stock.plPct ?? 0) >= 0 ? 'up' : 'down'}">{pctS(stock.plPct)}</b><small>{usdS(stock.plAbs)}</small>
           </span>
-          {#if hasRealized}
-            <span class="pos-kv"><span>Lifetime</span><b class={totalPnl >= 0 ? 'up' : 'down'}>{usdS(totalPnl)}</b></span>
-          {/if}
           <span class="pos-kv"><span>Shares</span><b>{f(stock.shares)}</b></span>
           <span class="pos-kv"><span>Avg</span><b>${f(stock.avgCost)}</b></span>
           <span class="pos-kv"><span>Value</span><b>${f(stock.mktValue)}</b></span>
           <span class="pos-kv"><span>Weight</span><b>{stock.weight != null ? stock.weight + '%' : '—'}</b></span>
         </div>
       {:else if prevHeld}
-        <!-- fully sold out of this ticker: no live position, but a realized P&L -->
-        <div class="hw-prev">
-          <span class="pos-ret {totalPnl >= 0 ? 'up' : 'down'}">
-            <b>{usdS(totalPnl)}</b><small>previously held</small>
+        <!-- fully sold out of this ticker: the same row a holding gets, on the
+             sold side — total return, shares sold, avg buy → avg sell -->
+        <div class="hw-watch"><ListPicker {ticker} /></div>
+        <div class="hw-pos">
+          <span class="hw-pos-label">Previously held</span>
+          <span class="pos-ret {lifeDir}">
+            <b class="pct-pill {lifeDir}">{pctS(lifePct)}</b><small>{usdS(lifePnl)}</small>
           </span>
-          <ListPicker {ticker} />
+          <span class="pos-kv"><span>Shares sold</span><b>{f(sold.shares)}</b></span>
+          <span class="pos-kv"><span>Avg buy</span><b>${f(sold.avgBuy)}</b></span>
+          <span class="pos-kv"><span>Avg sell</span><b>${f(sold.avgSell)}</b></span>
         </div>
       {:else}
         <div class="hw-watch"><ListPicker {ticker} /></div>
@@ -422,8 +438,6 @@
   .hw-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
   .hw-sector { white-space: nowrap; }
   .hw-watch { align-self: flex-end; }
-  /* previously-held: realized P&L stacked above the list picker, right-aligned */
-  .hw-prev { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
   .hw-main { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .hw-name { margin: 0 0 5px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; line-height: 1.1; }
   .hw-quote { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -437,6 +451,10 @@
      stays compact (~150) instead of wrapping to a tall two-line block. Figures
      keep their full size for legibility. */
   .hw-pos { display: flex; align-items: baseline; gap: 6px 12px; flex-wrap: wrap; }
+  /* the row always sits under the quote; what shares the quote line (list picker for a
+     previously-held ticker, lifetime for a holding) goes right */
+  .hw-pos { flex-basis: 100%; }
+  .hw-life { display: flex; align-items: baseline; gap: 6px 12px; }
   .hw-pos-label { font-size: var(--fs-meta); font-weight: 600; color: var(--muted); }
   .pos-ret { display: inline-flex; align-items: baseline; gap: 7px; }
   .pos-ret b { font-family: var(--num); font-size: 15px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }

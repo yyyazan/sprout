@@ -1,7 +1,8 @@
 """GET /api/stock/{ticker} — per-ticker MARKET data for the expanded stock
 deep-view: quote, fundamentals, 52-week range, analyst target, and the daily
-close line. Position data (shares/cost/value/P&L/weight) stays on the frontend,
-which already has it from the dashboard payload.
+close line. Open-position data (shares/cost/value/P&L/weight) stays on the
+frontend, which already has it from the dashboard payload; the one ledger piece
+it can't derive — the sold side of the ticker's history — rides along as `lifetime`.
 
 yfinance `.info` is slow and rate-limited, so it's memoised in-process for 30
 minutes. The price line reuses the already-cached prices module.
@@ -15,6 +16,7 @@ from datetime import datetime, timezone
 import yfinance as yf
 from fastapi import APIRouter, Depends, Query
 
+from portfolio.analytics import realized as realized_mod
 from portfolio.data import prices as prices_mod
 from api import state
 from api.auth import current_user_id
@@ -289,11 +291,10 @@ def stock(ticker: str, user_id: int = Depends(current_user_id)):
     except Exception:
         history = []
 
-    # Realized P&L for this ticker (lifetime, from closed lots) so the deep view
-    # can show TOTAL P&L = realized + the open position's unrealized — for anything
-    # held or previously held. 0.0 when we've never sold it.
-    rs = state.get_snapshot(user_id).realized_summary
-    realized = float(rs.get(ticker, 0.0)) if len(rs) else 0.0
+    # Sold-side ledger for this ticker (closed FIFO lots) so the deep view can
+    # show lifetime P&L and return = these + the open position's own numbers —
+    # for anything held or previously held. None when it was never sold.
+    lifetime = realized_mod.closed_stats(state.get_snapshot(user_id).realized, ticker)
 
     return {
         "ticker": ticker,
@@ -318,7 +319,7 @@ def stock(ticker: str, user_id: int = Depends(current_user_id)):
         "analyst": _analyst(ticker, info),
         "news": _news(ticker),
         "history": history,
-        "realizedPnl": _py(round(realized, 2)),
+        "lifetime": lifetime,
     }
 
 

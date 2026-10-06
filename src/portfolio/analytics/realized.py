@@ -66,6 +66,30 @@ def fifo_realized(trades_adj: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def closed_stats(realized: pd.DataFrame, ticker: str) -> dict | None:
+    """Sold-side totals for one ticker from its FIFO rows, or None if it was never
+    sold: realized $, the cost of the lots sold, shares sold, and the
+    share-weighted buy / sell prices. A ticker's lifetime return is its total P&L
+    over everything ever bought, and every share bought is either in these rows
+    or still open — so the caller adds the open lot's own cost and unrealized
+    P&L to get it. Rows missing a price are skipped (they carry 0 P&L)."""
+    if realized.empty:
+        return None
+    rows = realized[realized["ticker"] == ticker].dropna(subset=["buy_price", "sell_price"])
+    shares = float(rows["shares"].sum())
+    if shares < _EPS:
+        return None
+    cost = float((rows["shares"] * rows["buy_price"]).sum())
+    proceeds = float((rows["shares"] * rows["sell_price"]).sum())
+    return {
+        "realized": round(float(rows["realized_pnl"].sum()), 2),
+        "cost": round(cost, 2),
+        "shares": round(shares, 4),
+        "avgBuy": round(cost / shares, 2),
+        "avgSell": round(proceeds / shares, 2),
+    }
+
+
 def realized_summary(realized: pd.DataFrame) -> pd.Series:
     if realized.empty:
         return pd.Series(dtype=float)
