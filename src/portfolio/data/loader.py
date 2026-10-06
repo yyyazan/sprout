@@ -19,7 +19,15 @@ import pandas as pd
 def _normalize_trades(df: pd.DataFrame) -> pd.DataFrame:
     """Shared normalization so the CSV and DB paths produce identical frames."""
     df["action"] = df["action"].str.lower()
-    df = df.sort_values("date").reset_index(drop=True)
+    # Same-day order is buys first, then entry order. A date-only sort is unstable,
+    # so a same-day sell could run before its own buy and FIFO would drop it. Every
+    # per-ticker re-sort downstream must therefore be kind="stable".
+    df = (
+        df.assign(_sell=df["action"].eq("sell"))
+        .sort_values(["date", "_sell"], kind="stable")
+        .drop(columns="_sell")
+        .reset_index(drop=True)
+    )
     df["signed_shares"] = df["shares"].where(df["action"] == "buy", -df["shares"])
     return df
 

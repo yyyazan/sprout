@@ -20,7 +20,8 @@ _EPS = 0.0001
 def fifo_realized(trades_adj: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for ticker in trades_adj["ticker"].unique():
-        ticker_trades = trades_adj[trades_adj["ticker"] == ticker].sort_values("date")
+        # stable: keeps the loader's same-day order (buys before sells)
+        ticker_trades = trades_adj[trades_adj["ticker"] == ticker].sort_values("date", kind="stable")
         queue: deque[list] = deque()  # [shares_remaining, buy_price, buy_date]
 
         for _, t in ticker_trades.iterrows():

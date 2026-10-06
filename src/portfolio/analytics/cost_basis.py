@@ -26,7 +26,7 @@ _EPS = 0.0001
 def _remaining_lots(ticker_trades: pd.DataFrame, ticker: str) -> deque:
     """FIFO-walk a single ticker's trades, returning lots still held: [shares, price]."""
     queue: deque[list] = deque()
-    for _, t in ticker_trades.sort_values("date").iterrows():
+    for _, t in ticker_trades.sort_values("date", kind="stable").iterrows():
         if t["action"] == "buy":
             price = prices_mod.adjusted_trade_price(
                 ticker, t["date"], t.get("price"), t["split_factor"]
