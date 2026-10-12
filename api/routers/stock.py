@@ -17,6 +17,7 @@ import yfinance as yf
 from fastapi import APIRouter, Depends, Query
 
 from portfolio.analytics import realized as realized_mod
+from portfolio.analytics.cards import _spot_move
 from portfolio.analytics.kinds import STOCK, kind_of
 from portfolio.data import prices as prices_mod
 from api import state
@@ -411,22 +412,36 @@ _INDICES = [
 ]
 
 
+def _move_pct(hist, price, sessions: int):
+    move = _spot_move(hist, price, sessions)
+    return _py(round(move * 100, 2)) if move is not None else None
+
+
 @router.get("/market")
 def market():
-    """Dashboard market pulse: index quotes + a few market-wide headlines."""
+    """Dashboard market pulse: index quotes (D/W/M moves + the sidebar's month
+    sparkline, 21 closes + spot) and a few market-wide headlines."""
     global _market_cache
     now = time.time()
     if _market_cache is not None and now - _market_cache[0] < _MARKET_TTL:
         return _market_cache[1]
-    quotes = prices_mod.quotes([sym for sym, _ in _INDICES], max_age=_MARKET_TTL)
+    symbols = [sym for sym, _ in _INDICES]
+    quotes = prices_mod.quotes(symbols, max_age=_MARKET_TTL)
+    hists = prices_mod.histories(symbols)
     indices = []
     for sym, label in _INDICES:
         price, prev = quotes[sym]["price"], quotes[sym]["prev_close"]
+        hist = hists.get(sym)
         day_pct = round((price / prev - 1) * 100, 2) if (price and prev) else None
+        closes = hist.dropna().tail(21).tolist() if hist is not None else []
+        spark = [round(float(v), 2) for v in closes] + ([round(float(price), 2)] if price is not None else [])
         indices.append({
             "symbol": sym, "label": label,
             "price": _py(round(price, 2)) if price is not None else None,
             "dayPct": _py(day_pct),
+            "weekPct": _move_pct(hist, price, 5),
+            "monthPct": _move_pct(hist, price, 21),
+            "spark": spark,
         })
     payload = {"indices": indices, "news": _news("^GSPC", limit=3)}
     _market_cache = (now, payload)

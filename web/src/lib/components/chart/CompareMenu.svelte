@@ -1,3 +1,9 @@
+<script module>
+  const COLORS = ['#5b8def', '#ff90e8', '#ffc900', '#c994e8', '#ff6e5e'];
+  // the S&P 500 row as a quick-pick would add it — the portfolio chart starts with it on
+  export const SP500 = { sym: 'SPY', label: 'S&P 500', color: COLORS[0] };
+</script>
+
 <script>
   // Compare picker for both charts: quick picks + a search box (the same
   // /api/search the palette uses). `list` is the host's [{ sym, label, color }];
@@ -12,7 +18,6 @@
     { sym: 'QQQ', label: 'Nasdaq 100' },
     { sym: 'BTC-USD', label: 'Bitcoin' },
   ];
-  const COLORS = ['#5b8def', '#ff90e8', '#ffc900', '#c994e8', '#ff6e5e'];
   const MAX = 4;
 
   let q = $state('');

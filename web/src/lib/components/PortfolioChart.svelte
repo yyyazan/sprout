@@ -2,18 +2,19 @@
   // Portfolio chart. Shares its shell, interactions and markers with
   // StockChart (components/chart/* + lib/chartKit) — only the data differs.
   // Plots $ value or time-weighted return over the selected window; the readout
-  // is the window's TWR and its gap to SPY (or start → hovered day). Adding
-  // benchmarks flips to a rebased-% comparison, where Value/Return is set aside.
-  import { onMount } from 'svelte';
-  import { createChart, AreaSeries, LineSeries, LineStyle, PriceScaleMode, createSeriesMarkers } from 'lightweight-charts';
+  // is the window's TWR and its gap to SPY (or start → hovered day).
+  //   Value  = dollars, with deposits and withdrawals as bars in a strip under the curve.
+  //   Return = TWR %, with rebased-% comparison lines (S&P 500 on until switched off).
+  import { onMount, untrack } from 'svelte';
+  import { createChart, AreaSeries, LineSeries, HistogramSeries, LineStyle, PriceScaleMode, createSeriesMarkers } from 'lightweight-charts';
   import { theme } from '$lib/theme.js';
-  import { chartPalette, baseChartOptions, themeOptions, areaStyle, bottomMargin, dataRange } from '$lib/chartTheme.js';
-  import { ChartPointer, addBand, paintBand, tradeMarkers, tradeLines, timeKey, fmtTime, fmtPct, fmtUsd, fmtUsdSigned, RANGE_LABELS } from '$lib/chartKit.svelte.js';
+  import { chartPalette, baseChartOptions, themeOptions, areaStyle, bottomMargin, dataRange, hexA } from '$lib/chartTheme.js';
+  import { ChartPointer, addBand, paintBand, tradeMarkers, tradeLines, flowBuckets, flowLines, flowBarsPrimitive, timeKey, fmtTime, fmtPct, fmtUsd, fmtUsdSigned, RANGE_LABELS } from '$lib/chartKit.svelte.js';
   import { cachedStock } from '$lib/stockCache.js';
   import { trades as tradesStore, loadTrades } from '$lib/stores.js';
   import ChartFrame from './chart/ChartFrame.svelte';
   import ChartMenu from './chart/ChartMenu.svelte';
-  import CompareMenu from './chart/CompareMenu.svelte';
+  import CompareMenu, { SP500 } from './chart/CompareMenu.svelte';
   import ChartTip from './chart/ChartTip.svelte';
 
   // equity = {x:['YYYY-MM-DD'...], y:[$...]} portfolio value
@@ -21,13 +22,16 @@
   // twr    = {portfolio:{x,y}, spy:{x,y}} decimals — for the apples-to-apples % view
   // netInvested = {x,y} cumulative net deposits ($) — strips deposits out of a
   //          span's $ change so a measure reads earnings, not balance growth
+  // flows = [{ date, amount }] every deposit (+) and withdrawal (−) — the Value bars
   // onwindow({ from, to, range, custom }) = the window on screen, for the Drivers
   //          tile: the range's bars, or the drag-measure span while measuring.
   //          custom = panned or measured, so the label should be dates.
-  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null, onwindow = null } = $props();
+  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null, flows = [], onwindow = null } = $props();
 
   // scale margins as a fraction of the plot: air above the peak, and under the low just enough for a buy arrow
   const MARGIN_TOP = 0.12, MARGIN_BOTTOM = 0.07;
+  // curve : cash-flow strip, as pane stretch factors (the strip is a quarter of the plot)
+  const FLOW_SPLIT = [3, 1];
   const RANGES = [
     { k: '1D',  days: 1 },
     { k: '1W',  days: 7 },
@@ -49,15 +53,23 @@
   let mode = $state('return');    // 'value' | 'return' — Return is the default metric
   let panBars = $state(0);        // how many bars the fixed-width window is shifted back
   let showTrades = $state(true);  // buy/sell fills as markers
+  let showFlows = $state(true);   // deposits / withdrawals as bars (Value only)
 
   // ── benchmarks: rebased-% overlays, portfolio plotted as its TWR growth ──
-  let benchmarks = $state([]);   // [{ sym, label, color }]
+  // A Return-view feature (Value is dollars, so it sets them aside, list intact).
+  // The S&P 500 is on until the user switches it off.
+  let benchmarks = $state([{ ...SP500 }]);   // [{ sym, label, color }]
   let bmHist = $state({});       // sym → [{ t, c }] raw daily closes
-  const comparing = $derived(benchmarks.length > 0);
+  const comparing = $derived(mode === 'return' && benchmarks.length > 0);
 
-  // fetch each benchmark's daily history once, via the shared module cache
+  // The S&P 500 rides the dashboard payload (twr.spy), the same series the "vs SPY"
+  // gap is read from, so the default overlay needs no request. Anything else loads
+  // its daily closes once, via the shared module cache.
+  const spyLine = $derived(rows.filter((r) => r.sret != null).map((r) => ({ t: r.t, c: 1 + r.sret })));
+  const inPayload = (sym) => sym === 'SPY' && spyLine.length > 1;
+
   $effect(() => {
-    const list = benchmarks;
+    const list = benchmarks.filter((b) => !untrack(() => inPayload(b.sym)));
     if (!list.length) { bmHist = {}; return; }
     let cancelled = false;
     (async () => {
@@ -154,11 +166,22 @@
   let main = null;
   let band = null;
   let bmSeries = [];
+  let flowSeries = [];
+  let flowDays = [];   // bar times carrying a flow, for the hover snap
 
   const ptr = new ChartPointer({
     points: () => mainPts,
     series: () => main,
     holdMs: 1,
+    // over the strip, snap to the nearest flow bar within 14px
+    snap: (_pane, x) => {
+      let best = null, d = 14;
+      for (const t of flowDays) {
+        const dx = Math.abs((chart?.timeScale().timeToCoordinate(t) ?? Infinity) - x);
+        if (dx < d) { d = dx; best = t; }
+      }
+      return best;
+    },
     pan: (bars) => {
       const max = rows.length - view.length;
       if (max <= 0) return false; // whole series in view (e.g. ALL)
@@ -174,7 +197,7 @@
     const r = hoverRow ?? lastRow;
     if (!baseRow || !r) return null;
     const you = twRet(r, baseRow, 'pret'), bench = twRet(r, baseRow, 'sret');
-    const gap = !comparing && you != null && bench != null ? you - bench : null;
+    const gap = you != null && bench != null ? you - bench : null;
     return {
       pct: you,
       label: hoverRow ? fmtTime(hoverRow.t) : RANGE_LABELS[range] ?? '',
@@ -212,6 +235,17 @@
     ptr.hover && !measure && showTrades ? (marks.byKey.get(timeKey(ptr.hover.time)) ?? null) : null
   );
 
+  // ── deposits and withdrawals, bucketed onto the bars that carry them ──
+  const flowBars = $derived(flowBuckets(rows.map((r) => r.t), flows));
+  const flowOn = $derived(mode === 'value' && showFlows && (flows?.length ?? 0) > 0);
+  const hoverFlow = $derived(flowOn && hoverRow && !measure ? flowBars.get(hoverRow.t) ?? null : null);
+  const keys = $derived(flowOn ? [{ label: 'Deposit', color: 'var(--gain)' }, { label: 'Withdrawal', color: 'var(--loss)' }] : []);
+  // the strip's axis: whole dollars, k from a thousand, a bare 0 on the baseline
+  const flowTick = (x) => {
+    const a = Math.abs(x);
+    return a < 0.5 ? '0' : (x < 0 ? '−$' : '$') + (a >= 1000 ? +(a / 1000).toFixed(1) + 'k' : Math.round(a));
+  };
+
   onMount(() => {
     const base = baseChartOptions(PAL);
     chart = createChart(host, {
@@ -229,14 +263,17 @@
     chart.applyOptions(themeOptions(PAL));
   });
 
-  // Rebuild the series whenever the window, mode, benchmarks, fills or theme change.
+  // Rebuild the series whenever the window, mode, benchmarks, flows, fills or theme change.
   $effect(() => {
     if (!chart) return;
-    const pts = mainPts, m = mode, cmp = benchmarks, bmData = bmHist, v = view;
+    const pts = mainPts, m = mode, cmp = comparing ? benchmarks : [], bmData = bmHist, v = view, strip = flowOn;
 
     if (main) chart.removeSeries(main);
     for (const s of bmSeries) chart.removeSeries(s);
+    for (const s of flowSeries) chart.removeSeries(s);   // the strip's pane goes with its last series
     bmSeries = [];
+    flowSeries = [];
+    flowDays = [];
 
     // compare: rebased % via the Percentage scale; alone: $ or TWR % as-is
     chart.priceScale('right').applyOptions({ mode: cmp.length ? PriceScaleMode.Percentage : PriceScaleMode.Normal });
@@ -270,13 +307,35 @@
 
     const lo = v[0]?.t, hi = v[v.length - 1]?.t;
     for (const b of cmp) {
-      const hist = (bmData[b.sym] ?? []).filter((p) => (!lo || p.t >= lo) && (!hi || p.t <= hi));
+      const hist = (inPayload(b.sym) ? spyLine : bmData[b.sym] ?? []).filter((p) => (!lo || p.t >= lo) && (!hi || p.t <= hi));
       if (hist.length < 2) continue;
       const s = chart.addSeries(LineSeries, {
         color: b.color, lineWidth: 1.5, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       s.setData(hist.map((p) => ({ time: p.t, value: p.c })));
       bmSeries.push(s);
+    }
+
+    // cash flow: its own strip under the curve (pane 1) so it never crowds the value axis.
+    // Deposits rise from the baseline, withdrawals hang below it.
+    if (strip) {
+      const dep = [], wd = [];
+      for (const r of v) {
+        const b = flowBars.get(r.t);
+        if (b?.dep) dep.push({ time: r.t, value: b.dep, color: hexA(PAL.GAIN, 0.85) });
+        if (b?.wd) wd.push({ time: r.t, value: -b.wd, color: hexA(PAL.LOSS, 0.85) });
+      }
+      flowDays = [...dep, ...wd].map((p) => p.time);
+      const bar = { priceLineVisible: false, lastValueVisible: false, priceFormat: { type: 'custom', minMove: 1, formatter: flowTick } };
+      // the histograms only carry the data (and so the axis); the primitive draws the bars
+      const up = chart.addSeries(HistogramSeries, { ...bar, color: 'rgba(0,0,0,0)' }, 1);
+      const down = chart.addSeries(HistogramSeries, { ...bar, color: 'rgba(0,0,0,0)' }, 1);
+      up.setData(dep);
+      down.setData(wd);
+      up.attachPrimitive(flowBarsPrimitive(chart, up, [...dep, ...wd]));
+      flowSeries = [up, down];
+      chart.priceScale('right', 1).applyOptions({ scaleMargins: { top: 0.14, bottom: 0.14 } });
+      chart.panes().forEach((p, i) => p.setStretchFactor(FLOW_SPLIT[i] ?? 1));
     }
 
     chart.timeScale().fitContent();
@@ -293,20 +352,21 @@
     </div>
   {/if}
   <ChartFrame ranges={RANGES.map((r) => r.k)} bind:range onrange={() => (panBars = 0)}
-    bind:compares={benchmarks} self="You" {read} bare={empty}>
+    bind:compares={benchmarks} self="You" showCompares={mode === 'return'} {keys} {read} bare={empty}>
     {#snippet tools()}
-      <CompareMenu bind:list={benchmarks} />
+      {#if mode === 'return'}<CompareMenu bind:list={benchmarks} />{/if}
       <ChartMenu label="Indicators" icon="indicators" width={185}>
         <button class="cm-item" class:sel={showTrades} onclick={() => (showTrades = !showTrades)}><span class="cm-check">{showTrades ? '✓' : ''}</span>My trades</button>
+        {#if mode === 'value'}
+          <button class="cm-item" class:sel={showFlows} onclick={() => (showFlows = !showFlows)}><span class="cm-check">{showFlows ? '✓' : ''}</span>Cash flow</button>
+        {/if}
       </ChartMenu>
     {/snippet}
     {#snippet right()}
-      {#if !comparing}
-        <div class="pc-toggle" role="group" aria-label="metric">
-          <button class:on={mode === 'value'} onclick={() => (mode = 'value')}>Value</button>
-          <button class:on={mode === 'return'} onclick={() => (mode = 'return')}>Return</button>
-        </div>
-      {/if}
+      <div class="pc-toggle" role="group" aria-label="metric">
+        <button class:on={mode === 'value'} onclick={() => (mode = 'value')}>Value</button>
+        <button class:on={mode === 'return'} onclick={() => (mode = 'return')}>Return</button>
+      </div>
     {/snippet}
 
     <div class="pc-canvas" bind:this={host}></div>
@@ -317,7 +377,7 @@
         sub="{fmtTime(measure.t0)} → {fmtTime(measure.t1)}" />
     {:else if hoverRow}
       <ChartTip x={ptr.hover.x} y={ptr.hover.y} value={fmtUsd(hoverRow.pv)}
-        lines={tradeLines(hoverFills, (t) => (t.ticker || '').toUpperCase())} />
+        lines={[...flowLines(hoverFlow), ...tradeLines(hoverFills, (t) => (t.ticker || '').toUpperCase())]} />
     {/if}
   </ChartFrame>
 </div>

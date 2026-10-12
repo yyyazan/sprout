@@ -2,11 +2,8 @@
   // Sign-in screen, shown by the layout when any API call hits the server gate
   // (401). The garden is the backdrop — ambient only, no hover/click/drag, and
   // grown from a fixed decorative set since nobody's portfolio is loaded yet.
-  // Google is the front door; the password is the owner's fallback, tucked
-  // away as a quiet "secret" link at the foot of the screen.
-  // On success the server sets the session cookie and a reload refetches
-  // everything cleanly under the new identity.
-  import { api } from '$lib/api.js';
+  // Google is the only way in. The OAuth callback sets the session cookie and
+  // lands back on /, so everything refetches cleanly under the new identity.
   import GardenView from './GardenView.svelte';
 
   // Plant model is a deterministic hash of the ticker string and size follows
@@ -76,43 +73,12 @@
   }
   const period = periodNow();
 
-  let pw = $state('');
-  let err = $state(false);
-  let busy = $state(false);
-  let showPw = $state(false);
-  let oauth = $state(true);   // assume Google until /me says otherwise
-  let inEl;
-
   // The OAuth callback bounces back to /?auth_error=… when sign-in is refused
   // (not on the allowlist, unverified email, expired state).
   const authError = $derived.by(() => {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('auth_error') ?? '';
   });
-
-  // A 401 from /me still tells us whether Google is configured on this deploy.
-  $effect(() => {
-    api.me()
-      .then((r) => (oauth = r?.oauth ?? false))
-      .catch(() => {});
-  });
-
-  $effect(() => { if (showPw) inEl?.focus(); });
-
-  async function unlock() {
-    if (busy || !pw) return;
-    busy = true;
-    err = false;
-    try {
-      const r = await api.login(pw);
-      if (r?.ok) { location.reload(); return; }
-      err = true;
-    } catch {
-      err = true;
-    } finally {
-      busy = false;
-    }
-  }
 </script>
 
 <div class="gate" role="dialog" aria-modal="true" aria-label="Sign in to Sprout">
@@ -120,32 +86,15 @@
     <GardenView positions={plants} {period} {slots} interactive={false} fill bare />
   </div>
 
-  <div class="gate-card" class:bad={err}>
+  <div class="gate-card">
     <div class="gate-brand">sprout</div>
 
     {#if authError}
       <div class="gate-err" role="alert">{authError}</div>
     {/if}
 
-    {#if oauth}
-      <a class="btn btn-line gate-google" href="/api/auth/google/login">Continue with Google</a>
-    {/if}
-
-    {#if showPw || !oauth}
-      <div class="gate-pw">
-        <input class="gate-in" type="password" placeholder="Password" bind:value={pw} bind:this={inEl}
-          autocomplete="current-password" aria-label="Owner password"
-          oninput={() => (err = false)}
-          onkeydown={(e) => { if (e.key === 'Enter') unlock(); }} />
-        <button class="btn btn-line gate-btn" onclick={unlock} disabled={busy || !pw}>Unlock</button>
-        {#if err}<div class="gate-err" role="alert">Wrong password</div>{/if}
-      </div>
-    {/if}
+    <a class="btn btn-line gate-google" href="/api/auth/google/login">Continue with Google</a>
   </div>
-
-  {#if oauth && !showPw}
-    <button class="gate-secret" type="button" onclick={() => (showPw = true)}>secret</button>
-  {/if}
 </div>
 
 <style>
@@ -162,29 +111,13 @@
   .gate-card { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 10px;
     width: min(320px, 100%); padding: 28px 24px;
     background: var(--surface); border: var(--bw) solid var(--ink); border-radius: var(--r); }
-  .gate-card.bad { border-color: var(--loss); }
   .gate-brand { font-family: var(--sans); font-size: 22px; font-weight: 800; color: var(--ink); margin-bottom: 6px; }
   .gate-google { height: 36px; display: grid; place-items: center; text-decoration: none; }
-  .gate-pw { display: flex; flex-direction: column; gap: 10px; }
-  .gate-in { box-sizing: border-box; width: 100%; height: 38px; padding: 0 12px;
-    border: var(--bw) solid var(--ink); border-radius: var(--r); background: transparent;
-    outline: none; font-family: var(--sans); font-size: 16px; font-weight: 500; color: var(--text); }
-  .gate-in::placeholder { color: var(--muted); opacity: .6; }
-  .gate-btn { height: 34px; }
-  .gate-btn:disabled { opacity: .4; cursor: default; }
   .gate-err { font-family: var(--sans); font-size: var(--fs-meta); font-weight: 500; color: var(--loss); }
-
-  /* the owner fallback: a quiet word at the foot, above the phone's home bar */
-  .gate-secret { position: absolute; z-index: 1; left: 50%; transform: translateX(-50%);
-    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-    padding: 6px 12px; border: 0; background: transparent; cursor: pointer;
-    font-family: var(--sans); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
-  .gate-secret:hover { color: var(--ink); }
 
   /* Phone: card stays centred, and loses its outline — with surface == paper
      that leaves just the wordmark and button floating among the plants. */
   @media (max-width: 640px) {
     .gate-card { border-color: transparent; }
-    .gate-card.bad { border-color: var(--loss); }
   }
 </style>

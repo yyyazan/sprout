@@ -105,6 +105,9 @@ def dashboard_payload(s: PortfolioSnapshot, period: str, name: str | None = None
         # equity curve. Lets the chart strip deposits out of a window's $ gain so
         # the headline reads earnings, not balance growth.
         "net_invested": _xy(s.net_invested, 2),
+        # The deposits and withdrawals themselves, one row each — the Value chart's
+        # flow bars. The client lands each on the first bar that carries it.
+        "cash_flows": s.cash_flows,
         # Parallel SPY portfolio ($): the same cash flows invested in SPY instead.
         # This is the HONEST dollar benchmark — the gap vs equity_curve is real
         # out/under-performance, not deposits (a TWR-rebased line would be ~99%

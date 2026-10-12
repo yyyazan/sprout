@@ -37,13 +37,12 @@ check is that all of these exist.
 |---|---|---|
 | `PORTFOLIO_DB` | `/data/portfolio.db` | Points the app at the volume. **Without it, the app uses an ephemeral path, ignores the volume, and 500s.** |
 | `PORTFOLIO_PRICES` | `/data/prices` | yfinance price cache on the volume (regenerable, but persisting it = fast boots). |
-| `SPROUT_PASSWORD` | any strong passphrase | Owner fallback sign-in, and the session-signing key when `SPROUT_SECRET` is unset (api/auth.py). **With no password AND no Google client, the whole portfolio is public.** Rotating it logs every device out. |
-| `GOOGLE_CLIENT_ID` | _(Google Cloud console)_ | Enables "Continue with Google". Unset = the sign-in screen offers only the password. |
+| `GOOGLE_CLIENT_ID` | _(Google Cloud console)_ | Turns the sign-in gate on (api/auth.py). **With no Google client the gate is off and the whole portfolio is public.** Google is the only way in; there is no password. |
 | `GOOGLE_CLIENT_SECRET` | _(Google Cloud console)_ | OAuth code exchange. |
 | `SPROUT_PUBLIC_URL` | `https://<your-app>.up.railway.app` | Builds the OAuth `redirect_uri`. **Load-bearing:** Railway terminates TLS upstream so the app sees plain `http`; without this the callback URL won't match what Google has registered and every sign-in fails. No trailing slash. |
-| `SPROUT_OWNER_EMAIL` | `yazan@bu.edu` | The account that the password fallback signs into, and the one email allowed to claim the pre-OAuth `user_id = 1` (which owns all existing trade history). |
+| `SPROUT_OWNER_EMAIL` | `yazan@bu.edu` | The one email allowed to claim the pre-OAuth `user_id = 1` (which owns all existing trade history). |
 | `SPROUT_ALLOWED_EMAILS` | `a@gmail.com,b@gmail.com` | Comma-separated invite list. **Anyone not on it (or on `SPROUT_OWNER_EMAIL`) is refused and no account is created.** Without it, any Google account could provision a portfolio here. |
-| `SPROUT_SECRET` | _(optional, random 32+ chars)_ | Session cookie signing key. Falls back to `SPROUT_PASSWORD`. Set it if you want to rotate the password without logging everyone out. |
+| `SPROUT_SECRET` | _(random 32+ chars)_ | Session cookie signing key. **Set it:** unset, the app signs with a per-boot key and every restart (every deploy) signs everyone out. Rotating it signs everyone out too. |
 | `R2_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` | Cloudflare R2 S3 endpoint (account-level, **no bucket name in it**). |
 | `R2_ACCESS_KEY_ID` | _(from R2 API token)_ | Backup auth. |
 | `R2_SECRET_ACCESS_KEY` | _(from R2 API token)_ | Backup auth (shown only once at token creation). |
@@ -93,8 +92,11 @@ not re-seed on a normal deploy.
    Authorized *JavaScript origins* are not needed — this is a server-side flow.
 3. On the OAuth **consent screen**, External + Testing is fine for a handful of
    users; add each person under **Test users**.
-4. Set the `GOOGLE_*`, `SPROUT_PUBLIC_URL`, `SPROUT_OWNER_EMAIL` and
-   `SPROUT_ALLOWED_EMAILS` variables above, then deploy.
+4. Set the `GOOGLE_*`, `SPROUT_PUBLIC_URL`, `SPROUT_OWNER_EMAIL`,
+   `SPROUT_ALLOWED_EMAILS` and `SPROUT_SECRET` variables above, then deploy.
+
+There is no password fallback. If sign-in breaks (usually a `redirect_uri_mismatch`),
+fix the variables in Railway; the browser can't unlock the app another way.
 
 ### First sign-in after enabling OAuth — order matters
 

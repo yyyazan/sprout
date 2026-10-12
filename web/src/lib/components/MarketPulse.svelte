@@ -1,16 +1,27 @@
 <script>
-  // Market pulse — "how's the market" at a glance. Three index cells split by
-  // hairlines (big day-% as the hero figure), then market headlines as
-  // neo-brutalist underlined links.
+  // Market pulse — "how's the market" at a glance. Three index cells (the move
+  // as the hero figure, the price, the month sparkline), then market headlines
+  // as neo-brutalist underlined links. D/W/M picks which move the hero shows;
+  // the sparkline is always the past month, as in the sidebar rows.
   import { onMount } from 'svelte';
   import { api } from '$lib/api.js';
   import { openStock } from '$lib/stores.js';
   import { prefetch } from '$lib/stockCache.js';
+  import Sparkline from './Sparkline.svelte';
 
   let m = $state(null);
   onMount(async () => {
     try { m = await api.market(); } catch { m = { indices: [], news: [] }; }
   });
+
+  const WINS = [['dayPct', 'D'], ['weekPct', 'W'], ['monthPct', 'M']];
+  const SPARK_H = 22;
+  let win = $state('dayPct');
+  // the cells are equal columns, so one measured width sizes every sparkline
+  let cellW = $state(0);
+  const tone = (n) => (n == null ? '' : n >= 0 ? 'up' : 'down');
+  // a sparkline takes its own direction, first close to spot (same rule as the sidebar)
+  const sparkUp = (sp) => !sp?.length || sp[sp.length - 1] >= sp[0];
 
   const pct = (n) => (n == null ? '—' : (n >= 0 ? '+' : '−') + Math.abs(n).toFixed(2) + '%');
   const px = (n) => (n == null ? '—' : n >= 1000 ? Math.round(n).toLocaleString('en-US') : n.toFixed(2));
@@ -24,11 +35,18 @@
 </script>
 
 <div class="glass-card pulse">
-  <div class="kpi-label">Market</div>
+  <div class="pulse-head">
+    <div class="kpi-label">Market</div>
+    <div class="pulse-win" role="group" aria-label="Move window">
+      {#each WINS as [k, label] (k)}
+        <button class="btn btn-sm btn-mono" class:on={win === k} onclick={() => (win = k)}>{label}</button>
+      {/each}
+    </div>
+  </div>
   {#if m === null}
     <div class="idx-row" aria-hidden="true">
       {#each [0, 1, 2] as i (i)}
-        <div class="idx"><span class="idx-label"><span class="skel skel-t" style="width:4.5em"></span></span><span class="idx-pct"><span class="skel skel-t" style="width:3.6em"></span></span><span class="idx-px"><span class="skel skel-t" style="width:3.2em"></span></span></div>
+        <div class="idx"><span class="idx-label"><span class="skel skel-t" style="width:4.5em"></span></span><span class="idx-pct"><span class="skel skel-t" style="width:3.6em"></span></span><span class="idx-px"><span class="skel skel-t" style="width:3.2em"></span></span><span class="idx-spark"><span class="skel idx-spark-sk"></span></span></div>
       {/each}
     </div>
     <div class="pulse-news" aria-hidden="true">
@@ -39,10 +57,14 @@
   {:else}
     <div class="idx-row">
       {#each m.indices as ix (ix.symbol)}
-        <button class="idx" use:prefetch={ix.symbol} onclick={() => openStock({ ticker: ix.symbol, name: ix.label, holding: null })}>
+        <button class="idx" use:prefetch={ix.symbol} bind:clientWidth={cellW}
+          onclick={() => openStock({ ticker: ix.symbol, name: ix.label, holding: null })}>
           <span class="idx-label">{ix.label}</span>
-          <span class="idx-pct pct-pill {(ix.dayPct ?? 0) >= 0 ? 'up' : 'down'}">{pct(ix.dayPct)}</span>
+          <span class="idx-pct pct-pill {tone(ix[win])}">{pct(ix[win])}</span>
           <span class="idx-px">{px(ix.price)}</span>
+          <span class="idx-spark {sparkUp(ix.spark) ? 'up' : 'down'}">
+            <Sparkline values={ix.spark ?? []} width={cellW || 80} height={SPARK_H} />
+          </span>
         </button>
       {/each}
     </div>
@@ -62,6 +84,9 @@
 <style>
   .pulse { display: flex; flex-direction: column; gap: 6px; }
   .pulse .kpi-label { margin-bottom: 0; }
+  /* title left, D/W/M right: the sidebar's section head */
+  .pulse-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .pulse-win { display: inline-flex; gap: 2px; }
 
   /* three cells — the gap separates, the % is the hero */
   .idx-row { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 12px; margin-top: 4px; }
@@ -71,6 +96,11 @@
   .idx-label { font-size: var(--fs-body); font-weight: 500; color: var(--muted); white-space: nowrap; transition: color .15s ease; }
   .idx-pct { font-family: var(--num); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .idx-px { font-family: var(--num); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; }
+  /* the month line spans its cell, in its own direction's ink */
+  .idx-spark { align-self: stretch; display: block; margin-top: 3px; line-height: 0; }
+  .idx-spark.up { color: var(--gain-ink); }
+  .idx-spark.down { color: var(--loss-ink); }
+  .idx-spark-sk { width: 100%; height: 22px; }
 
   /* headlines — always underlined, ink on hover. Hairlines between rows only. */
   .pulse-news { display: flex; flex-direction: column; margin-top: 8px; }

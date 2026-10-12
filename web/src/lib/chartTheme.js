@@ -16,7 +16,7 @@ export function chartPalette(theme) {
 // the part of the config that follows the theme — passed to applyOptions on a flip
 export function themeOptions(pal) {
   return {
-    layout: { textColor: pal.MUTED },
+    layout: { textColor: pal.MUTED, panes: { separatorColor: pal.GRID } },
     grid: { horzLines: { color: pal.GRID } },
     crosshair: { vertLine: { color: pal.INK }, horzLine: { color: pal.GRID } },
   };
@@ -29,6 +29,8 @@ export function baseChartOptions(pal) {
     layout: {
       background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' },
       textColor: pal.MUTED, fontFamily: CHART_FONT, fontSize: 11, attributionLogo: false,
+      // a second pane (the portfolio's cash-flow strip) is split by a grid hairline, not draggable
+      panes: { separatorColor: pal.GRID, separatorHoverColor: 'rgba(0,0,0,0)', enableResize: false },
     },
     grid: { vertLines: { visible: false }, horzLines: { color: pal.GRID } },
     rightPriceScale: { borderVisible: false },

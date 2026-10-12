@@ -14,10 +14,10 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-# Force the auth gate off (no password/secret/OAuth configured) so requests
-# resolve to the default user without needing a session cookie — matches how
+# Force the auth gate off (no secret/OAuth configured) so requests resolve to the
+# default user without needing a session cookie — matches how
 # `api.auth.current_user_id` behaves in local dev.
-for _var in ("SPROUT_PASSWORD", "SPROUT_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"):
+for _var in ("SPROUT_SECRET", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"):
     os.environ.pop(_var, None)
 
 from portfolio.data import db as db_mod  # noqa: E402

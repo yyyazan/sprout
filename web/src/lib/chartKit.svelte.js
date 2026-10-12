@@ -61,10 +61,13 @@ export class ChartPointer {
 
   // points(): the main series' [{ time, value }] · series(): its api
   // pan(bars): shift the window back by `bars`; return false if there's nowhere to go
-  constructor({ points, series, pan = null, holdMs = 220 }) {
+  // snap(paneIndex, x): a bar time to take instead of the one under the pointer, or null —
+  // lets a thin target (a flow bar over a year) be caught from a few pixels away
+  constructor({ points, series, pan = null, snap = null, holdMs = 220 }) {
     this.points = points;
     this.series = series;
     this.pan = pan;
+    this.snap = snap;
     this.holdMs = holdMs;
   }
 
@@ -79,9 +82,15 @@ export class ChartPointer {
 
   attach(chart, host) {
     const ts = () => chart.timeScale();
+    // an event's y is relative to its own pane; the tooltip is placed against the whole plot
+    const paneTop = (i) => {
+      const el = i ? chart.panes()[i]?.getHTMLElement() : null;
+      return el ? el.getBoundingClientRect().top - host.getBoundingClientRect().top : 0;
+    };
     const onMove = (p) => {
       if (!p.time || !p.point || p.point.x < 0) { this.#setHover(null); return; }
-      this.#setHover({ x: ts().timeToCoordinate(p.time) ?? p.point.x, y: p.point.y, time: p.time });
+      const time = (p.paneIndex && this.snap?.(p.paneIndex, p.point.x)) || p.time;
+      this.#setHover({ x: ts().timeToCoordinate(time) ?? p.point.x, y: p.point.y + paneTop(p.paneIndex), time });
     };
     chart.subscribeCrosshairMove(onMove);
 
@@ -231,4 +240,59 @@ export function tradeLines(trades, what = (t) => 'sh') {
     text: `${isBuy(t) ? 'Buy' : 'Sell'} ${Number(t.shares).toLocaleString('en-US', { maximumFractionDigits: 4 })} ${what(t)}`
       + (t.price != null ? ` @ ${fmtUsd(t.price)}` : ''),
   }));
+}
+
+// ── cash flow ─────────────────────────────────────────────────────────────
+// A deposit or withdrawal shows on the first bar on or after its date: the bar
+// where the curve first carries it (a Saturday deposit lands on Monday).
+// `days` = every bar's 'YYYY-MM-DD', ascending; flows = [{ date, amount }], + in / − out.
+// → Map day → { dep, wd, nDep, nWd }, withdrawals as a positive total.
+export function flowBuckets(days, flows) {
+  const out = new Map();
+  if (!days?.length || !flows?.length) return out;
+  for (const f of flows) {
+    let lo = 0, hi = days.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (days[mid] < f.date) lo = mid + 1; else hi = mid; }
+    if (lo === days.length) continue;   // dated after the last bar: not on the curve yet
+    const day = days[lo];
+    const b = out.get(day) ?? out.set(day, { dep: 0, wd: 0, nDep: 0, nWd: 0 }).get(day);
+    if (f.amount >= 0) { b.dep += f.amount; b.nDep++; } else { b.wd -= f.amount; b.nWd++; }
+  }
+  return out;
+}
+
+// tooltip lines for one bar's bucket: a line per direction, summed when there are several
+export function flowLines(b) {
+  const out = [];
+  if (b?.nDep) out.push({ up: true, text: `${b.nDep > 1 ? `${b.nDep} deposits` : 'Deposit'} ${fmtUsd(b.dep)}` });
+  if (b?.nWd) out.push({ up: false, text: `${b.nWd > 1 ? `${b.nWd} withdrawals` : 'Withdrawal'} ${fmtUsd(b.wd)}` });
+  return out;
+}
+
+// Flow bars at a steady pixel width. A histogram's columns follow bar spacing, so they
+// are slivers over a year and slabs over a month; this draws 4–10px whatever the range.
+// Attach to a series on the flow scale (its data drives the axis); bars = [{ time, value, color }].
+export function flowBarsPrimitive(chart, series, bars) {
+  return {
+    paneViews: () => [{
+      zOrder: () => 'normal',
+      renderer: () => ({
+        draw(target) {
+          target.useBitmapCoordinateSpace(({ context, horizontalPixelRatio: hr, verticalPixelRatio: vr }) => {
+            const ts = chart.timeScale();
+            const w = Math.min(10, Math.max(4, ts.options().barSpacing * 0.7));
+            const y0 = series.priceToCoordinate(0);
+            if (y0 == null) return;
+            for (const b of bars) {
+              const x = ts.timeToCoordinate(b.time), y = series.priceToCoordinate(b.value);
+              if (x == null || y == null) continue;
+              const h = Math.max(2, Math.abs(y - y0));
+              context.fillStyle = b.color;
+              context.fillRect(Math.round((x - w / 2) * hr), Math.round((b.value >= 0 ? y0 - h : y0) * vr), Math.round(w * hr), Math.round(h * vr));
+            }
+          });
+        },
+      }),
+    }],
+  };
 }

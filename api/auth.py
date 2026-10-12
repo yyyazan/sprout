@@ -1,23 +1,20 @@
-"""Authentication — Google sign-in, with a password fallback for the owner.
+"""Authentication — Google sign-in, nothing else.
 
 Sprout is a personal app shared with a couple of friends, so identity is
 deliberately small: sign in with Google, and the account is matched by Google's
 stable subject id. Only addresses in ``SPROUT_ALLOWED_EMAILS`` may sign in —
 without that, any Google account on earth could provision a portfolio here.
+There is no password path: a shared secret typed into a form would sidestep
+both the allowlist and Google's own checks.
 
 Sessions stay stateless (no session table): the cookie holds
 ``user_id.issued_at.hmac`` signed with ``SPROUT_SECRET``. That survives
 restarts and lets a request resolve its user without a DB hit. Rotating the
 secret revokes every outstanding session at once.
 
-``SPROUT_PASSWORD`` is kept as an owner-only fallback so a broken OAuth config
-(most likely a redirect-URI mismatch) can't lock the owner out of their own
-portfolio.
-
 Only ``/api/*`` is gated: the static SvelteKit shell holds no user data, and
 serving it unauthenticated is what lets the frontend render the sign-in screen.
-When neither a password nor a Google client is configured the gate is off
-entirely — that's local dev.
+When no Google client is configured the gate is off entirely — that's local dev.
 """
 from __future__ import annotations
 
@@ -31,7 +28,6 @@ import urllib.parse
 
 import requests
 from fastapi import APIRouter, HTTPException, Request, Response
-from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, RedirectResponse
 
@@ -50,17 +46,12 @@ GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-# Last-resort signing key: only used when neither SPROUT_SECRET nor
-# SPROUT_PASSWORD is set, which means sessions die on restart. Fine for dev,
-# logged loudly because it would be a misconfiguration in production.
+# Last-resort signing key: only used when SPROUT_SECRET is unset, which means
+# sessions die on restart. Fine for dev; startup_check() flags it in production.
 _EPHEMERAL_SECRET = secrets.token_hex(32)
 
 
 # ── configuration ───────────────────────────────────────────────────────────
-
-
-def _password() -> str:
-    return os.environ.get("SPROUT_PASSWORD", "")
 
 
 def _owner_email() -> str:
@@ -86,7 +77,7 @@ def oauth_enabled() -> bool:
 
 def enabled() -> bool:
     """Whether the API gate is active at all (off = wide-open local dev)."""
-    return bool(_password()) or oauth_enabled()
+    return oauth_enabled()
 
 
 def startup_check() -> None:
@@ -95,6 +86,9 @@ def startup_check() -> None:
     With Google sign-in on but no owner email, the owner's first sign-in mints a
     fresh account instead of claiming the pre-OAuth user_id=1 that holds the
     existing trade history — the portfolio just looks empty, with no error.
+
+    Also flags a missing SPROUT_SECRET: sessions are then signed with a key that
+    changes on every restart, so every deploy signs everyone out.
     """
     if oauth_enabled() and not _owner_email():
         log.warning(
@@ -103,14 +97,12 @@ def startup_check() -> None:
             "which owns the existing trade history.",
             db_mod.DEFAULT_USER_ID,
         )
+    if oauth_enabled() and not os.environ.get("SPROUT_SECRET"):
+        log.warning("SPROUT_SECRET is not set; sessions are signed with a per-boot key and won't survive a restart.")
 
 
 def _secret() -> bytes:
-    key = os.environ.get("SPROUT_SECRET") or _password()
-    if not key:
-        log.warning("no SPROUT_SECRET or SPROUT_PASSWORD set; sessions won't survive restart")
-        key = _EPHEMERAL_SECRET
-    return key.encode()
+    return (os.environ.get("SPROUT_SECRET") or _EPHEMERAL_SECRET).encode()
 
 
 def _public_url(request: Request) -> str:
@@ -217,37 +209,7 @@ def current_user_id(request: Request) -> int:
     raise HTTPException(status_code=401, detail="locked")
 
 
-# ── password fallback (owner only) ──────────────────────────────────────────
-
-
-def _owner_user_id() -> int:
-    """Account the password fallback signs into — the owner's, else user 1."""
-    email = _owner_email()
-    if not email:
-        return db_mod.DEFAULT_USER_ID
-    conn = db_mod.connect()
-    try:
-        row = conn.execute("SELECT user_id FROM users WHERE email = ?", (email,)).fetchone()
-        return int(row["user_id"]) if row else db_mod.DEFAULT_USER_ID
-    finally:
-        conn.close()
-
-
-class LoginIn(BaseModel):
-    password: str
-
-
-@router.post("/login")
-def login(body: LoginIn, request: Request, response: Response):
-    if not enabled():
-        return {"ok": True}
-    if not _password() or not hmac.compare_digest(
-        (body.password or "").encode(), _password().encode()
-    ):
-        time.sleep(0.5)  # single worker — blunt but effective brute-force drag
-        return JSONResponse({"ok": False}, status_code=401)
-    _set_session(response, request, _owner_user_id())
-    return {"ok": True}
+# ── sign-out ────────────────────────────────────────────────────────────────
 
 
 @router.post("/logout")
@@ -393,5 +355,4 @@ def me(request: Request):
         "email": row["email"],
         "name": row["display_name"],
         "picture": row["picture"],
-        "oauth": oauth_enabled(),
     }

@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Sprout API", lifespan=lifespan)
 
-# Password gate (SPROUT_PASSWORD env var; disabled when unset, e.g. local dev).
+# Sign-in gate (Google; disabled when no client is configured, e.g. local dev).
 app.add_middleware(auth.AuthGateMiddleware)
 # The big JSON payloads (per-stock history ≈ 150-300KB) compress ~10x.
 app.add_middleware(GZipMiddleware, minimum_size=1024)

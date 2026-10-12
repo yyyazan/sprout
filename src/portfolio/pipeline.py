@@ -71,6 +71,7 @@ class PortfolioSnapshot:
     # Savings / activity
     monthly_deposits: float
     last_txn_date: pd.Timestamp | None
+    cash_flows: list[dict]             # {date, amount} per deposit (+) / withdrawal (−), oldest first
 
     # Card hand (positions-as-playing-cards + Joker for cash)
     cards: list[dict]
@@ -91,6 +92,16 @@ def _current_month_deposits(txn: pd.DataFrame) -> float:
 
 def _last_txn_date(txn: pd.DataFrame) -> pd.Timestamp | None:
     return txn["Date"].max() if len(txn) else None
+
+
+def _cash_flows(txn: pd.DataFrame) -> list[dict]:
+    """Each deposit (+) and withdrawal (−) as one row — the portfolio chart's flow bars."""
+    flows = txn.dropna(subset=["Date", "Amount (USD)"]).sort_values("Date", kind="stable")
+    return [
+        {"date": d.strftime("%Y-%m-%d"), "amount": round(float(a), 2)}
+        for d, a in zip(flows["Date"], flows["Amount (USD)"])
+        if a
+    ]
 
 
 def run(
@@ -243,6 +254,7 @@ def run(
         sharpe_qqq=risk_mod.sharpe(twr_qqq) if len(twr_qqq) else 0.0,
         monthly_deposits=_current_month_deposits(txn),
         last_txn_date=_last_txn_date(txn),
+        cash_flows=_cash_flows(txn),
         cards=cards,
         dividends=dividends,
         last_updated=pd.Timestamp.now(),

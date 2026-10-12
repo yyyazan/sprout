@@ -4,7 +4,7 @@
   import Sidebar from '$lib/components/Sidebar.svelte';
   import StockDetail from '$lib/components/StockDetail.svelte';
   import StockSearch from '$lib/components/StockSearch.svelte';
-  import PasswordGate from '$lib/components/PasswordGate.svelte';
+  import SignIn from '$lib/components/SignIn.svelte';
   import { locked } from '$lib/api.js';
   import { detail, searchOpen, holdings, openSearchResult, closeStock, openSearch, closeSearch, loadKinds } from '$lib/stores.js';
   import { isMobile } from '$lib/isMobile.js';
@@ -46,7 +46,7 @@
     holdings={($holdings ?? []).map((c) => ({ symbol: c.ticker, name: c.company_name, type: 'Holding' }))} />
 {/if}
 
-<!-- Server-side password gate (SPROUT_PASSWORD): covers BOTH layout branches. -->
+<!-- Server-side sign-in gate (Google): covers BOTH layout branches. -->
 {#if $locked}
-  <PasswordGate />
+  <SignIn />
 {/if}

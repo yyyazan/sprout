@@ -10,7 +10,7 @@
   import { prefetch } from '$lib/stockCache.js';
   import { detail, searchOpen, holdings, closeStock, closeSearch, openSearch, openSearchResult, noteSearchKinds } from '$lib/stores.js';
 
-  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null, drivers = null } = $props();
+  let { equity = { x: [], y: [] }, spy = null, twr = null, netInvested = null, flows = [], drivers = null } = $props();
 
   // the chart's current window, which the Drivers title card explains
   let win = $state(null);
@@ -154,7 +154,7 @@
        the stock view: title card (--title-h) over the chart card. -->
   <div class="stage-pane stage-home" class:stage-off={mode !== 'portfolio'}>
     <DriversCard {drivers} {win} />
-    <section class="chart-widget"><PortfolioChart {equity} {spy} {twr} {netInvested} onwindow={(w) => (win = w)} /></section>
+    <section class="chart-widget"><PortfolioChart {equity} {spy} {twr} {netInvested} {flows} onwindow={(w) => (win = w)} /></section>
   </div>
 </section>
 

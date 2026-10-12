@@ -1,14 +1,16 @@
 <script>
   // The shell both charts render into, so they can't drift apart again:
-  // toolbar (menus · readout · right-side control) → compare chips → plot →
+  // toolbar (menus · readout · right-side control) → chip row → plot →
   // range tabs. The readout is the window's move, or the move from the window
   // start to the hovered bar; `read` = { pct, label, extra: { text, up } }.
+  // The chip row is the compare legend (removable) and/or `keys`, static
+  // [{ label, color }] entries that name what a plain series means.
   import { BRAND } from '$lib/chartTheme.js';
   import { fmtPct } from '$lib/chartKit.svelte.js';
 
   let {
     ranges, range = $bindable(), onrange = null,
-    compares = $bindable([]), self = '',
+    compares = $bindable([]), self = '', showCompares = true, keys = [],
     read = null, bare = false,
     tools, right = null, children,
   } = $props();
@@ -27,14 +29,19 @@
     {#if right}<div class="cf-right">{@render right()}</div>{/if}
   </div>
 
-  <!-- active compares: legend chips, dot = series colour, click to remove -->
-  {#if compares.length}
+  <!-- chip row: dot = series colour. Compares click to remove; keys just name a series -->
+  {#if (showCompares && compares.length) || keys.length}
     <div class="cf-chips">
-      <span class="cf-chip cf-chip-self"><span class="cf-dot" style="background:{BRAND}"></span>{self}</span>
-      {#each compares as c (c.sym)}
-        <button class="cf-chip" onclick={() => (compares = compares.filter((x) => x.sym !== c.sym))} title="Remove {c.sym}">
-          <span class="cf-dot" style="background:{c.color}"></span>{c.sym}<span class="cf-x" aria-hidden="true">✕</span>
-        </button>
+      {#if showCompares && compares.length}
+        <span class="cf-chip cf-chip-self"><span class="cf-dot" style="background:{BRAND}"></span>{self}</span>
+        {#each compares as c (c.sym)}
+          <button class="cf-chip" onclick={() => (compares = compares.filter((x) => x.sym !== c.sym))} title="Remove {c.sym}">
+            <span class="cf-dot" style="background:{c.color}"></span>{c.sym}<span class="cf-x" aria-hidden="true">✕</span>
+          </button>
+        {/each}
+      {/if}
+      {#each keys as k (k.label)}
+        <span class="cf-chip cf-chip-self"><span class="cf-dot" style="background:{k.color}"></span>{k.label}</span>
       {/each}
     </div>
   {/if}

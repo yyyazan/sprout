@@ -105,7 +105,7 @@
     <!-- stage (big, leftmost) · widget rail (mid) · template column (right) -->
     <div class="dash dash-grid">
       {#if d}
-        <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} drivers={d.drivers} />
+        <DashboardStage equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} flows={d.cash_flows} drivers={d.drivers} />
       {:else}
         <section class="sk-stage" aria-hidden="true">
           <div class="strip"><span class="strip-icon"></span><span class="strip-ph">Search</span><kbd class="strip-kbd">⌘K</kbd></div>

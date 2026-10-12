@@ -3,9 +3,9 @@
 // work both in dev and in a same-origin production deploy.
 import { writable } from 'svelte/store';
 
-// Flips true when any data call returns 401 (the server-side password gate);
-// the layout overlays the unlock screen. Login responses don't count — a wrong
-// password is a failed unlock, not a new lock.
+// Flips true when any data call returns 401 (the server-side sign-in gate);
+// the layout overlays the sign-in screen. /auth/* calls don't count — a failed
+// sign-out or profile read isn't a new lock.
 export const locked = writable(false);
 
 function check401(r, path) {
@@ -86,7 +86,6 @@ export const api = {
   deleteTrade: (id) => del('/trades/' + id),
   editTransaction: (id, body) => patch('/transactions/' + id, body),
   deleteTransaction: (id) => del('/transactions/' + id),
-  login: (password) => post('/auth/login', { password }),
   me: () => get('/auth/me'),
   logout: () => post('/auth/logout', {}),
   reconciliation: () => get('/account/reconciliation'),

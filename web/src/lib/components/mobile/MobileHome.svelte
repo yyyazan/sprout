@@ -92,7 +92,7 @@
   </div>
 
   <div class="chart-widget">
-    <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested}
+    <PortfolioChart equity={d.equity_curve} spy={d.spy_curve} twr={d.twr} netInvested={d.net_invested} flows={d.cash_flows}
       onwindow={(w) => (win = w)} />
   </div>
 
