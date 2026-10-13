@@ -16,6 +16,7 @@
   import RingGauge from './RingGauge.svelte';
   import TickerBadge from './TickerBadge.svelte';
   import { mockStock, fmtCap, fmtVol } from '$lib/mockStock.js';
+  import { api } from '$lib/api.js';
   import { cachedStock, cachedRelated, prefetch } from '$lib/stockCache.js';
   import { holdings, kinds, noteKinds, openStock, cardToHolding } from '$lib/stores.js';
   import ListPicker from './ListPicker.svelte';
@@ -90,6 +91,29 @@
     }).catch(() => { if (!cancelled) related = []; });
     return () => { cancelled = true; };
   });
+
+  // market session + the pre/after-hours quote ride their own fetch too (the server
+  // caches it a minute; the poll keeps an open view honest). `sess` stays null until
+  // it lands, and the quote line's time label waits for it so it never flips "today"
+  // → "at close" under the eye. A failed fetch reads as "no session info".
+  let sess = $state(null);
+  $effect(() => {
+    const t = ticker;
+    sess = null;
+    if (!t) return;
+    let cancelled = false;
+    const load = () => api.session(t)
+      .then((r) => { if (!cancelled && r?.ticker === t.toUpperCase()) sess = r; })
+      .catch(() => { if (!cancelled && !sess) sess = { session: null, ext: null }; });
+    load();
+    const timer = setInterval(() => { if (!document.hidden) load(); }, 60_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  });
+  // the day move is "today" while the market trades, the last session's otherwise
+  const dayLabel = $derived(!sess ? '' : sess.session && sess.session !== 'regular' ? 'at close' : 'today');
+  const extDir = $derived((sess?.ext?.pct ?? 0) >= 0 ? 'up' : 'down');
+  const pct2 = (n) => (n == null ? '—' : (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(2) + '%');
+  const clock = (at) => new Date(at * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
   function openRelated(r) {
     const card = ($holdings ?? []).find((c) => c.ticker === r.ticker);
@@ -223,6 +247,13 @@
   <section class="w w-head">
     <div class="hw-top">
       <span class="hw-crumb"><TickerBadge sym={ticker} size="md" />{#if statsKnown}{#if isFund}<span class="hw-kind">{kindLabel}</span>{#if fund?.category}<span class="hw-sector">{sentence(fund.category)}</span>{/if}{:else if stock.sector && stock.sector !== '—'}<span class="hw-sector">{stock.sector}</span>{/if}{:else}<span class="skel skel-t" style="width:76px"></span>{/if}</span>
+      <!-- the extended-hours quote sits up here, not on the quote line: that line is already
+           as wide as the lifetime block beside it allows, and one more token wraps it -->
+      {#if sess?.ext}
+        <span class="hw-ext" title="As of {clock(sess.ext.at)}">
+          <span class="hw-tf">{sess.ext.label}</span><span>${f(sess.ext.price)}</span><span class="pct-pill {extDir}">{pct2(sess.ext.pct)}</span>
+        </span>
+      {/if}
       {#if showClose}
         <button class="btn btn-sm btn-quiet hw-back" onclick={() => onClose?.()}>
           <span aria-hidden="true">{glyph === '←' ? '←' : '✕'}</span>
@@ -237,7 +268,7 @@
           {#if quoteKnown}
             <span class="hw-px">${f(stock.price)}</span>
             <span class="hw-day {stock.dayPct >= 0 ? 'up' : 'down'}">
-              {#if dayAbs != null}<span>{usdS(dayAbs)}</span>{/if}<span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span><span class="hw-tf">today</span>
+              {#if dayAbs != null}<span>{usdS(dayAbs)}</span>{/if}<span class="pct-pill {stock.dayPct >= 0 ? 'up' : 'down'}">{pctS(stock.dayPct)}</span><span class="hw-tf">{dayLabel}</span>
             </span>
           {:else}
             <span class="skel sk-px"></span><span class="skel skel-t" style="width:120px"></span>
@@ -518,7 +549,7 @@
     justify-content: space-between; gap: 10px; padding: 12px 16px 14px; }
   .hw-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .hw-back span { font-size: 15px; line-height: 1; }
-  .hw-crumb { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
+  .hw-crumb { min-width: 0; display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-body); font-weight: 500; color: var(--muted); }
   .hw-sector { white-space: nowrap; }
   .hw-kind { white-space: nowrap; color: var(--ink); }
   .hw-watch { align-self: flex-end; }
@@ -529,6 +560,8 @@
     font-variant-numeric: tabular-nums; line-height: 1; }
   .hw-day { display: inline-flex; align-items: center; gap: 6px; font-family: var(--num); font-size: 13px;
     font-weight: 500; font-variant-numeric: tabular-nums; }
+  .hw-ext { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; white-space: nowrap; font-family: var(--num);
+    font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
   .hw-tf { font-family: var(--sans); font-size: var(--fs-meta); font-weight: 500; color: var(--muted); }
   /* position row: abbreviated labels (sh/avg/val/wt) + a modest gap trim let the
      five stats fit on ONE line at the narrow stage width, so the holdings header

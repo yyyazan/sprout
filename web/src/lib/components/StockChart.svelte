@@ -303,6 +303,11 @@
   $effect(() => {
     if (!chart) return;
     const list = compares, dataMap = cmpData;
+    // a compared ticker arrives as its full history; plot only the span the main
+    // series shows (same range, same pan), or one long line squeezes the window flat
+    const win = data.real ? data.area : [];
+    const from = win[0]?.time, to = win[win.length - 1]?.time;
+    const inWindow = (pts) => (from == null ? pts : pts.filter((p) => p.time >= from && p.time <= to));
     for (const [sym, s] of [...cmpSeriesMap]) {
       if (!list.some((c) => c.sym === sym)) { chart.removeSeries(s); cmpSeriesMap.delete(sym); }
     }
@@ -313,7 +318,7 @@
           crosshairMarkerVisible: false,
         }));
       }
-      cmpSeriesMap.get(c.sym).setData(dataMap[c.sym] ?? []);
+      cmpSeriesMap.get(c.sym).setData(inWindow(dataMap[c.sym] ?? []));
     }
     // % mode rebases every series to the window start so overlays are comparable
     chart.priceScale('right').applyOptions({ mode: list.length ? PriceScaleMode.Percentage : PriceScaleMode.Normal });

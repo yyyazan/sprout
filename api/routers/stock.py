@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, time as dtime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import yfinance as yf
 from fastapi import APIRouter, Depends, Query
@@ -304,7 +305,7 @@ def _earnings_date(info: dict) -> str | None:
 
 
 _EARNINGS_TTL = 1800.0  # rides _info's cache anyway; this skips the loop
-_earnings_cache: tuple[float, dict] | None = None
+_earnings_cache: dict[int, tuple[float, dict]] = {}  # per user: it's THEIR holdings
 
 
 @router.get("/earnings")
@@ -313,27 +314,29 @@ def earnings(user_id: int = Depends(current_user_id)):
     earnings widget. Soonest scheduled dates first (today counts as upcoming);
     holdings whose next date isn't published yet fall back to their most
     recent report, flagged `past` so the UI can grey them out. Capped at 6."""
-    global _earnings_cache
     now = time.time()
-    if _earnings_cache is not None and now - _earnings_cache[0] < _EARNINGS_TTL:
-        return _earnings_cache[1]
+    hit = _earnings_cache.get(user_id)
+    if hit is not None and now - hit[0] < _EARNINGS_TTL:
+        return hit[1]
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    rows: list[dict] = []
-    for c in state.get_snapshot(user_id).cards:
-        if c.get("is_joker"):
-            continue
-        t = str(c.get("ticker") or "").upper()
-        if not t:
-            continue
-        d = _earnings_date(_info(t))
-        if d:
-            rows.append({"ticker": t, "name": c.get("company_name") or t, "date": d, "past": d < today})
+    held = [
+        (str(c.get("ticker") or "").upper(), c.get("company_name"))
+        for c in state.get_snapshot(user_id).cards
+        if not c.get("is_joker") and c.get("ticker")
+    ]
+    # one cold .info per holding is slow; fan out like the rest of the pipeline
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        dates = list(pool.map(lambda h: _earnings_date(_info(h[0])), held))
+    rows = [
+        {"ticker": t, "name": name or t, "date": d, "past": d < today}
+        for (t, name), d in zip(held, dates) if d
+    ]
 
     upcoming = sorted((r for r in rows if not r["past"]), key=lambda r: r["date"])
     past = sorted((r for r in rows if r["past"]), key=lambda r: r["date"], reverse=True)
     payload = {"items": (upcoming + past)[:6]}
-    _earnings_cache = (now, payload)
+    _earnings_cache[user_id] = (now, payload)
     return payload
 
 
@@ -399,6 +402,114 @@ def stock(ticker: str, user_id: int = Depends(current_user_id)):
         "news": _news(ticker),
         "history": history,
         "lifetime": lifetime,
+    }
+
+
+_ET = ZoneInfo("America/New_York")
+_OPEN, _CLOSE = dtime(9, 30), dtime(16, 0)
+_PRE_START, _POST_END = dtime(4, 0), dtime(20, 0)
+_STALE_BAR = timedelta(minutes=20)   # a "regular" session with no bar this fresh is a holiday or a halt
+
+_SESSION_TTL = 60.0
+_session_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _session_at(now: datetime) -> str:
+    """US equity session from the Eastern clock: pre 4:00-9:30, regular 9:30-16:00,
+    post 16:00-20:00, closed otherwise. Holidays aren't in the table; `_session`
+    catches them from the bars."""
+    et = now.astimezone(_ET)
+    if et.weekday() >= 5:
+        return "closed"
+    t = et.time()
+    if _OPEN <= t < _CLOSE:
+        return "regular"
+    if _PRE_START <= t < _OPEN:
+        return "pre"
+    if _CLOSE <= t < _POST_END:
+        return "post"
+    return "closed"
+
+
+def _extended(closes, now: datetime) -> dict | None:
+    """The pre/after-hours quote from 1-minute bars: the last bar when it sits
+    outside regular hours and after the most recent regular close. `pct` is vs
+    that close. None when the latest bar IS regular-session (or there are none)."""
+    if closes is None or len(closes) == 0:
+        return None
+    idx = closes.index.tz_convert(_ET)
+    tod = [ts.time() for ts in idx]
+    regular = [i for i, t in enumerate(tod) if _OPEN <= t < _CLOSE]
+    last = len(closes) - 1
+    if not regular or regular[-1] >= last:
+        return None
+    ref = float(closes.iloc[regular[-1]])
+    price = float(closes.iloc[last])
+    if not ref:
+        return None
+    return {
+        "label": "After hours" if tod[last] >= _CLOSE else "Pre-market",
+        "price": _py(round(price, 2)),
+        "pct": _py(round((price / ref - 1) * 100, 2)),
+        "at": int(closes.index[last].timestamp()),
+    }
+
+
+@router.get("/stock/{ticker}/session")
+def session(ticker: str):
+    """Which US session the market is in and the extended-hours quote, for the
+    stock view's quote line. `session` is None for anything that isn't a US-hours
+    market (crypto trades around the clock, foreign listings keep their own clock)."""
+    ticker = ticker.upper()
+    now = datetime.now(timezone.utc)
+    hit = _session_cache.get(ticker)
+    if hit is not None and time.time() - hit[0] < _SESSION_TTL:
+        return hit[1]
+
+    out: dict = {"ticker": ticker, "session": None, "ext": None}
+    info = _info(ticker)
+    if info.get("exchangeTimezoneName") == "America/New_York" and info.get("quoteType") != "CRYPTOCURRENCY":
+        sess = _session_at(now)
+        ext, last_bar = None, None
+        try:
+            df = yf.Ticker(prices_mod.yf_symbol(ticker)).history(period="5d", interval="1m", prepost=True)
+            closes = df["Close"].dropna() if df is not None and not df.empty else None
+            if closes is not None and len(closes):
+                last_bar = closes.index[-1].to_pydatetime()
+                ext = _extended(closes, now)
+        except Exception:
+            pass
+        if sess == "regular" and last_bar is not None and now - last_bar > _STALE_BAR:
+            sess = "closed"
+        out.update(session=sess, ext=ext if sess != "regular" else None)
+
+    _session_cache[ticker] = (time.time(), out)
+    return out
+
+
+@router.get("/fees")
+def fees(user_id: int = Depends(current_user_id)):
+    """What the funds held cost a year: each fund's expense ratio times its market
+    value. `annual` is None when no held fund has a published ratio (so the card
+    shows nothing rather than a $0); `pct` is the blended ratio over the funds
+    that do. Ratios ride `_fund`'s 6h cache, shared with the stock view."""
+    funds = [
+        (str(c["ticker"]).upper(), float(c.get("market_value") or 0))
+        for c in state.get_snapshot(user_id).cards
+        if not c.get("is_joker") and c.get("kind", STOCK) != STOCK and c.get("ticker")
+    ]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        ratios = list(pool.map(lambda f: _fund(f[0], _info(f[0]))["expense"], funds))
+    costed = [(t, v, r) for (t, v), r in zip(funds, ratios) if r is not None and v > 0]
+    if not costed:
+        return {"annual": None, "pct": None, "items": []}
+    value = sum(v for _, v, _ in costed)
+    annual = sum(v * r for _, v, r in costed)
+    return {
+        "annual": _py(round(annual, 2)),
+        "pct": _py(round(annual / value * 100, 3)) if value else None,
+        "items": [{"ticker": t, "value": _py(round(v, 2)), "expense": _py(r), "annual": _py(round(v * r, 2))}
+                  for t, v, r in sorted(costed, key=lambda x: -x[1] * x[2])],
     }
 
 

@@ -65,6 +65,8 @@ export const api = {
   stock: (t) => get('/stock/' + encodeURIComponent(t)),
   intraday: (t, range) => get('/stock/' + encodeURIComponent(t) + '/intraday?range=' + encodeURIComponent(range)),
   related: (t) => get('/stock/' + encodeURIComponent(t) + '/related'),
+  session: (t) => get('/stock/' + encodeURIComponent(t) + '/session'),
+  fees: () => get('/fees'),
   market: () => get('/market'),
   earnings: () => get('/earnings'),
   lists: () => get('/lists'),
