@@ -12,7 +12,7 @@
   import TradeTicket from '$lib/components/TradeTicket.svelte';
   import GardenView from '$lib/components/GardenView.svelte';
   import MobileDashboard from '$lib/components/mobile/MobileDashboard.svelte';
-  import { primeHoldings, moves, portfolioDayMove, allTimeReturn } from '$lib/stores.js';
+  import { primeHoldings, loadTrades, moves, portfolioDayMove, allTimeReturn } from '$lib/stores.js';
   import { isMobile } from '$lib/isMobile.js';
   import { SHOW_GARDEN } from '$lib/config.js';
 
@@ -37,6 +37,7 @@
     try {
       d = await api.dashboard();
       primeHoldings(d.cards);          // share holdings with the sidebar rail
+      loadTrades(true);                // trades made elsewhere (phone) reach the trade tile too
       lastFetch = Date.now();
     } catch (e) {
       error = String(e);

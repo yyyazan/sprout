@@ -32,7 +32,8 @@
       error = String(e);
     }
   }
-  onMount(load);
+  // force: the store may hold a list fetched long ago in this tab
+  onMount(() => load(true));
   const onSaved = () => load(true);
 </script>
 

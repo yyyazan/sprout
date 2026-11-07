@@ -149,6 +149,10 @@ def run(
         if q["price"] is not None
     }
 
+    # today's bar from the live quote, so the charts run through today mid-session
+    # (closed tickers hold no shares today — their history needs no live bar)
+    all_history.update(prices_mod.live_histories(open_tickers, all_history))
+
     # ── 6. Cost basis + unrealized P&L ──────────────────────────────────────
     cost_basis = cb_mod.weighted_avg_cost(trades_adj, open_tickers)
     pnl = cb_mod.unrealized_pnl(open_pos, cost_basis, spot_prices)
@@ -170,7 +174,9 @@ def run(
     if flow_start is None:
         flow_start = pd.Timestamp.today().normalize() - pd.Timedelta(days=30)
     first_flow = flow_start - pd.Timedelta(days=7)
-    bench_history = {b: prices_mod.history_from(b, first_flow) for b in benchmarks}
+    bench_history = prices_mod.live_histories(
+        list(benchmarks), {b: prices_mod.history_from(b, first_flow) for b in benchmarks}
+    )
     trading_days = bench_history[benchmarks[0]].index
     daily = ts_mod.daily_calendar(trades_raw, txn, trading_days)
     bench_prices = {b: bench_history[b].reindex(trading_days, method="ffill") for b in benchmarks}

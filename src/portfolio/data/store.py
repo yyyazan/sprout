@@ -19,8 +19,9 @@ import logging
 import os
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, time as dtime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import duckdb
 import pandas as pd
@@ -108,8 +109,25 @@ def _replace_atomically(path: Path, write) -> None:
         tmp.unlink(missing_ok=True)
 
 
+_ET = ZoneInfo("America/New_York")
+# Yahoo finalizes the daily bar a few minutes after the 16:00 bell.
+_SETTLED = dtime(16, 15)
+
+
+def last_close(now: datetime | None = None) -> datetime:
+    """Most recent weekday 16:15 ET at or before `now` (UTC-aware). Holidays aren't
+    modelled: on one, a cache fetched before 16:15 refetches once and gets nothing new."""
+    et = (now or datetime.now(timezone.utc)).astimezone(_ET)
+    day = et.date() if et.time() >= _SETTLED else et.date() - timedelta(days=1)
+    while day.weekday() >= 5:
+        day -= timedelta(days=1)
+    return datetime.combine(day, _SETTLED, tzinfo=_ET).astimezone(timezone.utc)
+
+
 def is_fresh(ticker: str, kind: str) -> bool:
-    """True if a cache entry exists and is younger than its TTL."""
+    """True if a cache entry exists and is younger than its TTL. Daily history is
+    also stale once a market close has settled since it was fetched, so the new
+    bar lands that evening rather than up to 24h later."""
     with _meta_lock:
         row = db_mod.get_cache_meta(_conn(), ticker, kind)
     if row is None:
@@ -121,6 +139,8 @@ def is_fresh(ticker: str, kind: str) -> bool:
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
     age = (datetime.now(timezone.utc) - ts).total_seconds()
+    if kind == "history" and ts < last_close():
+        return False
     return age < TTL.get(kind, 0)
 
 

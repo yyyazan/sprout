@@ -206,7 +206,8 @@
   });
 
   // ── my buy/sell fills for this ticker ──
-  onMount(() => loadTrades());
+  // force: fills made elsewhere (phone) since this tab first loaded trades
+  onMount(() => loadTrades(true));
   const myTrades = $derived(
     ($tradesStore ?? []).filter((t) => (t.ticker || '').toUpperCase() === (ticker || '').toUpperCase())
   );

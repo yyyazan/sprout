@@ -19,7 +19,8 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, time as dtime, timezone
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
@@ -44,13 +45,15 @@ _DIVIDENDS_CACHE: dict[str, tuple[float, pd.Series]] = {}
 
 def _l1_get(cache: dict, ticker: str, kind: str):
     hit = cache.get(ticker)
-    if hit is not None and time.monotonic() - hit[0] < store.TTL[kind]:
-        return hit[1]
-    return None
+    if hit is None or time.time() - hit[0] >= store.TTL[kind]:
+        return None
+    if kind == "history" and hit[0] < store.last_close().timestamp():
+        return None
+    return hit[1]
 
 
 def _l1_set(cache: dict, ticker: str, value) -> None:
-    cache[ticker] = (time.monotonic(), value)
+    cache[ticker] = (time.time(), value)
 
 
 # Ticker renames: a holding keeps its original symbol everywhere (trades, display, and
@@ -104,6 +107,40 @@ def history(ticker: str) -> pd.Series:
     store.write_history(ticker, series)
     _l1_set(_HISTORY_CACHE, ticker, series)
     return series
+
+
+_ET = ZoneInfo("America/New_York")
+_OPEN = dtime(9, 30)
+
+
+def with_live(series: pd.Series, price: float | None, now: datetime | None = None) -> pd.Series:
+    """`series` with today's bar set to the live price while a US session is under way.
+
+    Cached history ends at the last settled close (yfinance's in-progress bar is
+    dropped), so charts would otherwise stop at yesterday. Before the open and on
+    weekends there's no today bar. A holiday shows up as a live price equal to the
+    last close, and gets no bar either. Any partial bar for today is replaced.
+    """
+    if price is None or series is None or series.empty:
+        return series
+    et = (now or datetime.now(timezone.utc)).astimezone(_ET)
+    if et.weekday() >= 5 or et.time() < _OPEN:
+        return series
+    today = pd.Timestamp(et.date())
+    prior = series[series.index.normalize() < today]
+    if prior.empty or float(prior.iloc[-1]) == float(price):
+        return series
+    out = prior.copy()
+    out.loc[today] = float(price)
+    return out
+
+
+def live_histories(tickers: list[str], hist: dict[str, pd.Series] | None = None) -> dict[str, pd.Series]:
+    """Histories with today's live bar on each (see `with_live`). Pass `hist` to
+    overlay series already loaded; quotes come from the shared 30s quote cache."""
+    hist = hist if hist is not None else histories(tickers)
+    q = quotes(list(tickers))
+    return {t: with_live(hist[t], q[t]["price"]) for t in tickers}
 
 
 def _parallel(fn, keys: list[str]) -> dict:

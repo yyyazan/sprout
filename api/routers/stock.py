@@ -358,7 +358,7 @@ def stock(ticker: str, user_id: int = Depends(current_user_id)):
     # real split-adjusted daily closes (already cached by the prices module)
     history = []
     try:
-        hist = prices_mod.history(ticker)
+        hist = prices_mod.live_histories([ticker])[ticker]
         for d, v in hist.tail(1300).items():
             if v is None:
                 continue
