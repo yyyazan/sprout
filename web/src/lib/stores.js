@@ -132,7 +132,7 @@ export function loadTrades(force = false) {
 }
 
 // Sidebar lists: [{ id, name, items: [{ ticker, name, price, dayPct, weekPct,
-// monthPct, spark }] }] | null = not loaded. Shared by the sidebar, the stock
+// monthPct, spark, sparkD }] }] | null = not loaded. Shared by the sidebar, the stock
 // view's list picker and the phone Holdings pane.
 export const lists = writable(null);
 let lsInflight = null;
@@ -191,7 +191,7 @@ export function rowFor(ticker) {
   return {
     ticker, name: c?.company_name ?? ticker, price: m?.spot ?? c?.current_price ?? null,
     dayPct: m?.day_pct ?? c?.day_pct ?? null, weekPct: m?.week_pct ?? c?.week_pct ?? null,
-    monthPct: m?.month_pct ?? null, spark: m?.spark ?? [],
+    monthPct: m?.month_pct ?? null, spark: m?.spark ?? [], sparkD: m?.spark_d ?? [],
   };
 }
 

@@ -132,6 +132,25 @@ _MOM_TTL_SECONDS = 45.0
 _mom_cache: dict = {"ts": 0.0, "key": None, "data": None}
 
 
+def month_spark(hist, spot: float | None) -> list[float]:
+    """Last 21 completed closes + spot. Today's bar (in the history once the close
+    settles) is left out so spot isn't counted twice, which keeps the client's
+    W slice (last 5 + spot) starting at the close the week % is measured from."""
+    closes = []
+    if hist is not None:
+        h = hist.dropna()
+        closes = h[h.index.normalize() < pd.Timestamp.today().normalize()].tail(21).tolist()
+    return [round(float(v), 2) for v in closes] + ([round(float(spot), 2)] if spot is not None else [])
+
+
+def _day_spark(bars: list[float] | None, prev_close: float | None) -> list[float]:
+    """Prior close + the session's intraday closes, so the line starts where the
+    day's % move is measured from. [] without intraday bars (client falls back)."""
+    if not bars:
+        return []
+    return ([round(float(prev_close), 2)] if prev_close else []) + bars
+
+
 def momentum_payload(s: PortfolioSnapshot) -> dict:
     """Fresh per-holding intraday momentum (spot vs prior-session close).
 
@@ -146,6 +165,7 @@ def momentum_payload(s: PortfolioSnapshot) -> dict:
         return _mom_cache["data"]
 
     quotes = prices_mod.quotes(tickers, max_age=0.0)  # force fresh quotes this cycle
+    intraday = prices_mod.intraday_sparks(tickers)
     moves: dict = {}
     for t in tickers:
         hist = prices_mod.history(t)
@@ -153,15 +173,15 @@ def momentum_payload(s: PortfolioSnapshot) -> dict:
         day = _spot_move(hist, spot, 1)
         week = _spot_move(hist, spot, 5)
         month = _spot_move(hist, spot, 21)
-        # last 21 completed closes + spot: the month sparkline on the phone home
-        closes = hist.dropna().tail(21).tolist() if hist is not None else []
-        spark = [round(float(v), 2) for v in closes] + ([round(float(spot), 2)] if spot is not None else [])
+        spark = month_spark(hist, spot)
         moves[t] = {
             "day_pct": round(day * 100, 2) if day is not None else None,
             "week_pct": round(week * 100, 2) if week is not None else None,
             "month_pct": round(month * 100, 2) if month is not None else None,
             "spot": round(float(spot), 2) if spot is not None else None,
             "spark": spark,
+            # the D pill's sparkline: last session's 15m closes, from the prior close
+            "spark_d": _day_spark(intraday.get(t), quotes[t]["prev_close"]),
         }
 
     data = {"as_of": now, "ttl": _MOM_TTL_SECONDS, "moves": moves}

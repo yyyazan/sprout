@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from portfolio.data import db as db_mod, prices as prices_mod
 from portfolio.analytics.cards import _spot_move
 from api.auth import current_user_id
-from api.serialize import _py
+from api.serialize import _day_spark, _py, month_spark
 
 router = APIRouter(prefix="/api", tags=["lists"])
 
@@ -32,14 +32,13 @@ def _pct(x: float | None):
     return _py(round(x * 100, 2)) if x is not None else None
 
 
-def _row(t: str, quote: dict, hist) -> dict:
+def _row(t: str, quote: dict, hist, intraday: list[float] | None = None) -> dict:
     try:
         name = prices_mod.profile(t).get("name") or t
     except Exception:
         name = t
     price, prev = quote["price"], quote["prev_close"]
-    closes = hist.dropna().tail(21).tolist() if hist is not None else []
-    spark = [round(float(v), 2) for v in closes] + ([round(float(price), 2)] if price is not None else [])
+    spark = month_spark(hist, price)
     return {
         "ticker": t,
         "name": name,
@@ -48,6 +47,7 @@ def _row(t: str, quote: dict, hist) -> dict:
         "weekPct": _pct(_spot_move(hist, price, 5)),
         "monthPct": _pct(_spot_move(hist, price, 21)),
         "spark": spark,
+        "sparkD": _day_spark(intraday, prev),
     }
 
 
@@ -56,7 +56,8 @@ def _payload(conn, user_id: int) -> list[dict]:
     tickers = sorted({t for L in lists for t in L["tickers"]})
     quotes = prices_mod.quotes(tickers, max_age=_QUOTE_TTL)
     hists = prices_mod.histories(tickers)
-    rows = {t: _row(t, quotes[t], hists.get(t)) for t in tickers}
+    intraday = prices_mod.intraday_sparks(tickers)
+    rows = {t: _row(t, quotes[t], hists.get(t), intraday.get(t)) for t in tickers}
     return [{"id": L["id"], "name": L["name"], "items": [rows[t] for t in L["tickers"]]} for L in lists]
 
 

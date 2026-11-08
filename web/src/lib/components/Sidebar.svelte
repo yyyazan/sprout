@@ -25,7 +25,17 @@
   onMount(() => { loadHoldings(); startMomentum(); loadLists(); });
 
   const WINS = [['day', 'D'], ['wk', 'W'], ['mo', 'M']];
-  let win = $state('mo');   // which move window the pills encode; the sparkline is always the past month
+  let win = $state('mo');   // which move window the pills and the sparklines encode
+
+  // `spark` is the last 21 closes + spot; W keeps the last 5 + spot, so it starts
+  // at the close the week % is measured from. D is the session's 15m bars from
+  // the prior close, else just prior close -> spot.
+  const sparkFor = (spark, sparkD, w) => {
+    const sp = spark ?? [];
+    if (w === 'wk') return sp.slice(-6);
+    if (w === 'day') return sparkD?.length >= 2 ? sparkD : sp.slice(-2);
+    return sp;
+  };
 
   // Holdings: heaviest first, never reorderable (stable, so live updates don't make rows jump)
   const rows = $derived(
@@ -208,7 +218,7 @@
               use:grab={{ kind: 'item', ticker: c.ticker, from: 'holdings' }}
               use:prefetch={c.ticker}
               onclick={() => openTicker(c.ticker, c.company_name)}>
-              {@render rowBody(c.ticker, [usd(c.market_value), wt(c.position_pct)], $moves[c.ticker]?.spark,
+              {@render rowBody(c.ticker, [usd(c.market_value), wt(c.position_pct)], sparkFor($moves[c.ticker]?.spark, $moves[c.ticker]?.spark_d, win),
                 $moves[c.ticker]?.spot ?? c.current_price, moveOf(c, win))}
             </button>
           {/each}
@@ -258,7 +268,7 @@
                     use:grab={{ kind: 'item', ticker: it.ticker, from: L.id, row: it }}
                     use:prefetch={it.ticker}
                     onclick={() => openTicker(it.ticker, it.name)}>
-                    {@render rowBody(it.ticker, [it.name], it.spark, it.price, itemMove(it, win))}
+                    {@render rowBody(it.ticker, [it.name], sparkFor(it.spark, it.sparkD, win), it.price, itemMove(it, win))}
                   </button>
                 {/if}
               </div>
@@ -293,7 +303,7 @@
   <div class="ghost" style="width:{drag.w}px;transform:translate({drag.x - drag.dx}px, {drag.y - drag.dy}px)" aria-hidden="true">
     {#if drag.kind === 'item'}
       <div class="row">
-        {@render rowBody(drag.ticker, [drag.row.name], drag.row.spark, drag.row.price, itemMove(drag.row, win))}
+        {@render rowBody(drag.ticker, [drag.row.name], sparkFor(drag.row.spark, drag.row.sparkD, win), drag.row.price, itemMove(drag.row, win))}
       </div>
     {:else}
       <div class="sec-head"><span class="sec-toggle"><span class="sec-name">{drag.label}</span></span></div>
@@ -380,7 +390,7 @@
   .row.src:active .r-sub { color: var(--muted); }
   .row.src:active .r-px { color: var(--ink); }
 
-  /* identity | month sparkline | figures — the sparkline column is fixed so
+  /* identity | sparkline | figures — the sparkline column is fixed so
      every row's line sits on the same axis; the figures column right-aligns */
   .row { display: grid; grid-template-columns: minmax(0, 1fr) 56px auto; align-items: center; gap: 8px; }
   .r-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

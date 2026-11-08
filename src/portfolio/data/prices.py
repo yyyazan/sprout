@@ -353,3 +353,42 @@ def profile(ticker: str) -> dict:
     store.write_profile(ticker, prof)
     _l1_set(_PROFILE_CACHE, ticker, prof)
     return prof
+
+
+# Intraday sparklines: the last session's 15-minute closes for many tickers in
+# one batched yf.download. Cached briefly — it's a 56px rail strip.
+_INTRADAY_TTL = 120.0
+_intraday_cache: dict[str, tuple[float, list[float]]] = {}
+
+
+def intraday_sparks(tickers: list[str]) -> dict[str, list[float]]:
+    """Latest session's 15m closes per ticker ([] when Yahoo has none)."""
+    now = time.time()
+    out: dict[str, list[float]] = {}
+    misses = []
+    for t in tickers:
+        hit = _intraday_cache.get(t)
+        if hit is not None and now - hit[0] < _INTRADAY_TTL:
+            out[t] = hit[1]
+        else:
+            misses.append(t)
+    if misses:
+        sym_of = {t: yf_symbol(t) for t in misses}
+        try:
+            df = yf.download(
+                list(dict.fromkeys(sym_of.values())), period="1d", interval="15m",
+                progress=False, threads=True, auto_adjust=True,
+            )
+            closes = df["Close"] if df is not None and not df.empty else None
+        except Exception:
+            closes = None
+        for t, sym in sym_of.items():
+            vals: list[float] = []
+            if closes is not None:
+                col = closes[sym] if isinstance(closes, pd.DataFrame) and sym in closes else (
+                    closes if isinstance(closes, pd.Series) else None)
+                if col is not None:
+                    vals = [round(float(v), 2) for v in col.dropna()]
+            _intraday_cache[t] = (now, vals)
+            out[t] = vals
+    return out
