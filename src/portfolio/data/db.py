@@ -15,6 +15,7 @@ change. Until real auth lands, everything uses the seeded default user
 """
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -66,6 +67,22 @@ CREATE TABLE IF NOT EXISTS cash_reconciliation (
     offset_usd    REAL NOT NULL DEFAULT 0.0,
     reconciled_at TEXT,
     note          TEXT
+);
+
+-- Plan page inputs: take-home pay and the projection's assumptions. Income is
+-- NULL until the user enters it (the page asks for it).
+CREATE TABLE IF NOT EXISTS plan_settings (
+    user_id        INTEGER PRIMARY KEY REFERENCES users(user_id),
+    income_monthly REAL,
+    return_pct     REAL NOT NULL DEFAULT 7.0,
+    raise_pct      REAL NOT NULL DEFAULT 1.0,
+    -- JSON [{"month": "YYYY-MM", "income": 6000.0}, ...]: take-home from that month on
+    income_steps   TEXT NOT NULL DEFAULT '[]',
+    -- high-yield savings: balance today, APY (before inflation), monthly deposit
+    hysa_balance   REAL NOT NULL DEFAULT 0,
+    hysa_apy       REAL NOT NULL DEFAULT 4.0,
+    hysa_monthly   REAL NOT NULL DEFAULT 0,
+    updated_at     TEXT
 );
 
 -- User-named ticker lists in the sidebar (replaced the single watchlist).
@@ -162,6 +179,22 @@ def _migrate_trades_price(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE trades ADD COLUMN price REAL")
 
 
+def _migrate_plan_settings(conn: sqlite3.Connection) -> None:
+    """Add the income-change and HYSA columns to plan_settings tables created
+    before them (the table shipped with just income, return and raise)."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(plan_settings)").fetchall()}
+    if not cols:
+        return
+    for name, decl in (
+        ("income_steps", "TEXT NOT NULL DEFAULT '[]'"),
+        ("hysa_balance", "REAL NOT NULL DEFAULT 0"),
+        ("hysa_apy", "REAL NOT NULL DEFAULT 4.0"),
+        ("hysa_monthly", "REAL NOT NULL DEFAULT 0"),
+    ):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE plan_settings ADD COLUMN {name} {decl}")
+
+
 def _migrate_users_oauth(conn: sqlite3.Connection) -> None:
     """Add the Google identity columns to users tables created before OAuth.
 
@@ -204,6 +237,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
     _migrate_trades_price(conn)
     _migrate_users_oauth(conn)
     _migrate_watchlist_to_lists(conn)
+    _migrate_plan_settings(conn)
     conn.commit()
 
 
@@ -326,6 +360,40 @@ def update_reconciliation(
         "ON CONFLICT(user_id) DO UPDATE SET offset_usd = excluded.offset_usd, "
         "reconciled_at = excluded.reconciled_at, note = excluded.note",
         (user_id, float(offset_usd), _now(), note),
+    )
+    conn.commit()
+
+
+# ── plan ─────────────────────────────────────────────────────────────────────
+
+PLAN_DEFAULTS = {
+    "income_monthly": None, "return_pct": 7.0, "raise_pct": 1.0, "income_steps": [],
+    "hysa_balance": 0.0, "hysa_apy": 4.0, "hysa_monthly": 0.0,
+}
+_PLAN_COLS = tuple(PLAN_DEFAULTS)
+
+
+def plan_settings(conn: sqlite3.Connection, user_id: int) -> dict:
+    row = conn.execute(
+        f"SELECT {', '.join(_PLAN_COLS)} FROM plan_settings WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    if row is None:
+        return {**PLAN_DEFAULTS, "income_steps": []}
+    out = dict(row)
+    out["income_steps"] = json.loads(out["income_steps"] or "[]")
+    return out
+
+
+def update_plan_settings(conn: sqlite3.Connection, user_id: int, settings: dict) -> None:
+    """Replace the user's plan inputs. `settings` carries every PLAN_DEFAULTS key."""
+    vals = {**settings, "income_steps": json.dumps(settings["income_steps"])}
+    cols = ", ".join(_PLAN_COLS)
+    marks = ", ".join("?" for _ in _PLAN_COLS)
+    updates = ", ".join(f"{c} = excluded.{c}" for c in _PLAN_COLS)
+    conn.execute(
+        f"INSERT INTO plan_settings (user_id, {cols}, updated_at) VALUES (?, {marks}, ?) "
+        f"ON CONFLICT(user_id) DO UPDATE SET {updates}, updated_at = excluded.updated_at",
+        (user_id, *(vals[c] for c in _PLAN_COLS), _now()),
     )
     conn.commit()
 

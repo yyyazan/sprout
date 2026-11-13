@@ -289,7 +289,7 @@
       {#if d}
         <div class="dm-duo">
           <BalanceCard total={d.kpis.portfolio_value} equities={d.kpis.equities}
-            dayGain={dayMove.gain} dayPct={dayMove.pct} ret={allTime.ret} vsSpy={allTime.vsSpy} />
+            dayGain={dayMove.gain} dayPct={dayMove.pct} ret={allTime.ret} costBasis={d.kpis.cost_basis} />
           <PnlCard total={d.kpis.total_pnl} realized={d.kpis.realized_pnl} unrealized={d.kpis.unrealized_pnl} />
         </div>
         <CashGoalCard cash={d.kpis.cash} portfolioValue={d.kpis.portfolio_value}

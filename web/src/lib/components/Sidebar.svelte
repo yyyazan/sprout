@@ -18,6 +18,7 @@
   const NAV = [
     { label: 'Home', path: '/' },
     { label: 'Log', path: '/trades' },
+    { label: 'Plan', path: '/plan' },
   ];
   function isActive(pathname, path) {
     return path === '/' ? pathname === '/' : pathname.startsWith(path);

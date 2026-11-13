@@ -87,7 +87,7 @@
 <div class="mh-body" class:hidden={searching}>
   <div class="mh-kpis">
     <BalanceCard total={d.kpis.portfolio_value} equities={d.kpis.equities}
-      dayGain={dayMove.gain} dayPct={dayMove.pct} ret={allTime.ret} vsSpy={allTime.vsSpy} />
+      dayGain={dayMove.gain} dayPct={dayMove.pct} ret={allTime.ret} costBasis={d.kpis.cost_basis} />
     <PnlCard total={d.kpis.total_pnl} realized={d.kpis.realized_pnl} unrealized={d.kpis.unrealized_pnl} />
   </div>
 

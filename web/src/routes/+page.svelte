@@ -119,7 +119,7 @@
         <div class="rail-duo">
           {#if d}
             <BalanceCard total={d.kpis.portfolio_value} equities={d.kpis.equities}
-              dayGain={dayMove.gain} dayPct={dayMove.pct} ret={allTime.ret} vsSpy={allTime.vsSpy} />
+              dayGain={dayMove.gain} dayPct={dayMove.pct} ret={allTime.ret} costBasis={d.kpis.cost_basis} />
             <PnlCard total={d.kpis.total_pnl} realized={d.kpis.realized_pnl} unrealized={d.kpis.unrealized_pnl} />
           {:else}
             {#each [0, 1] as i (i)}{@render kpiSkel()}{/each}

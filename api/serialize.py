@@ -83,6 +83,10 @@ def dashboard_payload(s: PortfolioSnapshot, period: str, name: str | None = None
     equities = float(s.pnl["market_value"].sum())
     portfolio_value = equities + float(s.free_cash)
     unrealized_pnl = float(s.pnl["unrealized_pnl"].sum())
+    # what the open holdings cost (FIFO lots still held) — only priced ones, so it
+    # lines up with Equities, which drops an unpriced holding the same way
+    priced = s.pnl["market_value"].notna()
+    cost_basis = float(s.pnl.loc[priced, "total_invested"].sum())
     realized_pnl = float(s.realized_summary.sum())
     total_pnl = unrealized_pnl + realized_pnl
 
@@ -92,6 +96,7 @@ def dashboard_payload(s: PortfolioSnapshot, period: str, name: str | None = None
         "kpis": {
             "cash": _py(s.free_cash),
             "equities": _py(equities),
+            "cost_basis": _py(cost_basis),
             "portfolio_value": _py(portfolio_value),
             "total_pnl": _py(total_pnl),
             "realized_pnl": _py(realized_pnl),

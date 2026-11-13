@@ -90,6 +90,8 @@ export const api = {
   deleteTransaction: (id) => del('/transactions/' + id),
   me: () => get('/auth/me'),
   logout: () => post('/auth/logout', {}),
+  plan: () => get('/plan'),
+  setPlan: (body) => put('/plan', body),
   reconciliation: () => get('/account/reconciliation'),
   setReconciliation: (body) => patch('/account/reconciliation', body)
 };

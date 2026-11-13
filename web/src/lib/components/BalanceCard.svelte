@@ -1,16 +1,16 @@
 <script>
   import { formatValue } from '$lib/format.js';
   // Portfolio Value snapshot: the Total + today's change, broken down to its
-  // invested portion (Equities at live spot) and the all-time time-weighted
-  // return vs SPY. Cash — the remainder — has its own goal card, so it isn't
-  // repeated here.
+  // invested portion (Equities at live spot), the all-time time-weighted return,
+  // and what those holdings cost. Cash — the remainder — has its own goal card,
+  // so it isn't repeated here. (The gap to SPY lives in the chart's readout.)
   // dayGain/dayPct = today's aggregate intraday change (computed by the parent
   // from live holdings; see portfolioDayMove in stores.js).
-  // ret/vsSpy = all-time TWR % and the gap to SPY in pp (allTimeReturn in stores.js).
-  let { total, equities, size = 'mini', dayGain = null, dayPct = null, ret = null, vsSpy = null } = $props();
+  // ret = all-time TWR % (allTimeReturn in stores.js).
+  // costBasis = what the open holdings cost (kpis.cost_basis).
+  let { total, equities, size = 'mini', dayGain = null, dayPct = null, ret = null, costBasis = null } = $props();
   // An account holding nothing has no move to report: a green +$0.00 reads as a
-  // win, and "vs SPY" would claim an empty portfolio is beating the market when
-  // it's really just SPY's own drift over the window.
+  // win.
   const flat = $derived(!total && !equities);
   // $derived, not a plain const: dayGain updates live from the momentum poll.
   const tone = $derived(flat || dayGain == null ? '' : dayGain >= 0 ? 'up' : 'down');
@@ -39,8 +39,9 @@
       <span class="bal-v {flat || ret == null ? '' : ret >= 0 ? 'up' : 'down'}">{flat ? '—' : sPct(ret) + '%'}</span>
     </div>
     <div class="bal-row">
-      <span class="bal-k">vs SPY</span>
-      <span class="bal-v {flat || vsSpy == null ? '' : vsSpy >= 0 ? 'up' : 'down'}">{flat ? '—' : sPct(vsSpy) + '%'}</span>
+      <span class="bal-k">Cost basis</span>
+      <!-- whole dollars: with cents it's ~6px wider than the rail allows at 1440 -->
+      <span class="bal-v">{flat || costBasis == null ? '—' : '$' + Math.round(costBasis).toLocaleString('en-US')}</span>
     </div>
   </div>
 </div>
